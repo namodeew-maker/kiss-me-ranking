@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = '/api';
 
 // --- Auth Guard ---
 const adminToken = sessionStorage.getItem('admin_token');
