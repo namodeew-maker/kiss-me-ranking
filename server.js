@@ -40,14 +40,15 @@ const upload = multer({
 });
 
 // PostgreSQL Connection
-const pool = new Pool({
-    user: process.env.DB_USER || 'postgres',
-    host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_NAME || 'lotto_project',
-    password: process.env.DB_PASSWORD || 'Dew5644534',
-    port: parseInt(process.env.DB_PORT, 10) || 5432,
-    ...(process.env.DATABASE_URL ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } } : {})
-});
+const pool = process.env.DATABASE_URL
+    ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+    : new Pool({
+        user: process.env.DB_USER || 'postgres',
+        host: process.env.DB_HOST || 'localhost',
+        database: process.env.DB_NAME || 'lotto_project',
+        password: process.env.DB_PASSWORD || 'Dew5644534',
+        port: parseInt(process.env.DB_PORT, 10) || 5432,
+    });
 
 app.use(cors());
 app.use(express.json());
