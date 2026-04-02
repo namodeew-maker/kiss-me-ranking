@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 สถานะการทายผล - Lotto Project</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .btn-back-main {
+            color: var(--neon-red);
+            text-decoration: none;
+            border: 1px solid var(--neon-red);
+            padding: 8px 18px;
+            border-radius: 5px;
+            transition: 0.3s;
+            font-family: 'Kanit', sans-serif;
+        }
+        .btn-back-main:hover {
+            background: var(--neon-red);
+            color: white;
+        }
+
+        .status-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .status-stat {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 18px;
+            text-align: center;
+        }
+        .status-stat .stat-num {
+            display: block;
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--neon-red);
+            font-family: 'Orbitron', monospace;
+        }
+        .status-stat .stat-lbl {
+            display: block;
+            font-size: 0.8rem;
+            color: #888;
+            margin-top: 4px;
+        }
+        .status-stat.stat-pending .stat-num { color: #ffcc00; }
+        .status-stat.stat-pending { border-color: rgba(255, 204, 0, 0.3); }
+        .status-stat.stat-approved .stat-num { color: #00ff88; }
+        .status-stat.stat-approved { border-color: rgba(0, 255, 136, 0.3); }
+
+        .status-table-wrapper {
+            overflow-x: auto;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .filter-btn {
+            padding: 6px 16px;
+            border: 1px solid #333;
+            background: transparent;
+            color: #aaa;
+            border-radius: 20px;
+            cursor: pointer;
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.85rem;
+            transition: 0.2s;
+        }
+        .filter-btn.active,
+        .filter-btn:hover {
+            border-color: var(--neon-red);
+            color: var(--neon-red);
+            background: rgba(255, 60, 60, 0.1);
+        }
+
+        .badge {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        .badge-pending { background: #332800; color: #ffcc00; }
+        .badge-approved { background: #003322; color: #00ff88; }
+        .badge-rejected { background: #330000; color: #ff4444; }
+        .badge-won { background: #003322; color: #00ff88; }
+        .badge-lost { background: #330000; color: #ff4444; }
+    </style>
+</head>
+<body class="futuristic-bg">
+    <div class="bg-particles" id="particles"></div>
+
+    <div class="container">
+        <header class="status-header">
+            <div class="logo-area">
+                <div class="logo-icon">📊</div>
+                <div>
+                    <h1>สถานะการทายผลปัจจุบัน</h1>
+                    <p class="subtitle">ตรวจสอบสถานะการทายเลขท้าย 2 ตัว</p>
+                </div>
+            </div>
+            <a href="index.html" class="btn-back-main">← กลับหน้าหลัก</a>
+        </header>
+
+        <section class="glass-panel" style="margin-top: 25px;">
+            <div class="status-stats">
+                <div class="status-stat">
+                    <span class="stat-num" id="stat-total">0</span>
+                    <span class="stat-lbl">ทั้งหมด</span>
+                </div>
+                <div class="status-stat stat-pending">
+                    <span class="stat-num" id="stat-pending">0</span>
+                    <span class="stat-lbl">รออนุมัติ</span>
+                </div>
+                <div class="status-stat stat-approved">
+                    <span class="stat-num" id="stat-approved">0</span>
+                    <span class="stat-lbl">อนุมัติแล้ว</span>
+                </div>
+                <div class="status-stat">
+                    <span class="stat-num" id="stat-decided">0</span>
+                    <span class="stat-lbl">ประกาศผลแล้ว</span>
+                </div>
+            </div>
+
+            <!-- Filter -->
+            <div class="filter-bar">
+                <button class="filter-btn active" data-filter="all">ทั้งหมด</button>
+                <button class="filter-btn" data-filter="pending">⏳ รออนุมัติ</button>
+                <button class="filter-btn" data-filter="approved">✅ อนุมัติแล้ว</button>
+                <button class="filter-btn" data-filter="rejected">❌ ไม่อนุมัติ</button>
+                <button class="filter-btn" data-filter="decided">🎯 ประกาศผลแล้ว</button>
+            </div>
+
+            <div class="status-table-wrapper">
+                <table class="participant-table" id="status-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>ชื่อ</th>
+                            <th>เลข</th>
+                            <th>วันที่</th>
+                            <th>สถานะ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="status-body">
+                    </tbody>
+                </table>
+            </div>
+            <div id="status-empty" class="empty-state" style="display:none;">
+                <div class="empty-icon">🔮</div>
+                <p>ตอนนี้ยังไม่มีผู้ทายผล</p>
+                <p class="empty-sub">เลือกเลขและกรอกข้อมูลที่หน้าหลักเพื่อเริ่มทาย!</p>
+            </div>
+        </section>
+    </div>
+
+    <script>
+    const API_BASE = 'http://localhost:3000/api';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        // Particles
+        const particlesContainer = document.getElementById('particles');
+        if (particlesContainer) {
+            for (let i = 0; i < 20; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                p.style.left = Math.random() * 100 + '%';
+                p.style.animationDuration = (8 + Math.random() * 12) + 's';
+                p.style.animationDelay = Math.random() * 10 + 's';
+                p.style.width = p.style.height = (1 + Math.random() * 2) + 'px';
+                particlesContainer.appendChild(p);
+            }
+        }
+
+        let allHistory = [];
+        let currentFilter = 'all';
+
+        async function loadData() {
+            try {
+                const res = await fetch(`${API_BASE}/history`);
+                allHistory = await res.json();
+            } catch {
+                allHistory = [];
+            }
+            updateCounts();
+            renderTable();
+        }
+
+        function getStatus(h) {
+            if (h.approved === 'pending') return { text: '⏳ รออนุมัติ', cls: 'badge-pending', group: 'pending' };
+            if (h.approved === 'rejected') return { text: '❌ ไม่อนุมัติ', cls: 'badge-rejected', group: 'rejected' };
+            if (h.won === true) return { text: '🎉 ถูกรางวัล!', cls: 'badge-won', group: 'decided' };
+            if (h.won === false) return { text: '❌ ไม่ถูก', cls: 'badge-lost', group: 'decided' };
+            return { text: '✅ อนุมัติแล้ว - รอผล', cls: 'badge-approved', group: 'approved' };
+        }
+
+        function updateCounts() {
+            let pending = 0, approved = 0, decided = 0;
+            allHistory.forEach(h => {
+                const s = getStatus(h);
+                if (s.group === 'pending') pending++;
+                else if (s.group === 'approved') approved++;
+                else if (s.group === 'decided') decided++;
+            });
+            document.getElementById('stat-total').textContent = allHistory.length;
+            document.getElementById('stat-pending').textContent = pending;
+            document.getElementById('stat-approved').textContent = approved;
+            document.getElementById('stat-decided').textContent = decided;
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('status-body');
+            const emptyDiv = document.getElementById('status-empty');
+
+            const filtered = currentFilter === 'all'
+                ? allHistory
+                : allHistory.filter(h => getStatus(h).group === currentFilter);
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                emptyDiv.style.display = '';
+                return;
+            }
+
+            emptyDiv.style.display = 'none';
+            tbody.innerHTML = filtered.map((h, i) => {
+                const s = getStatus(h);
+                const dateStr = new Date(h.date).toLocaleString('th-TH');
+                return `<tr>
+                    <td>${i + 1}</td>
+                    <td>${h.name}</td>
+                    <td>${h.number}</td>
+                    <td>${dateStr}</td>
+                    <td><span class="badge ${s.cls}">${s.text}</span></td>
+                </tr>`;
+            }).join('');
+        }
+
+        // Filter buttons
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelector('.filter-btn.active').classList.remove('active');
+                btn.classList.add('active');
+                currentFilter = btn.dataset.filter;
+                renderTable();
+            });
+        });
+
+        await loadData();
+
+        // Auto-refresh every 15 seconds
+        setInterval(loadData, 15000);
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - เข้าสู่ระบบผู้ตรวจสอบ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .login-wrapper {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-box {
+            max-width: 420px;
+            width: 100%;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .login-header {
+            text-align: center;
+            padding: 35px 30px 25px;
+            border-bottom: 1px solid rgba(255, 60, 60, 0.15);
+            background: linear-gradient(180deg, rgba(255, 60, 60, 0.06), transparent);
+        }
+
+        .login-header .lock-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            display: block;
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+
+        .login-header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            color: var(--neon-red);
+            margin: 0 0 6px;
+            letter-spacing: 2px;
+        }
+
+        .login-header p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin: 0;
+        }
+
+        .login-body {
+            padding: 30px;
+        }
+
+        .login-field {
+            margin-bottom: 20px;
+        }
+
+        .login-field label {
+            display: block;
+            color: var(--text-silver);
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .login-field input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: var(--text-silver);
+            font-size: 0.95rem;
+            font-family: 'Kanit', sans-serif;
+            transition: 0.3s;
+            box-sizing: border-box;
+        }
+
+        .login-field input:focus {
+            outline: none;
+            border-color: var(--neon-red);
+            box-shadow: 0 0 12px rgba(255, 60, 60, 0.15);
+        }
+
+        .login-field input::placeholder {
+            color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--neon-red), #cc2020);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 1rem;
+            font-family: 'Kanit', sans-serif;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+            letter-spacing: 1px;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 60, 60, 0.35);
+        }
+
+        .btn-login:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .login-error {
+            display: none;
+            margin-top: 16px;
+            padding: 12px;
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+            border-radius: 8px;
+            color: #ff6666;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+
+        .login-error.visible {
+            display: block;
+            animation: shake 0.4s ease;
+        }
+
+        .login-footer {
+            text-align: center;
+            padding: 0 30px 25px;
+        }
+
+        .login-footer a {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            text-decoration: none;
+            transition: 0.3s;
+        }
+
+        .login-footer a:hover {
+            color: var(--neon-cyan);
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(8px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+    </style>
+</head>
+<body class="futuristic-bg">
+    <div class="bg-particles" id="particles"></div>
+
+    <div class="login-wrapper">
+        <div class="login-box glass-panel">
+            <div class="login-header">
+                <span class="lock-icon">🔐</span>
+                <h1>ADMIN LOGIN</h1>
+                <p>ระบบตรวจสอบสิทธิ์ผู้ดูแล (Auditor)</p>
+            </div>
+
+            <form class="login-body" id="login-form">
+                <div class="login-field">
+                    <label for="username">👤 Username</label>
+                    <input type="text" id="username" placeholder="กรอกชื่อผู้ใช้" required autocomplete="username">
+                </div>
+                <div class="login-field">
+                    <label for="password">🔑 Password</label>
+                    <input type="password" id="password" placeholder="กรอกรหัสผ่าน" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn-login" id="btn-login">
+                    เข้าสู่ระบบ →
+                </button>
+                <div class="login-error" id="login-error"></div>
+            </form>
+
+            <div class="login-footer">
+                <a href="index.html">← กลับหน้าหลัก</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:3000/api';
+
+        // If already logged in, go to admin
+        (function checkExisting() {
+            const token = sessionStorage.getItem('admin_token');
+            if (token) {
+                fetch(`${API}/auth/verify`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }).then(r => {
+                    if (r.ok) window.location.href = 'admin.html';
+                });
+            }
+        })();
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btn-login');
+            const errBox = document.getElementById('login-error');
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+
+            btn.disabled = true;
+            btn.textContent = 'กำลังตรวจสอบ...';
+            errBox.classList.remove('visible');
+
+            try {
+                const res = await fetch(`${API}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    errBox.textContent = data.error || 'เข้าสู่ระบบไม่สำเร็จ';
+                    errBox.classList.add('visible');
+                    btn.disabled = false;
+                    btn.textContent = 'เข้าสู่ระบบ →';
+                    return;
+                }
+
+                sessionStorage.setItem('admin_token', data.token);
+                sessionStorage.setItem('admin_user', data.username);
+                window.location.href = 'admin.html';
+            } catch (err) {
+                errBox.textContent = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้';
+                errBox.classList.add('visible');
+                btn.disabled = false;
+                btn.textContent = 'เข้าสู่ระบบ →';
+            }
+        });
+    </script>
+</body>
+</html>

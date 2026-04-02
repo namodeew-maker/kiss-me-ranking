@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - ผู้ตรวจสอบสิทธิ์ (Auditor)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="admin.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body class="futuristic-bg">
+    <div class="container">
+        <header class="admin-header">
+            <div>
+                <h1>🕵️ Auditor Panel</h1>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0;">ผู้ตรวจสอบสิทธิ์: <strong style="color: var(--gold);">คุณบอย</strong></p>
+            </div>
+            <a href="index.html" class="btn-back">← กลับหน้าหลัก</a>
+            <button class="btn-back" id="btn-logout" style="margin-left: 10px; background: rgba(255,68,68,0.15); border-color: rgba(255,68,68,0.3); color: #ff6666; cursor: pointer;">🚪 ออกจากระบบ</button>
+        </header>
+
+        <div class="admin-grid">
+            <!-- Round Info -->
+            <section class="admin-panel round-info-panel" id="round-info-panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <h3 style="margin: 0; border: none; padding: 0;">📅 รอบปัจจุบัน</h3>
+                        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0;" id="admin-round-info">กำลังโหลด...</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">ออกรางวัล:</span>
+                        <span style="font-family: 'Orbitron', sans-serif; color: var(--gold); font-weight: 700;" id="admin-draw-date">-</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Auditor Workflow Reminder -->
+            <section class="admin-panel" style="border-color: rgba(0,240,255,0.15);">
+                <h3 style="color: var(--neon-cyan);">📋 ขั้นตอนการตรวจสอบ (Workflow)</h3>
+                <div class="audit-workflow">
+                    <div class="audit-wf-step">
+                        <span class="audit-wf-num">1</span>
+                        <div>
+                            <strong>ตรวจสอบหลักฐาน</strong>
+                            <p>ดูภาพแคปจาก Telegram → กด ✅ อนุมัติ / ❌ ไม่อนุมัติ</p>
+                        </div>
+                    </div>
+                    <div class="audit-wf-step">
+                        <span class="audit-wf-num">2</span>
+                        <div>
+                            <strong>แจ้งผลพนักงาน</strong>
+                            <p>ทักข้อความไปแจ้งน้องว่าสิทธิ์ได้รับอนุมัติหรือไม่</p>
+                        </div>
+                    </div>
+                    <div class="audit-wf-step">
+                        <span class="audit-wf-num">3</span>
+                        <div>
+                            <strong>แจ้งผลลูกค้า</strong>
+                            <p>ทักแจ้งลูกค้าว่ารีวิวได้รับการอนุมัติเข้าร่วมแคมเปญแล้ว</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Dashboard Summary -->
+            <section class="admin-panel summary-panel">
+                <h3>สรุปภาพรวม</h3>
+                <div class="stat-cards">
+                    <div class="stat-card">
+                        <span class="stat-number" id="total-users">0</span>
+                        <span class="stat-label">ผู้ทายทั้งหมด</span>
+                    </div>
+                    <div class="stat-card stat-card-warning">
+                        <span class="stat-number" id="pending-count">0</span>
+                        <span class="stat-label">รออนุมัติ</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number" id="sold-slots">0</span>
+                        <span class="stat-label">ช่องที่ถูกจองแล้ว</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number" id="available-slots">100</span>
+                        <span class="stat-label">ช่องว่าง</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Manage Sold Out Numbers -->
+            <section class="admin-panel">
+                <h3>จัดการเลขที่ปิดขาย (Sold Out)</h3>
+                <div class="sold-out-controls">
+                    <div class="input-row">
+                        <input type="text" id="sold-out-input" placeholder="กรอกเลข 00-99" maxlength="2" pattern="[0-9]{2}">
+                        <button class="btn-action btn-red" id="btn-add-soldout">+ เพิ่ม Sold Out</button>
+                        <button class="btn-action btn-green" id="btn-remove-soldout">- ปลด Sold Out</button>
+                    </div>
+                    <div class="sold-out-list" id="sold-out-list">
+                        <p class="empty-msg">ยังไม่มีเลขที่ปิดขาย</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Grant Permissions -->
+            <section class="admin-panel">
+                <h3>ให้สิทธิ์ผู้ใช้ทายผล</h3>
+                <form id="grant-form">
+                    <div class="input-row">
+                        <input type="text" id="grant-username" placeholder="ชื่อผู้ใช้" required>
+                        <select id="grant-slots">
+                            <option value="1">1 สิทธิ์</option>
+                            <option value="2">2 สิทธิ์</option>
+                            <option value="3" selected>3 สิทธิ์</option>
+                            <option value="5">5 สิทธิ์</option>
+                        </select>
+                        <button type="submit" class="btn-action btn-blue">ให้สิทธิ์</button>
+                    </div>
+                </form>
+                <table class="admin-table" id="permissions-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>ชื่อผู้ใช้</th>
+                            <th>สิทธิ์ที่ได้รับ</th>
+                            <th>ใช้ไปแล้ว</th>
+                            <th>สถานะ</th>
+                            <th>จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="permissions-body">
+                        <!-- Rows will be inserted by JS -->
+                    </tbody>
+                </table>
+                <p class="empty-msg" id="no-permissions">ยังไม่มีผู้ใช้ที่ได้รับสิทธิ์</p>
+            </section>
+
+            <!-- Approval Queue -->
+            <section class="admin-panel approval-panel">
+                <h3>📋 รายการรออนุมัติ</h3>
+                <table class="admin-table" id="approval-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>ชื่อผู้ใช้</th>
+                            <th>เลขที่ทาย</th>
+                            <th>รูปหลักฐาน</th>
+                            <th>วันที่ส่ง</th>
+                            <th>อนุมัติ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="approval-body">
+                    </tbody>
+                </table>
+                <p class="empty-msg" id="no-approval">ไม่มีรายการรออนุมัติ</p>
+            </section>
+
+            <!-- Submission History -->
+            <section class="admin-panel">
+                <h3>ประวัติการทายผล</h3>
+                <table class="admin-table" id="history-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>ชื่อผู้ใช้</th>
+                            <th>เลขที่ทาย</th>
+                            <th>รูปหลักฐาน</th>
+                            <th>วันที่</th>
+                            <th>สถานะ</th>
+                            <th>จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body">
+                        <!-- Rows will be inserted by JS -->
+                    </tbody>
+                </table>
+                <p class="empty-msg" id="no-history">ยังไม่มีประวัติการทายผล</p>
+            </section>
+
+            <!-- Guess Chart -->
+            <section class="admin-panel chart-panel">
+                <h3>📊 กราฟสถิติผู้ทายเลข</h3>
+                <div class="chart-date-range">
+                    <div class="chart-date-field">
+                        <label for="chart-start-date">เลือกวันที่เริ่ม</label>
+                        <input type="date" id="chart-start-date">
+                    </div>
+                    <div class="chart-date-field">
+                        <label for="chart-end-date">เลือกวันที่สิ้นสุด</label>
+                        <input type="date" id="chart-end-date">
+                    </div>
+                    <button class="btn-action btn-blue" id="btn-load-chart">แสดงกราฟ</button>
+                </div>
+                <div class="chart-summary" id="chart-summary" style="display:none;">
+                    <span>📅 ช่วง: <strong id="chart-range-text"></strong></span>
+                    <span>👥 ผู้ทายทั้งหมด: <strong id="chart-total-count">0</strong> คน</span>
+                    <span>🔢 จำนวนเลขที่ถูกทาย: <strong id="chart-unique-numbers">0</strong> เลข</span>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="guesses-chart"></canvas>
+                </div>
+                <p class="empty-msg" id="no-chart-data" style="display:none;">ไม่มีข้อมูลในช่วงวันที่เลือก</p>
+            </section>
+
+            <!-- Draw Result -->
+            <section class="admin-panel draw-panel">
+                <h3>ประกาศผลรางวัล</h3>
+                <div class="draw-period-info" id="draw-period-info">
+                    <span class="draw-period-label">📅 งวดที่กำลังจะประกาศ:</span>
+                    <span class="draw-period-value" id="draw-period-value">กำลังโหลด...</span>
+                </div>
+                <div class="draw-controls">
+                    <select id="draw-date-select" class="draw-date-select">
+                        <!-- options populated by JS -->
+                    </select>
+                    <input type="text" id="winning-number" placeholder="กรอกเลขที่ออก (00-99)" maxlength="2" pattern="[0-9]{2}">
+                    <button class="btn-action btn-gold" id="btn-announce">ประกาศผล</button>
+                </div>
+                <div id="draw-result" class="draw-result hidden">
+                    <h2 id="result-number"></h2>
+                    <p id="result-draw-date"></p>
+                    <p id="result-winner"></p>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Image Lightbox Modal -->
+    <div class="img-modal-overlay" id="img-modal" hidden>
+        <div class="img-modal-content">
+            <button class="img-modal-close" id="img-modal-close">&times;</button>
+            <img id="img-modal-img" src="" alt="หลักฐานรีวิว">
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

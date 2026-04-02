@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบทายเลขท้าย 2 ตัว - Lotto Project</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="futuristic-bg">
+    <!-- Animated Background Particles -->
+    <div class="bg-particles" id="particles"></div>
+
+    <!-- ==================== TERMS GATE ==================== -->
+    <div class="terms-overlay" id="terms-overlay">
+        <div class="terms-container glass-panel">
+            <div class="terms-header">
+                <div class="terms-icon">📜</div>
+                <h1>เงื่อนไขและกติกา</h1>
+                <p class="terms-subtitle">กรุณาอ่านเงื่อนไขให้ครบถ้วนก่อนเข้าร่วมทายผล</p>
+            </div>
+
+            <div class="terms-body" id="terms-body">
+                <!-- ข้อ 1 นิยามศัพท์ -->
+                <div class="terms-section">
+                    <h2><span class="section-num">ข้อ 1</span> นิยามศัพท์</h2>
+                    <div class="terms-rules">
+                        <div class="rule-item legal-def">
+                            <span class="rule-icon">📘</span>
+                            <div>
+                                <strong>"ผู้จัดกิจกรรม"</strong>
+                                <p>หมายถึง บริษัทหรือทีมผู้บริหารที่รับผิดชอบการจัดกิจกรรมนี้</p>
+                            </div>
+                        </div>
+                        <div class="rule-item legal-def">
+                            <span class="rule-icon">📘</span>
+                            <div>
+                                <strong>"ผู้เข้าร่วมกิจกรรม"</strong>
+                                <p>หมายถึง พนักงาน (น้อง) ที่ให้บริการและประสงค์จะนำรีวิวมาแลกรับสิทธิ์</p>
+                            </div>
+                        </div>
+                        <div class="rule-item legal-def">
+                            <span class="rule-icon">📘</span>
+                            <div>
+                                <strong>"ผู้ตรวจสอบสิทธิ์ (Auditor)"</strong>
+                                <p>หมายถึง คุณบอย หรือบุคคลที่ผู้จัดกิจกรรมมอบหมายให้มีอำนาจในการตรวจสอบและอนุมัติสิทธิ์</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ข้อ 2 เงื่อนไขการเข้าร่วมและการรับสิทธิ์ -->
+                <div class="terms-section">
+                    <h2><span class="section-num">ข้อ 2</span> เงื่อนไขการเข้าร่วมและการรับสิทธิ์</h2>
+                    <div class="terms-rules">
+                        <div class="rule-item">
+                            <span class="rule-icon">📱</span>
+                            <div>
+                                <strong>ช่องทางการส่งรีวิว</strong>
+                                <p>นำภาพแคปหน้าจอ (Screenshot) รีวิวของลูกค้าที่พูดถึงน้องผ่านแอป <strong>Telegram</strong> มาอัปโหลดลงในระบบของเว็บไซต์ผู้จัดกิจกรรม</p>
+                            </div>
+                        </div>
+                        <div class="rule-item">
+                            <span class="rule-icon">🔍</span>
+                            <div>
+                                <strong>องค์ประกอบของภาพรีวิวที่สมบูรณ์</strong>
+                                <p>ภาพแคปต้องแสดงข้อมูลให้ชัดเจน 3 ส่วน:</p>
+                                <ul class="rule-checklist">
+                                    <li>✅ ก) ชื่อหรือนามแฝงของลูกค้า</li>
+                                    <li>✅ ข) ชื่อของผู้เข้าร่วมกิจกรรม (พนักงาน)</li>
+                                    <li>✅ ค) วันและเวลาที่ทำรายการรีวิว</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="rule-item">
+                            <span class="rule-icon">🎫</span>
+                            <div>
+                                <strong>อัตราการแลกสิทธิ์</strong>
+                                <p><span class="highlight-text">รีวิวที่ผ่านการอนุมัติ 1 รายการ = 1 สิทธิ์</span> ในการเข้าร่วมทายผล</p>
+                            </div>
+                        </div>
+                        <div class="rule-item rule-warning">
+                            <span class="rule-icon">⚠️</span>
+                            <div>
+                                <strong>ข้อห้ามและข้อยกเว้น</strong>
+                                <p>ข้อความรีวิวที่มีลักษณะเชิงลบ ไม่สุภาพ หรือสร้างความเสื่อมเสีย จะไม่เข้าเงื่อนไขการรับสิทธิ์ในทุกกรณี</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ข้อ 3 กติกาการทายผลและมูลค่ารางวัล -->
+                <div class="terms-section">
+                    <h2><span class="section-num">ข้อ 3</span> กติกาการทายผลและมูลค่ารางวัล</h2>
+                    <div class="terms-rules">
+                        <div class="rule-item">
+                            <span class="rule-icon">🎯</span>
+                            <div>
+                                <strong>รูปแบบการทายผล</strong>
+                                <p>ทายเลขท้าย 2 ตัว (00 - 99) อ้างอิงจากผลเลขท้าย 2 ตัว ของสลากกินแบ่งรัฐบาลไทย งวดวันที่ <strong>1 และ 16</strong> ของทุกเดือน</p>
+                            </div>
+                        </div>
+                        <div class="rule-item">
+                            <span class="rule-icon">📅</span>
+                            <div>
+                                <strong>ช่วงเวลาเปิดรับทายผล</strong>
+                                <div class="round-cards">
+                                    <div class="round-card">
+                                        <span class="round-label">รอบที่ 1</span>
+                                        <span class="round-date">วันที่ 2 – 14</span>
+                                        <span class="round-draw">ออกรางวัล: วันที่ 16</span>
+                                    </div>
+                                    <div class="round-card">
+                                        <span class="round-label">รอบที่ 2</span>
+                                        <span class="round-date">วันที่ 17 – 29</span>
+                                        <span class="round-draw">ออกรางวัล: วันที่ 1</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="rule-item">
+                            <span class="rule-icon">🔄</span>
+                            <div>
+                                <strong>กรณีรักษาสิทธิ์ (Rollover)</strong>
+                                <p>หากทำรายการนอกเหนือจากระยะเวลาที่กำหนด ระบบจะยกยอดสิทธิ์ไปยังรอบถัดไปโดยอัตโนมัติ</p>
+                                <div class="example-box">
+                                    <p>📌 ทายวันที่ 15 → ยกไปรอบ 17–29</p>
+                                    <p>📌 ทายวันที่ 30 – 1 → ยกไปรอบ 2–14</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="rule-item rule-highlight">
+                            <span class="rule-icon">🏆</span>
+                            <div>
+                                <strong>มูลค่ารางวัล (1,000 บาท/สิทธิ์)</strong>
+                                <div class="prize-cards">
+                                    <div class="prize-card">
+                                        <span class="prize-who">👩‍💼 พนักงาน</span>
+                                        <span class="prize-amount">1,000 ฿</span>
+                                        <span class="prize-type">เงินสด / เงินโอน</span>
+                                    </div>
+                                    <div class="prize-card">
+                                        <span class="prize-who">👤 ลูกค้า</span>
+                                        <span class="prize-amount">1,000 ฿</span>
+                                        <span class="prize-type">Gift Voucher</span>
+                                    </div>
+                                </div>
+                                <p class="prize-note">💡 หากใช้หลายสิทธิ์ทาย "เลขเดียวกัน" และถูกรางวัล → รับรางวัลทวีคูณตามจำนวนสิทธิ์ที่ได้รับอนุมัติ</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ข้อ 4 กระบวนการตรวจสอบและข้อมูลส่วนบุคคล -->
+                <div class="terms-section">
+                    <h2><span class="section-num">ข้อ 4</span> กระบวนการตรวจสอบและข้อมูลส่วนบุคคล (PDPA)</h2>
+                    <div class="terms-rules">
+                        <div class="rule-item">
+                            <span class="rule-icon">🕵️</span>
+                            <div>
+                                <strong>ผู้ตรวจสอบสิทธิ์ (Auditor): คุณบอย</strong>
+                                <div class="audit-steps">
+                                    <div class="audit-step">
+                                        <span class="audit-num">1</span>
+                                        <div>
+                                            <strong>ตรวจสอบหลักฐาน</strong>
+                                            <p>ดูภาพแคปจาก Telegram → กด ✅ อนุมัติ หรือ ❌ ไม่อนุมัติ</p>
+                                        </div>
+                                    </div>
+                                    <div class="audit-step">
+                                        <span class="audit-num">2</span>
+                                        <div>
+                                            <strong>แจ้งผลพนักงาน</strong>
+                                            <p>ทักข้อความไปแจ้งน้องว่าสิทธิ์ได้รับอนุมัติหรือไม่</p>
+                                        </div>
+                                    </div>
+                                    <div class="audit-step">
+                                        <span class="audit-num">3</span>
+                                        <div>
+                                            <strong>แจ้งผลลูกค้า</strong>
+                                            <p>ทักแจ้งลูกค้าว่ารีวิวได้รับการอนุมัติเข้าร่วมแคมเปญแล้ว</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="rule-item rule-warning">
+                            <span class="rule-icon">🔒</span>
+                            <div>
+                                <strong>การคุ้มครองข้อมูลส่วนบุคคล (PDPA)</strong>
+                                <p>ข้อมูลของลูกค้าที่ปรากฏในภาพถ่ายหน้าจอ จะถูกเก็บรวบรวมและใช้เพื่อวัตถุประสงค์ในการยืนยันสิทธิ์สำหรับกิจกรรมนี้เท่านั้น ผู้เข้าร่วมกิจกรรมมีหน้าที่รักษาความลับและ<strong>ห้ามมิให้นำข้อมูลดังกล่าวไปเผยแพร่ในพื้นที่สาธารณะโดยเด็ดขาด</strong></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ข้อ 5 ข้อสงวนสิทธิ์ -->
+                <div class="terms-section">
+                    <h2><span class="section-num">ข้อ 5</span> ข้อสงวนสิทธิ์</h2>
+                    <div class="terms-rules">
+                        <div class="rule-item">
+                            <span class="rule-icon">⚖️</span>
+                            <div>
+                                <strong>สิทธิ์ขาดในการตัดสิน</strong>
+                                <p>คำตัดสินของผู้ตรวจสอบสิทธิ์ (Auditor) และผู้จัดกิจกรรม ถือเป็นเด็ดขาดและเป็นที่สิ้นสุด</p>
+                            </div>
+                        </div>
+                        <div class="rule-item rule-warning">
+                            <span class="rule-icon">🚫</span>
+                            <div>
+                                <strong>การทุจริต</strong>
+                                <p>หากผู้จัดกิจกรรมตรวจสอบพบว่ามีการปลอมแปลงหลักฐาน สร้างรีวิวเท็จ หรือกระทำการทุจริตใดๆ ผู้จัดกิจกรรมขอสงวนสิทธิ์ในการตัดสิทธิ์ผู้เข้าร่วมกิจกรรมทันที และอาจมีบทลงโทษทางวินัย</p>
+                            </div>
+                        </div>
+                        <div class="rule-item">
+                            <span class="rule-icon">📝</span>
+                            <div>
+                                <strong>การเปลี่ยนแปลงเงื่อนไข</strong>
+                                <p>ผู้จัดกิจกรรมขอสงวนสิทธิ์ในการแก้ไข เปลี่ยนแปลง หรือยกเลิกข้อกำหนดและเงื่อนไขของกิจกรรมนี้ โดยไม่ต้องแจ้งให้ทราบล่วงหน้า</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="terms-footer">
+                <label class="terms-checkbox-label" id="terms-check-label">
+                    <input type="checkbox" id="terms-agree">
+                    <span class="checkmark"></span>
+                    <span>ข้าพเจ้าได้อ่านและยอมรับเงื่อนไขทั้งหมดข้างต้น</span>
+                </label>
+                <button class="btn-terms-accept" id="btn-terms-accept" disabled>
+                    เข้าสู่ระบบทายเลข →
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MAIN CONTENT (hidden until terms accepted) ==================== -->
+    <div class="container" id="main-content" style="display: none;">
+        <header>
+            <div class="logo-area">
+                <div class="logo-icon">🎰</div>
+                <div>
+                    <h1>ระบบทายเลขท้าย 2 ตัว</h1>
+                    <p class="subtitle">สำหรับพนักงานรวบรวมรีวิว &bull; ลุ้นรางวัลตามเลขรัฐบาล</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="status.html" class="header-link">📊 สถานะ</a>
+                <a href="admin-login.html" class="admin-link">🔒 Admin</a>
+            </div>
+        </header>
+
+        <!-- Round Info Banner -->
+        <div class="round-banner glass-panel" id="round-banner">
+            <div class="round-banner-left">
+                <span class="round-badge" id="round-badge">รอบที่ -</span>
+                <span class="round-period" id="round-period">กำลังโหลด...</span>
+            </div>
+            <div class="round-banner-right">
+                <span class="round-countdown-label">ออกรางวัล:</span>
+                <span class="round-draw-date" id="round-draw-date">-</span>
+            </div>
+        </div>
+
+        <!-- ตารางวันออกรางวัล ปี 2569 -->
+        <details class="draw-schedule glass-panel" id="draw-schedule">
+            <summary class="schedule-toggle">
+                <span>📅 ตารางวันออกรางวัลสลากกินแบ่งรัฐบาล ปี 2569</span>
+                <span class="toggle-arrow">▼</span>
+            </summary>
+            <div class="schedule-content">
+                <table class="schedule-table">
+                    <thead>
+                        <tr>
+                            <th>เดือน</th>
+                            <th>งวดที่ 1 (วันที่ 1)</th>
+                            <th>งวดที่ 2 (วันที่ 16)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="schedule-tbody">
+                        <tr>
+                            <td class="month-cell">🗓️ มกราคม</td>
+                            <td><span class="draw-date-tag past">1 ม.ค. 69</span><br><span class="draw-day">พฤหัสบดี</span></td>
+                            <td><span class="draw-date-tag past">16 ม.ค. 69</span><br><span class="draw-day">ศุกร์</span></td>
+                        </tr>
+                        <tr>
+                            <td class="month-cell">🗓️ กุมภาพันธ์</td>
+                            <td><span class="draw-date-tag past">1 ก.พ. 69</span><br><span class="draw-day">อาทิตย์</span></td>
+                            <td><span class="draw-date-tag past">16 ก.พ. 69</span><br><span class="draw-day">จันทร์</span></td>
+                        </tr>
+                        <tr>
+                            <td class="month-cell">🗓️ มีนาคม</td>
+                            <td><span class="draw-date-tag past">1 มี.ค. 69</span><br><span class="draw-day">อาทิตย์</span></td>
+                            <td><span class="draw-date-tag past">16 มี.ค. 69</span><br><span class="draw-day">จันทร์</span></td>
+                        </tr>
+                        <tr class="current-month-row">
+                            <td class="month-cell">🗓️ เมษายน</td>
+                            <td><span class="draw-date-tag past">1 เม.ย. 69</span><br><span class="draw-day">พุธ</span></td>
+                            <td><span class="draw-date-tag upcoming">16 เม.ย. 69</span><br><span class="draw-day">พฤหัสบดี</span></td>
+                        </tr>
+                        <tr>
+                            <td class="month-cell">🗓️ พฤษภาคม</td>
+                            <td><span class="draw-date-tag future">1 พ.ค. 69</span><br><span class="draw-day">ศุกร์</span></td>
+                            <td><span class="draw-date-tag future">16 พ.ค. 69</span><br><span class="draw-day">เสาร์</span></td>
+                        </tr>
+                        <tr>
+                            <td class="month-cell">🗓️ มิถุนายน</td>
+                            <td><span class="draw-date-tag future">1 มิ.ย. 69</span><br><span class="draw-day">จันทร์</span></td>
+                            <td><span class="draw-date-tag future">16 มิ.ย. 69</span><br><span class="draw-day">อังคาร</span></td>
+                        </tr>
+                        <tr>
+                            <td class="month-cell">🗓️ กรกฎาคม</td>
+                            <td><span class="draw-date-tag future">1 ก.ค. 69</span><br><span class="draw-day">พุธ</span></td>
+                            <td><span class="draw-date-tag future">16 ก.ค. 69</span><br><span class="draw-day">พฤหัสบดี</span></td>
+                        </tr>
+                        <tr>
+                            <td class="month-cell">🗓️ สิงหาคม</td>
+                            <td><span class="draw-date-tag future">1 ส.ค. 69</span><br><span class="draw-day">เสาร์</span></td>
+                            <td><span class="draw-date-tag future">16 ส.ค. 69</span><br><span class="draw-day">อาทิตย์</span></td>
+                        </tr>
+                        <tr>
+                            <td class="month-cell">🗓️ กันยายน</td>
+                            <td><span class="draw-date-tag future">1 ก.ย. 69</span><br><span class="draw-day">อังคาร</span></td>
+                            <td><span class="draw-date-tag future">16 ก.ย. 69</span><br><span class="draw-day">พุธ</span></td>
+                        </tr>
+                        <tr>
+                            <td class="month-cell">🗓️ ตุลาคม</td>
+                            <td><span class="draw-date-tag future">1 ต.ค. 69</span><br><span class="draw-day">พฤหัสบดี</span></td>
+                            <td><span class="draw-date-tag future">16 ต.ค. 69</span><br><span class="draw-day">ศุกร์</span></td>
+                        </tr>
+                        <tr>
+                            <td class="month-cell">🗓️ พฤศจิกายน</td>
+                            <td><span class="draw-date-tag future">1 พ.ย. 69</span><br><span class="draw-day">อาทิตย์</span></td>
+                            <td><span class="draw-date-tag future">16 พ.ย. 69</span><br><span class="draw-day">จันทร์</span></td>
+                        </tr>
+                        <tr>
+                            <td class="month-cell">🗓️ ธันวาคม</td>
+                            <td><span class="draw-date-tag future">1 ธ.ค. 69</span><br><span class="draw-day">อังคาร</span></td>
+                            <td><span class="draw-date-tag future">16 ธ.ค. 69</span><br><span class="draw-day">พุธ</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="schedule-legend">
+                    <span class="sleg-item"><span class="draw-date-tag past" style="font-size:0.7rem;">ผ่านแล้ว</span></span>
+                    <span class="sleg-item"><span class="draw-date-tag upcoming" style="font-size:0.7rem;">งวดถัดไป</span></span>
+                    <span class="sleg-item"><span class="draw-date-tag future" style="font-size:0.7rem;">ยังไม่ถึง</span></span>
+                </div>
+                <p class="schedule-note">📌 อ้างอิงจากสำนักงานสลากกินแบ่งรัฐบาล — ออกรางวัลทุกวันที่ <strong>1</strong> และ <strong>16</strong> ของทุกเดือน (24 งวด/ปี)</p>
+            </div>
+        </details>
+
+        <!-- Steps Progress Bar -->
+        <div class="steps-bar">
+            <div class="step-item active" data-step="1">
+                <div class="step-circle">1</div>
+                <span>กรอกชื่อ</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item" data-step="2">
+                <div class="step-circle">2</div>
+                <span>เลือกเลข</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item" data-step="3">
+                <div class="step-circle">3</div>
+                <span>แนบหลักฐาน</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item" data-step="4">
+                <div class="step-circle">4</div>
+                <span>ยืนยัน</span>
+            </div>
+        </div>
+
+        <main class="grid-container">
+            <!-- Info Panel -->
+            <section class="info-panel glass-panel">
+                <div class="step-card">
+                    <div class="step-icon">📱</div>
+                    <h3>หลักฐานที่ต้องส่ง</h3>
+                    <p>แคปหน้าจอ Telegram ที่มี: <strong>ชื่อลูกค้า, ชื่อน้อง, เวลารีวิว</strong></p>
+                </div>
+                <div class="step-card">
+                    <div class="step-icon">🎫</div>
+                    <h3>อัตราสิทธิ์</h3>
+                    <p><strong>1 รีวิว = 1 สิทธิ์ทาย</strong> (ห้ามใช้รีวิวเชิงลบ)</p>
+                </div>
+                <div class="info-badge">
+                    <span class="badge-glow">🏆</span>
+                    <span>ทายถูก! รับ 1,000 ฿ ทั้งน้องและลูกค้า</span>
+                </div>
+                <div class="info-badge" style="margin-top: 10px; border-color: rgba(0, 240, 255, 0.2); color: var(--neon-cyan);">
+                    <span class="badge-glow" style="filter: hue-rotate(180deg);">🕵️</span>
+                    <span>ตรวจสอบโดย: <strong>คุณบอย</strong> (Auditor)</span>
+                </div>
+            </section>
+
+            <!-- Step 2: Lotto Grid Selection -->
+            <section class="lotto-selection glass-panel">
+                <div class="section-header">
+                    <h3>เลือกเลขท้าย 2 ตัว (00-99)</h3>
+                    <div class="selected-display" id="selected-display">
+                        <span class="selected-label">เลขที่เลือก:</span>
+                        <span class="selected-number" id="selected-number">--</span>
+                    </div>
+                </div>
+                <div id="lotto-grid" class="lotto-grid">
+                    <!-- Numbers will be generated by JS -->
+                </div>
+                <div class="grid-legend">
+                    <span class="legend-item"><span class="legend-box available"></span> ว่าง</span>
+                    <span class="legend-item"><span class="legend-box selected"></span> เลือกแล้ว</span>
+                    <span class="legend-item"><span class="legend-box sold-out"></span> เต็ม</span>
+                </div>
+            </section>
+
+            <!-- Step 3 & 4: Submission Form -->
+            <section class="submission-panel glass-panel">
+                <h3>ส่งข้อมูลหลักฐาน</h3>
+                <form id="submission-form">
+                    <div class="input-group">
+                        <label for="username">ชื่อพนักงาน (น้อง)</label>
+                        <input type="text" id="username" placeholder="ชื่อน้อง เช่น น้องพลอย" required>
+                    </div>
+                    <div class="upload-area">
+                        <label for="proof">แคปหน้าจอรีวิวจาก Telegram</label>
+                        <div class="upload-box" id="upload-box">
+                            <div class="upload-icon">📷</div>
+                            <span>คลิกเพื่ออัปโหลดรูปแคปหน้าจอ</span>
+                            <p class="upload-hint">ต้องแสดง: ชื่อลูกค้า / ชื่อน้อง / เวลารีวิว</p>
+                            <input type="file" id="proof" accept="image/*" hidden>
+                        </div>
+                        <div class="upload-preview" id="upload-preview" hidden>
+                            <img id="preview-img" alt="Preview">
+                            <button type="button" class="btn-remove-img" id="btn-remove-img">✕</button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-submit">
+                        <span class="btn-text">🚀 ยืนยันการทาย</span>
+                    </button>
+                </form>
+            </section>
+        </main>
+
+        <!-- Footer Links -->
+        <footer class="footer-links" style="margin-top: 25px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+            <a href="status.html" class="btn-status-link">📊 ดูสถานะการทายผลปัจจุบัน</a>
+            <button class="btn-status-link" id="btn-view-terms" style="cursor: pointer; border: 1px solid var(--neon-cyan); color: var(--neon-cyan); background: linear-gradient(135deg, rgba(0,240,255,0.1), rgba(0,240,255,0.03));">📜 ดูเงื่อนไขและกติกา</button>
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
