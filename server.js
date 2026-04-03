@@ -6,6 +6,7 @@ const multer = require('multer');
 const fs = require('fs');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 // Load .env if present
 try { require('dotenv').config(); } catch { /* dotenv optional locally */ }
@@ -13,21 +14,44 @@ try { require('dotenv').config(); } catch { /* dotenv optional locally */ }
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Ensure uploads directory exists
+// Cloudflare R2 config
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
+const R2_ACCESS_KEY = process.env.R2_ACCESS_KEY;
+const R2_SECRET_KEY = process.env.R2_SECRET_KEY;
+const R2_BUCKET = process.env.R2_BUCKET || 'lotto-uploads';
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || '';
+
+const useR2 = !!(R2_ACCOUNT_ID && R2_ACCESS_KEY && R2_SECRET_KEY);
+
+let s3Client;
+if (useR2) {
+    s3Client = new S3Client({
+        region: 'auto',
+        endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+        credentials: {
+            accessKeyId: R2_ACCESS_KEY,
+            secretAccessKey: R2_SECRET_KEY,
+        },
+    });
+}
+
+// Ensure local uploads directory exists (fallback)
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir);
 }
 
-// Multer config for image uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadsDir),
-    filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        const safeName = Date.now() + '-' + Math.round(Math.random() * 1e6) + ext;
-        cb(null, safeName);
-    }
-});
+// Multer config: use memory storage for R2, disk for local
+const storage = useR2
+    ? multer.memoryStorage()
+    : multer.diskStorage({
+        destination: (req, file, cb) => cb(null, uploadsDir),
+        filename: (req, file, cb) => {
+            const ext = path.extname(file.originalname);
+            const safeName = Date.now() + '-' + Math.round(Math.random() * 1e6) + ext;
+            cb(null, safeName);
+        }
+    });
 const upload = multer({
     storage,
     limits: { fileSize: 5 * 1024 * 1024 },
@@ -38,6 +62,17 @@ const upload = multer({
         cb(null, extOk && mimeOk);
     }
 });
+
+// Helper: upload buffer to R2
+async function uploadToR2(buffer, filename, mimetype) {
+    await s3Client.send(new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: filename,
+        Body: buffer,
+        ContentType: mimetype,
+    }));
+    return `${R2_PUBLIC_URL}/${filename}`;
+}
 
 // PostgreSQL Connection
 const pool = process.env.DATABASE_URL
@@ -217,7 +252,20 @@ app.post('/api/history', upload.single('proof'), async (req, res) => {
     if (!name || number == null) {
         return res.status(400).json({ error: 'กรุณากรอกชื่อและเลขที่ทาย' });
     }
-    const imagePath = req.file ? req.file.filename : null;
+
+    let imagePath = null;
+    if (req.file) {
+        if (useR2) {
+            // Upload to Cloudflare R2
+            const ext = path.extname(req.file.originalname);
+            const filename = Date.now() + '-' + Math.round(Math.random() * 1e6) + ext;
+            imagePath = await uploadToR2(req.file.buffer, filename, req.file.mimetype);
+        } else {
+            // Local fallback
+            imagePath = '/uploads/' + req.file.filename;
+        }
+    }
+
     try {
         const result = await pool.query(
             'INSERT INTO history (name, number, image_path) VALUES ($1, $2, $3) RETURNING *',

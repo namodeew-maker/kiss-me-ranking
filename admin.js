@@ -60,7 +60,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function imageCell(imagePath) {
         if (imagePath) {
-            return `<img src="/uploads/${encodeURIComponent(imagePath)}" class="admin-thumb" data-fullimg="/uploads/${encodeURIComponent(imagePath)}" alt="หลักฐาน">`;
+            // Support both full URL (R2) and local path
+            const src = imagePath.startsWith('http') ? imagePath : `/uploads/${encodeURIComponent(imagePath)}`;
+            return `<img src="${src}" class="admin-thumb" data-fullimg="${src}" alt="หลักฐาน">`;
         }
         return '<span class="text-muted">ไม่มีรูป</span>';
     }
