@@ -379,6 +379,7 @@
     cursor: pointer;
     font-size: 0.9rem;
     color: var(--text-silver);
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -490,6 +491,7 @@
     color: var(--text-silver);
     list-style: none;
     transition: 0.3s;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -722,8 +724,8 @@ body.futuristic-bg {
 /* Glass Panel Effect */
 .glass-panel {
     background: var(--glass-bg);
-    backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
     border: 1px solid var(--glass-border);
     border-radius: 16px;
     box-shadow:

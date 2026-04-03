@@ -107,7 +107,7 @@
                 <form id="grant-form">
                     <div class="input-row">
                         <input type="text" id="grant-username" placeholder="ชื่อผู้ใช้" required>
-                        <select id="grant-slots">
+                        <select id="grant-slots" title="จำนวนสิทธิ์">
                             <option value="1">1 สิทธิ์</option>
                             <option value="2">2 สิทธิ์</option>
                             <option value="3" selected>3 สิทธิ์</option>
@@ -209,7 +209,7 @@
                     <span class="draw-period-value" id="draw-period-value">กำลังโหลด...</span>
                 </div>
                 <div class="draw-controls">
-                    <select id="draw-date-select" class="draw-date-select">
+                    <select id="draw-date-select" class="draw-date-select" title="เลือกงวดประกาศผล">
                         <!-- options populated by JS -->
                     </select>
                     <input type="text" id="winning-number" placeholder="กรอกเลขที่ออก (00-99)" maxlength="2" pattern="[0-9]{2}">

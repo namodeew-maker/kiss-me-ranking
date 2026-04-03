@@ -41,7 +41,7 @@ const upload = multer({
 
 // PostgreSQL Connection
 const pool = process.env.DATABASE_URL
-    ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+    ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: true })
     : new Pool({
         user: process.env.DB_USER || 'postgres',
         host: process.env.DB_HOST || 'localhost',
@@ -309,14 +309,12 @@ app.get('/api/round', (req, res) => {
     const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
                          'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
-    let round, open, periodStart, periodEnd, drawDate;
+    let round, open, drawDate;
     if (day >= 2 && day <= 14) {
         round = 1; open = true;
-        periodStart = 2; periodEnd = 14;
         drawDate = `16 ${thaiMonths[month]} ${year + 543}`;
     } else if (day >= 17 && day <= 29) {
         round = 2; open = true;
-        periodStart = 17; periodEnd = 29;
         const nm = (month + 1) % 12;
         const ny = month === 11 ? year + 1 : year;
         drawDate = `1 ${thaiMonths[nm]} ${ny + 543}`;
