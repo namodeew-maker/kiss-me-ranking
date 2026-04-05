@@ -14,6 +14,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ==================== LIFF STATE ====================
     let liffInitialized = false;
+    let liffInitPromise = null; // shared promise to prevent double-init
+
+    /** Initialize LIFF once — returns a promise, safe to call multiple times */
+    function ensureLiffInit() {
+        if (liffInitPromise) return liffInitPromise;
+        if (typeof liff === 'undefined') return Promise.reject(new Error('LIFF SDK not loaded'));
+        liffInitPromise = liff.init({ liffId: '2009696727-evibES3H' }).then(() => {
+            liffInitialized = true;
+        });
+        return liffInitPromise;
+    }
 
     // Restore currentUser from session immediately (sync)
     if (!currentUser) {
@@ -38,9 +49,32 @@ document.addEventListener('DOMContentLoaded', () => {
         btnAccept.classList.toggle('enabled', termsAgree.checked);
     });
 
-    btnAccept.addEventListener('click', () => {
+    btnAccept.addEventListener('click', async () => {
         sessionStorage.setItem('terms_accepted', 'true');
         termsOverlay.classList.add('hidden');
+
+        // If LIFF already logged the user in while they were reading terms, go straight to main
+        if (currentUser) {
+            showLoginOrMain();
+            return;
+        }
+
+        // If LIFF is initialized and user is logged in LINE, auto-register now
+        if (liffInitialized && typeof liff !== 'undefined' && liff.isLoggedIn()) {
+            try {
+                const profile = await liff.getProfile();
+                await loginToBackend({
+                    platform: 'line',
+                    platform_id: profile.userId,
+                    display_name: profile.displayName,
+                    picture_url: profile.pictureUrl || null
+                });
+                return; // loginToBackend calls onLoginSuccess
+            } catch (e) {
+                console.warn('Auto-login after terms failed:', e.message);
+            }
+        }
+
         showLoginOrMain();
     });
 
@@ -60,17 +94,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==================== LIFF AUTO-LOGIN (non-blocking) ====================
     (async () => {
         try {
-            if (typeof liff === 'undefined') return;
-
-            // Show a subtle loading state
             const loadingTimeout = setTimeout(() => {
-                // If LIFF takes more than 5 seconds, just show the normal UI
                 console.warn('LIFF init timeout — showing normal UI');
                 showLoginOrMain();
             }, 5000);
 
-            await liff.init({ liffId: '2009696727-evibES3H' });
-            liffInitialized = true;
+            await ensureLiffInit();
 
             // If LIFF user is logged in, register with backend immediately
             if (liff.isLoggedIn() && !sessionStorage.getItem('currentUser')) {
@@ -195,10 +224,8 @@ document.addEventListener('DOMContentLoaded', () => {
             btnLoginLine.disabled = true;
             btnLoginLine.textContent = 'กำลังเข้าสู่ระบบ...';
             try {
-                if (!liffInitialized) {
-                    await liff.init({ liffId: '2009696727-evibES3H' });
-                    liffInitialized = true;
-                }
+                await ensureLiffInit();
+
                 if (!liff.isLoggedIn()) {
                     liff.login();
                     return; // page will redirect
