@@ -3,7 +3,7 @@ const API_BASE = '/api';
 // ==================== GLOBAL STATE ====================
 let currentUser = null; // { id, platform, platform_id, display_name, picture_url, progress_count }
 
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
 
     // ==================== DOM REFERENCES ====================
     const termsOverlay = document.getElementById('terms-overlay');
@@ -12,37 +12,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const termsAgree = document.getElementById('terms-agree');
     const btnAccept = document.getElementById('btn-terms-accept');
 
-    // ==================== LIFF AUTO-LOGIN (run FIRST, before UI) ====================
+    // ==================== LIFF STATE ====================
     let liffInitialized = false;
-    try {
-        if (typeof liff !== 'undefined') {
-            await liff.init({ liffId: '2009696727-evibES3H' });
-            liffInitialized = true;
-            // If LIFF user is logged in, register with backend immediately
-            if (liff.isLoggedIn() && !sessionStorage.getItem('currentUser')) {
-                const profile = await liff.getProfile();
-                const res = await fetch(`${API_BASE}/auth/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        platform: 'line',
-                        platform_id: profile.userId,
-                        display_name: profile.displayName,
-                        picture_url: profile.pictureUrl || null
-                    })
-                });
-                const data = await res.json();
-                if (res.ok && data.user) {
-                    currentUser = data.user;
-                    sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
-                }
-            }
-        }
-    } catch (liffErr) {
-        console.warn('LIFF auto-init:', liffErr.message);
-    }
 
-    // Restore currentUser from session if not set by LIFF
+    // Restore currentUser from session immediately (sync)
     if (!currentUser) {
         const saved = sessionStorage.getItem('currentUser');
         if (saved) {
@@ -50,8 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // ==================== TERMS GATE ====================
-    // If already logged in via LIFF auto-login, skip terms + login and go straight to main
+    // ==================== TERMS GATE (bind FIRST, before any async) ====================
     if (currentUser) {
         sessionStorage.setItem('terms_accepted', 'true');
         termsOverlay.classList.add('hidden');
@@ -84,6 +56,41 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnAccept.classList.add('enabled');
         });
     }
+
+    // ==================== LIFF AUTO-LOGIN (non-blocking) ====================
+    (async () => {
+        try {
+            if (typeof liff !== 'undefined') {
+                await liff.init({ liffId: '2009696727-evibES3H' });
+                liffInitialized = true;
+                // If LIFF user is logged in, register with backend immediately
+                if (liff.isLoggedIn() && !sessionStorage.getItem('currentUser')) {
+                    const profile = await liff.getProfile();
+                    const res = await fetch(`${API_BASE}/auth/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            platform: 'line',
+                            platform_id: profile.userId,
+                            display_name: profile.displayName,
+                            picture_url: profile.pictureUrl || null
+                        })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.user) {
+                        currentUser = data.user;
+                        sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+                        // Auto-skip terms + show main if LIFF login succeeded
+                        sessionStorage.setItem('terms_accepted', 'true');
+                        termsOverlay.classList.add('hidden');
+                        showLoginOrMain();
+                    }
+                }
+            }
+        } catch (liffErr) {
+            console.warn('LIFF auto-init:', liffErr.message);
+        }
+    })();
 
     // ==================== LOGIN / AUTH ====================
 
