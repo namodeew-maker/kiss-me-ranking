@@ -1,17 +1,64 @@
 const API_BASE = '/api';
 
+// ==================== GLOBAL STATE ====================
+let currentUser = null; // { id, platform, platform_id, display_name, picture_url, progress_count }
+
 document.addEventListener('DOMContentLoaded', async () => {
 
-    // ==================== TERMS GATE ====================
+    // ==================== DOM REFERENCES ====================
     const termsOverlay = document.getElementById('terms-overlay');
+    const loginOptions = document.getElementById('login-options');
     const mainContent = document.getElementById('main-content');
     const termsAgree = document.getElementById('terms-agree');
     const btnAccept = document.getElementById('btn-terms-accept');
 
-    // Check if already accepted this session
-    if (sessionStorage.getItem('terms_accepted')) {
+    // ==================== LIFF AUTO-LOGIN (run FIRST, before UI) ====================
+    let liffInitialized = false;
+    try {
+        if (typeof liff !== 'undefined') {
+            await liff.init({ liffId: '2009696727-evibES3H' });
+            liffInitialized = true;
+            // If LIFF user is logged in, register with backend immediately
+            if (liff.isLoggedIn() && !sessionStorage.getItem('currentUser')) {
+                const profile = await liff.getProfile();
+                const res = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        platform: 'line',
+                        platform_id: profile.userId,
+                        display_name: profile.displayName,
+                        picture_url: profile.pictureUrl || null
+                    })
+                });
+                const data = await res.json();
+                if (res.ok && data.user) {
+                    currentUser = data.user;
+                    sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+                }
+            }
+        }
+    } catch (liffErr) {
+        console.warn('LIFF auto-init:', liffErr.message);
+    }
+
+    // Restore currentUser from session if not set by LIFF
+    if (!currentUser) {
+        const saved = sessionStorage.getItem('currentUser');
+        if (saved) {
+            try { currentUser = JSON.parse(saved); } catch (_) { /* ignore */ }
+        }
+    }
+
+    // ==================== TERMS GATE ====================
+    // If already logged in via LIFF auto-login, skip terms + login and go straight to main
+    if (currentUser) {
+        sessionStorage.setItem('terms_accepted', 'true');
         termsOverlay.classList.add('hidden');
-        mainContent.style.display = '';
+        showLoginOrMain();
+    } else if (sessionStorage.getItem('terms_accepted')) {
+        termsOverlay.classList.add('hidden');
+        showLoginOrMain();
     }
 
     termsAgree.addEventListener('change', () => {
@@ -22,7 +69,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnAccept.addEventListener('click', () => {
         sessionStorage.setItem('terms_accepted', 'true');
         termsOverlay.classList.add('hidden');
-        mainContent.style.display = '';
+        showLoginOrMain();
     });
 
     // "View terms" button from main page
@@ -31,10 +78,143 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnViewTerms.addEventListener('click', () => {
             termsOverlay.classList.remove('hidden');
             mainContent.style.display = 'none';
+            loginOptions.style.display = 'none';
             termsAgree.checked = true;
             btnAccept.disabled = false;
             btnAccept.classList.add('enabled');
         });
+    }
+
+    // ==================== LOGIN / AUTH ====================
+
+    /** Central login function — calls backend and stores currentUser */
+    async function loginToBackend(userData) {
+        try {
+            const res = await fetch(`${API_BASE}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    platform: userData.platform,
+                    platform_id: userData.platform_id,
+                    display_name: userData.display_name,
+                    picture_url: userData.picture_url
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert('เข้าสู่ระบบล้มเหลว: ' + (data.error || 'Unknown error'));
+                return false;
+            }
+            currentUser = data.user;
+            sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+            onLoginSuccess();
+            return true;
+        } catch (err) {
+            console.error('Login error:', err);
+            alert('ไม่สามารถเชื่อมต่อ Server ได้');
+            return false;
+        }
+    }
+
+    /** Show login options or main content based on currentUser */
+    function showLoginOrMain() {
+        if (currentUser) {
+            loginOptions.style.display = 'none';
+            mainContent.style.display = '';
+            updateProfileUI();
+        } else {
+            loginOptions.style.display = '';
+            mainContent.style.display = 'none';
+        }
+    }
+
+    /** After successful login — hide login, show main */
+    function onLoginSuccess() {
+        loginOptions.style.display = 'none';
+        mainContent.style.display = '';
+        updateProfileUI();
+    }
+
+    /** Update header LIFF profile area with currentUser info */
+    function updateProfileUI() {
+        if (!currentUser) return;
+        const avatar = document.getElementById('liff-avatar');
+        const nameEl = document.getElementById('liff-name');
+        if (avatar && currentUser.picture_url) {
+            avatar.src = currentUser.picture_url;
+        } else if (avatar) {
+            avatar.style.display = 'none';
+        }
+        if (nameEl) {
+            nameEl.textContent = currentUser.display_name || currentUser.platform_id;
+        }
+    }
+
+    // --- LINE Login ---
+    const btnLoginLine = document.getElementById('btn-login-line');
+    if (btnLoginLine) {
+        btnLoginLine.addEventListener('click', async () => {
+            btnLoginLine.disabled = true;
+            btnLoginLine.textContent = 'กำลังเข้าสู่ระบบ...';
+            try {
+                if (!liffInitialized) {
+                    await liff.init({ liffId: '2009696727-evibES3H' });
+                    liffInitialized = true;
+                }
+                if (!liff.isLoggedIn()) {
+                    liff.login();
+                    return; // page will redirect
+                }
+                const profile = await liff.getProfile();
+                await loginToBackend({
+                    platform: 'line',
+                    platform_id: profile.userId,
+                    display_name: profile.displayName,
+                    picture_url: profile.pictureUrl || null
+                });
+            } catch (err) {
+                console.error('LINE login error:', err);
+                alert('เข้าสู่ระบบ LINE ล้มเหลว');
+            } finally {
+                btnLoginLine.disabled = false;
+                btnLoginLine.innerHTML = '<svg class="login-btn-icon" viewBox="0 0 24 24" width="24" height="24"><path fill="#fff" d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg><span>เข้าสู่ระบบด้วย LINE</span>';
+            }
+        });
+    }
+
+    // --- Telegram Login ---
+    const btnLoginTelegram = document.getElementById('btn-login-telegram');
+    if (btnLoginTelegram) {
+        btnLoginTelegram.addEventListener('click', () => {
+            // Trigger the hidden Telegram widget
+            const widgetContainer = document.getElementById('telegram-widget-container');
+            if (widgetContainer) {
+                widgetContainer.style.display = 'block';
+                btnLoginTelegram.style.display = 'none';
+            }
+        });
+    }
+
+    /** Telegram Widget callback — attached to window for the widget's data-onauth */
+    window.onTelegramAuth = async function(user) {
+        const displayName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+        await loginToBackend({
+            platform: 'telegram',
+            platform_id: String(user.id),
+            display_name: displayName,
+            picture_url: user.photo_url || null
+        });
+    };
+
+    // ==================== PROFILE MODAL ====================
+    // Profile is now a separate page (profile.html) — no modal logic needed here
+
+    /** Escape HTML to prevent XSS */
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 
     // ==================== ROUND INFO ====================
@@ -174,51 +354,62 @@ document.addEventListener('DOMContentLoaded', async () => {
     const form = document.getElementById('submission-form');
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const selected = document.querySelector('.lotto-num.selected');
-        if (!selected) {
-            alert('กรุณาเลือกเลขที่ต้องการทายก่อนครับ!');
+
+        if (!currentUser) {
+            alert('กรุณาเข้าสู่ระบบก่อนครับ!');
             return;
         }
 
-        const name = document.getElementById('username').value.trim();
-        if (!name) {
-            alert('กรุณากรอกชื่อผู้ใช้ครับ!');
+        const staffSelect = document.getElementById('staff-select');
+        const staffId = staffSelect ? staffSelect.value : '';
+        if (!staffId) {
+            alert('กรุณาเลือกพนักงานครับ!');
             return;
         }
 
-        const number = selected.textContent.substring(0, 2);
         const fileInput = document.getElementById('proof');
+        if (!fileInput.files.length) {
+            alert('กรุณาแนบรูปสลิปครับ!');
+            return;
+        }
+
+        const looksScore = document.getElementById('score-looks') ? document.getElementById('score-looks').value : 5;
+        const serviceScore = document.getElementById('score-service') ? document.getElementById('score-service').value : 5;
+        const valueScore = document.getElementById('score-value') ? document.getElementById('score-value').value : 5;
 
         try {
             const formData = new FormData();
-            formData.append('name', name);
-            formData.append('number', number);
-            if (fileInput.files.length > 0) {
-                formData.append('proof', fileInput.files[0]);
-            }
+            formData.append('platform', currentUser.platform);
+            formData.append('platform_id', currentUser.platform_id);
+            formData.append('staff_id', staffId);
+            formData.append('looks_score', looksScore);
+            formData.append('service_score', serviceScore);
+            formData.append('value_score', valueScore);
+            formData.append('slip', fileInput.files[0]);
 
-            const res = await fetch(`${API_BASE}/history`, {
+            const res = await fetch(`${API_BASE}/transactions`, {
                 method: 'POST',
                 body: formData
             });
 
-            if (res.ok) {
+            const result = await res.json();
+            if (res.ok && result.success) {
                 setActiveStep(4);
-                alert(`ยืนยันการทายเลข ${number} สำเร็จ!`);
-                document.getElementById('username').value = '';
-                selected.classList.remove('selected');
-                selectedNumber.textContent = '--';
-                // Reset preview
+                alert('ส่งสลิปสำเร็จ! รอ Admin ตรวจสอบ');
+                form.reset();
+                // Reset slider displays
+                document.querySelectorAll('.slider-value').forEach(el => el.textContent = '5');
+                // Reset upload preview
                 const preview = document.getElementById('upload-preview');
                 const uploadBox = document.getElementById('upload-box');
                 if (preview) preview.hidden = true;
                 if (uploadBox) uploadBox.hidden = false;
                 setActiveStep(1);
             } else {
-                const err = await res.json();
-                alert('เกิดข้อผิดพลาด: ' + err.error);
+                alert('เกิดข้อผิดพลาด: ' + (result.error || 'ไม่ทราบสาเหตุ'));
             }
         } catch (err) {
+            console.error('Submit error:', err);
             alert('ไม่สามารถเชื่อมต่อ Server ได้');
         }
     });
@@ -253,11 +444,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Username input — advance step
-    const usernameInput = document.getElementById('username');
-    usernameInput.addEventListener('input', () => {
-        if (usernameInput.value.trim()) {
-            setActiveStep(2);
-        }
-    });
+    // Staff selection — advance step
+    const staffSelectEl = document.getElementById('staff-select');
+    if (staffSelectEl) {
+        staffSelectEl.addEventListener('change', () => {
+            if (staffSelectEl.value) {
+                setActiveStep(2);
+            }
+        });
+    }
 });

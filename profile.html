@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kiss Me Ranking — โปรไฟล์</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="profile.css">
+</head>
+<body class="futuristic-bg">
+    <!-- Animated Background Particles -->
+    <div class="bg-particles" id="particles"></div>
+
+    <div class="container profile-page" id="profile-page">
+
+        <!-- Header -->
+        <header>
+            <div class="logo-area">
+                <a href="index.html" class="back-btn">← กลับ</a>
+                <div class="logo-icon">👤</div>
+                <div>
+                    <h1>โปรไฟล์ของฉัน</h1>
+                    <p class="subtitle">Kiss Me Ranking</p>
+                </div>
+            </div>
+            <a href="index.html" class="header-link">🏠 หน้าหลัก</a>
+        </header>
+
+        <!-- Loading State -->
+        <div class="profile-loading glass-panel" id="profile-loading">
+            <div class="loading-spinner"></div>
+            <p>กำลังโหลดข้อมูล...</p>
+        </div>
+
+        <!-- Not Logged In -->
+        <div class="profile-not-logged-in glass-panel" id="profile-not-logged-in" style="display: none;">
+            <div style="font-size: 3rem; margin-bottom: 15px;">🔐</div>
+            <h3>กรุณาเข้าสู่ระบบก่อน</h3>
+            <p style="color: var(--text-muted); margin: 10px 0 20px;">ไม่พบข้อมูลผู้ใช้ กรุณากลับไปล็อกอินที่หน้าหลัก</p>
+            <a href="index.html" class="btn-primary">🔐 ไปหน้าล็อกอิน</a>
+        </div>
+
+        <!-- Profile Content -->
+        <div id="profile-content" style="display: none;">
+
+            <!-- User Card -->
+            <div class="user-card glass-panel">
+                <div class="user-card-left">
+                    <div class="user-avatar-wrap">
+                        <img class="user-avatar" id="user-avatar" src="" alt="avatar">
+                        <div class="platform-badge" id="platform-badge">LINE</div>
+                    </div>
+                    <div class="user-info">
+                        <h2 class="user-display-name" id="user-display-name">Loading...</h2>
+                        <p class="user-platform-id" id="user-platform-id"></p>
+                    </div>
+                </div>
+                <div class="user-stats">
+                    <div class="user-stat">
+                        <span class="stat-value" id="stat-total-slips">-</span>
+                        <span class="stat-label">สลิปทั้งหมด</span>
+                    </div>
+                    <div class="user-stat">
+                        <span class="stat-value" id="stat-approved">-</span>
+                        <span class="stat-label">อนุมัติแล้ว</span>
+                    </div>
+                    <div class="user-stat">
+                        <span class="stat-value" id="stat-lotto">-</span>
+                        <span class="stat-label">ครั้งทาย</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="profile-progress-card glass-panel">
+                <div class="progress-header">
+                    <span>🔥 หลอดสะสมสิทธิ์รอบนี้</span>
+                    <span class="progress-count" id="profile-progress-count">0 / 5</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="profile-progress-fill" style="width: 0%;"></div>
+                </div>
+                <div class="progress-dots">
+                    <div class="progress-dot" id="pdot-1"><span>1</span></div>
+                    <div class="progress-dot" id="pdot-2"><span>2</span></div>
+                    <div class="progress-dot" id="pdot-3"><span>3</span></div>
+                    <div class="progress-dot" id="pdot-4"><span>4</span></div>
+                    <div class="progress-dot" id="pdot-5"><span>5</span></div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="profile-tabs">
+                <button class="tab-btn active" data-tab="transactions">🧾 ประวัติส่งสลิป</button>
+                <button class="tab-btn" data-tab="lottery">🎰 ประวัติทายเลข</button>
+            </div>
+
+            <!-- Tab: Transactions -->
+            <div class="tab-content" id="tab-transactions">
+                <div class="profile-list glass-panel" id="tx-list">
+                    <div class="list-empty">กำลังโหลด...</div>
+                </div>
+            </div>
+
+            <!-- Tab: Lottery -->
+            <div class="tab-content" id="tab-lottery" style="display: none;">
+                <div class="profile-list glass-panel" id="lotto-list">
+                    <div class="list-empty">กำลังโหลด...</div>
+                </div>
+            </div>
+
+        </div>
+        <!-- /profile-content -->
+
+    </div>
+
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="profile.js"></script>
+</body>
+</html>

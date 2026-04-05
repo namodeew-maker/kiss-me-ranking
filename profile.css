@@ -1,0 +1,448 @@
+/* ==================== PROFILE PAGE ==================== */
+
+.profile-page {
+    max-width: 700px;
+}
+
+/* Back button */
+.back-btn {
+    color: var(--neon-cyan);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    border-radius: 8px;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.back-btn:hover {
+    background: rgba(0, 240, 255, 0.1);
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+}
+
+/* Header link */
+.header-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    padding: 6px 14px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+.header-link:hover {
+    color: var(--text-silver);
+    border-color: rgba(255,255,255,0.2);
+}
+
+/* ==================== LOADING ==================== */
+.profile-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 30px;
+    gap: 15px;
+    color: var(--text-muted);
+}
+.loading-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid rgba(0, 240, 255, 0.15);
+    border-top-color: var(--neon-cyan);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ==================== NOT LOGGED IN ==================== */
+.profile-not-logged-in {
+    text-align: center;
+    padding: 50px 30px;
+}
+.profile-not-logged-in h3 {
+    color: var(--text-silver);
+    font-size: 1.1rem;
+    margin: 0 0 8px;
+}
+.btn-primary {
+    display: inline-block;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, var(--neon-red), #cc2222);
+    color: white;
+    text-decoration: none;
+    border-radius: 10px;
+    font-family: 'Kanit', sans-serif;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.3s;
+}
+.btn-primary:hover {
+    box-shadow: 0 4px 16px rgba(255, 60, 60, 0.4);
+    transform: translateY(-2px);
+}
+
+/* ==================== USER CARD ==================== */
+.user-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+.user-card-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.user-avatar-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+.user-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 3px solid var(--neon-cyan);
+    object-fit: cover;
+    box-shadow: 0 0 16px rgba(0, 240, 255, 0.3);
+}
+.platform-badge {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.platform-badge.line {
+    background: #00B900;
+    color: white;
+}
+.platform-badge.telegram {
+    background: #0088cc;
+    color: white;
+}
+.user-display-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    color: var(--text-silver);
+    margin: 0 0 4px;
+    letter-spacing: 1px;
+}
+.user-platform-id {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    margin: 0;
+}
+.user-stats {
+    display: flex;
+    gap: 24px;
+}
+.user-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+.stat-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* ==================== PROGRESS CARD ==================== */
+.profile-progress-card {
+    padding: 18px 22px;
+    margin-bottom: 16px;
+}
+.profile-progress-card .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    color: var(--text-silver);
+}
+.profile-progress-card .progress-count {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--neon-green);
+    text-shadow: 0 0 8px rgba(0, 255, 170, 0.4);
+}
+.profile-progress-card .progress-track {
+    width: 100%;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 10px;
+}
+.profile-progress-card .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--neon-red), #ff6644, var(--neon-green));
+    border-radius: 10px;
+    transition: width 0.6s ease;
+}
+.profile-progress-card .progress-dots {
+    display: flex;
+    justify-content: space-between;
+}
+.profile-progress-card .progress-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(20, 20, 40, 0.8);
+    transition: all 0.3s;
+}
+.profile-progress-card .progress-dot span {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+.profile-progress-card .progress-dot.filled {
+    border-color: var(--neon-green);
+    background: rgba(0, 255, 170, 0.15);
+    box-shadow: 0 0 10px rgba(0, 255, 170, 0.3);
+}
+.profile-progress-card .progress-dot.filled span {
+    color: var(--neon-green);
+}
+
+/* ==================== TABS ==================== */
+.profile-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--text-muted);
+    font-family: 'Kanit', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 10px 22px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: -1px;
+}
+.tab-btn:hover {
+    color: var(--text-silver);
+}
+.tab-btn.active {
+    color: var(--neon-cyan);
+    border-bottom-color: var(--neon-cyan);
+}
+
+/* ==================== LIST ==================== */
+.profile-list {
+    padding: 6px 0;
+    min-height: 80px;
+}
+.list-empty {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    padding: 30px 20px;
+}
+.list-item {
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    animation: fadeInUp 0.4s ease-out both;
+    transition: background 0.2s;
+}
+.list-item:last-child {
+    border-bottom: none;
+}
+.list-item:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+.item-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+.item-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+.item-number {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 3px 7px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.item-detail {
+    flex: 1;
+    min-width: 0;
+}
+.item-primary {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-silver);
+    margin-bottom: 3px;
+}
+.staff-fullname {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+.item-secondary {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+.item-reject-note {
+    font-size: 0.78rem;
+    color: var(--neon-red);
+    margin-top: 4px;
+}
+.item-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.slip-thumb-link {
+    display: block;
+}
+.slip-thumb {
+    width: 44px;
+    height: 44px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: transform 0.2s;
+}
+.slip-thumb:hover {
+    transform: scale(1.1);
+}
+
+/* ==================== BADGES ==================== */
+.item-badge {
+    flex-shrink: 0;
+    padding: 4px 11px;
+    border-radius: 20px;
+    font-size: 0.73rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+.item-badge.pending {
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+}
+.item-badge.approved {
+    background: rgba(0, 255, 170, 0.15);
+    color: var(--neon-green);
+    border: 1px solid rgba(0, 255, 170, 0.3);
+}
+.item-badge.rejected {
+    background: rgba(255, 60, 60, 0.15);
+    color: var(--neon-red);
+    border: 1px solid rgba(255, 60, 60, 0.3);
+}
+.item-badge.won {
+    background: rgba(255, 215, 0, 0.15);
+    color: #ffd700;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+}
+.item-badge.lost {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-muted);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.item-badge.waiting {
+    background: rgba(0, 240, 255, 0.1);
+    color: var(--neon-cyan);
+    border: 1px solid rgba(0, 240, 255, 0.2);
+}
+
+/* ==================== LOTTERY ITEMS ==================== */
+.lotto-item .item-main {
+    align-items: center;
+}
+.lotto-number-display {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 900;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 12px rgba(0, 240, 255, 0.5);
+    min-width: 56px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.reward-amount {
+    font-size: 0.82rem;
+    color: #ffd700;
+    font-weight: 700;
+    margin-top: 4px;
+}
+.reward-gv {
+    font-size: 0.82rem;
+    color: var(--neon-green);
+    font-weight: 700;
+    margin-top: 4px;
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 520px) {
+    .user-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .user-stats {
+        width: 100%;
+        justify-content: space-around;
+        padding-top: 12px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .tab-btn {
+        padding: 10px 14px;
+        font-size: 0.88rem;
+    }
+    .list-item {
+        padding: 12px 14px;
+    }
+    .item-main {
+        flex-direction: column;
+    }
+    .item-right {
+        flex-direction: row;
+        align-items: center;
+        align-self: stretch;
+        justify-content: space-between;
+    }
+}

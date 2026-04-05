@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบทายเลขท้าย 2 ตัว - Lotto Project</title>
+    <title>Kiss Me Ranking — Gamified Loyalty</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <!-- LINE LIFF SDK -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
 <body class="futuristic-bg">
     <!-- Animated Background Particles -->
@@ -17,7 +19,7 @@
             <div class="terms-header">
                 <div class="terms-icon">📜</div>
                 <h1>เงื่อนไขและกติกา</h1>
-                <p class="terms-subtitle">กรุณาอ่านเงื่อนไขให้ครบถ้วนก่อนเข้าร่วมทายผล</p>
+                <p class="terms-subtitle">กรุณาอ่านเงื่อนไขให้ครบถ้วนก่อนเข้าร่วม Kiss Me Ranking</p>
             </div>
 
             <div class="terms-body" id="terms-body">
@@ -29,61 +31,70 @@
                             <span class="rule-icon">📘</span>
                             <div>
                                 <strong>"ผู้จัดกิจกรรม"</strong>
-                                <p>หมายถึง บริษัทหรือทีมผู้บริหารที่รับผิดชอบการจัดกิจกรรมนี้</p>
+                                <p>หมายถึง บริษัทหรือทีมผู้บริหารที่รับผิดชอบการจัดกิจกรรม Kiss Me Ranking</p>
                             </div>
                         </div>
                         <div class="rule-item legal-def">
                             <span class="rule-icon">📘</span>
                             <div>
-                                <strong>"ผู้เข้าร่วมกิจกรรม"</strong>
-                                <p>หมายถึง พนักงาน (น้อง) ที่ให้บริการและประสงค์จะนำรีวิวมาแลกรับสิทธิ์</p>
+                                <strong>"ลูกค้า / ผู้เข้าร่วมกิจกรรม"</strong>
+                                <p>หมายถึง ลูกค้าที่เข้าสู่ระบบผ่าน LINE LIFF และแจ้งประวัติการใช้บริการเพื่อสะสมสิทธิ์</p>
+                            </div>
+                        </div>
+                        <div class="rule-item legal-def">
+                            <span class="rule-icon">📘</span>
+                            <div>
+                                <strong>"พนักงาน (น้อง)"</strong>
+                                <p>หมายถึง พนักงานที่ให้บริการลูกค้า ซึ่งมีรายชื่อในระบบและเข้าร่วมกิจกรรม</p>
                             </div>
                         </div>
                         <div class="rule-item legal-def">
                             <span class="rule-icon">📘</span>
                             <div>
                                 <strong>"ผู้ตรวจสอบสิทธิ์ (Auditor)"</strong>
-                                <p>หมายถึง คุณบอย หรือบุคคลที่ผู้จัดกิจกรรมมอบหมายให้มีอำนาจในการตรวจสอบและอนุมัติสิทธิ์</p>
+                                <p>หมายถึง ผู้ที่ได้รับมอบหมายให้ตรวจสอบสลิปและอนุมัติสิทธิ์ (Admin จะมองไม่เห็นคะแนนโหวต)</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- ข้อ 2 เงื่อนไขการเข้าร่วมและการรับสิทธิ์ -->
+                <!-- ข้อ 2 เงื่อนไขการเข้าร่วมและการสะสมสิทธิ์ -->
                 <div class="terms-section">
-                    <h2><span class="section-num">ข้อ 2</span> เงื่อนไขการเข้าร่วมและการรับสิทธิ์</h2>
+                    <h2><span class="section-num">ข้อ 2</span> เงื่อนไขการเข้าร่วมและการสะสมสิทธิ์</h2>
                     <div class="terms-rules">
                         <div class="rule-item">
                             <span class="rule-icon">📱</span>
                             <div>
-                                <strong>ช่องทางการส่งรีวิว</strong>
-                                <p>นำภาพแคปหน้าจอ (Screenshot) รีวิวของลูกค้าที่พูดถึงน้องผ่านแอป <strong>Telegram</strong> มาอัปโหลดลงในระบบของเว็บไซต์ผู้จัดกิจกรรม</p>
+                                <strong>การเข้าสู่ระบบ</strong>
+                                <p>ลูกค้าต้องเข้าสู่ระบบผ่าน <strong>LINE LIFF</strong> เท่านั้น</p>
+                            </div>
+                        </div>
+                        <div class="rule-item">
+                            <span class="rule-icon">📝</span>
+                            <div>
+                                <strong>การแจ้งใช้บริการ</strong>
+                                <p>เลือกชื่อพนักงานที่ใช้บริการ → อัปโหลดสลิปโอนเงิน/หลักฐานการจอง → ให้คะแนนลับ 3 ด้าน (หน้าตา, บริการ, ความคุ้มค่า)</p>
                             </div>
                         </div>
                         <div class="rule-item">
                             <span class="rule-icon">🔍</span>
                             <div>
-                                <strong>องค์ประกอบของภาพรีวิวที่สมบูรณ์</strong>
-                                <p>ภาพแคปต้องแสดงข้อมูลให้ชัดเจน 3 ส่วน:</p>
-                                <ul class="rule-checklist">
-                                    <li>✅ ก) ชื่อหรือนามแฝงของลูกค้า</li>
-                                    <li>✅ ข) ชื่อของผู้เข้าร่วมกิจกรรม (พนักงาน)</li>
-                                    <li>✅ ค) วันและเวลาที่ทำรายการรีวิว</li>
-                                </ul>
+                                <strong>การตรวจสอบ</strong>
+                                <p>Admin (Auditor) จะตรวจสอบสลิปเทียบกับความเป็นจริง โดย <strong>มองไม่เห็นคะแนนโหวต</strong></p>
                             </div>
                         </div>
                         <div class="rule-item">
                             <span class="rule-icon">🎫</span>
                             <div>
-                                <strong>อัตราการแลกสิทธิ์</strong>
-                                <p><span class="highlight-text">รีวิวที่ผ่านการอนุมัติ 1 รายการ = 1 สิทธิ์</span> ในการเข้าร่วมทายผล</p>
+                                <strong>อัตราการสะสม</strong>
+                                <p><span class="highlight-text">สลิปที่ผ่านการอนุมัติ 1 ครั้ง = สะสม 1 สิทธิ์</span> (หลอดความคืบหน้า +1)</p>
                             </div>
                         </div>
                         <div class="rule-item rule-warning">
                             <span class="rule-icon">⚠️</span>
                             <div>
-                                <strong>ข้อห้ามและข้อยกเว้น</strong>
-                                <p>ข้อความรีวิวที่มีลักษณะเชิงลบ ไม่สุภาพ หรือสร้างความเสื่อมเสีย จะไม่เข้าเงื่อนไขการรับสิทธิ์ในทุกกรณี</p>
+                                <strong>เงื่อนไขพนักงานไม่ซ้ำ</strong>
+                                <p>ในแต่ละรอบ ต้องแจ้งใช้บริการจากพนักงาน <strong>คนละคน</strong> จำนวน 5 คน (ห้ามซ้ำในรอบเดียวกัน)</p>
                             </div>
                         </div>
                     </div>
@@ -96,56 +107,45 @@
                         <div class="rule-item">
                             <span class="rule-icon">🎯</span>
                             <div>
-                                <strong>รูปแบบการทายผล</strong>
-                                <p>ทายเลขท้าย 2 ตัว (00 - 99) อ้างอิงจากผลเลขท้าย 2 ตัว ของสลากกินแบ่งรัฐบาลไทย งวดวันที่ <strong>1 และ 16</strong> ของทุกเดือน</p>
+                                <strong>เงื่อนไขปลดล็อก</strong>
+                                <p>เมื่อสะสมครบ <strong>5/5</strong> (พนักงานไม่ซ้ำ) ภายในรอบเวลา → ปลดล็อกทายเลขท้าย 2 ตัว <strong>1 สิทธิ์</strong></p>
                             </div>
                         </div>
                         <div class="rule-item">
                             <span class="rule-icon">📅</span>
                             <div>
-                                <strong>ช่วงเวลาเปิดรับทายผล</strong>
+                                <strong>รอบเวลา</strong>
                                 <div class="round-cards">
                                     <div class="round-card">
-                                        <span class="round-label">รอบที่ 1</span>
-                                        <span class="round-date">วันที่ 2 – 14</span>
+                                        <span class="round-label">รอบ A</span>
+                                        <span class="round-date">วันที่ 1 – 14</span>
                                         <span class="round-draw">ออกรางวัล: วันที่ 16</span>
                                     </div>
                                     <div class="round-card">
-                                        <span class="round-label">รอบที่ 2</span>
-                                        <span class="round-date">วันที่ 17 – 29</span>
+                                        <span class="round-label">รอบ B</span>
+                                        <span class="round-date">วันที่ 16 – 29</span>
                                         <span class="round-draw">ออกรางวัล: วันที่ 1</span>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="rule-item">
-                            <span class="rule-icon">🔄</span>
-                            <div>
-                                <strong>กรณีรักษาสิทธิ์ (Rollover)</strong>
-                                <p>หากทำรายการนอกเหนือจากระยะเวลาที่กำหนด ระบบจะยกยอดสิทธิ์ไปยังรอบถัดไปโดยอัตโนมัติ</p>
-                                <div class="example-box">
-                                    <p>📌 ทายวันที่ 15 → ยกไปรอบ 17–29</p>
-                                    <p>📌 ทายวันที่ 30 – 1 → ยกไปรอบ 2–14</p>
                                 </div>
                             </div>
                         </div>
                         <div class="rule-item rule-highlight">
                             <span class="rule-icon">🏆</span>
                             <div>
-                                <strong>มูลค่ารางวัล (1,000 บาท/สิทธิ์)</strong>
+                                <strong>มูลค่ารางวัล</strong>
                                 <div class="prize-cards">
                                     <div class="prize-card">
-                                        <span class="prize-who">👩‍💼 พนักงาน</span>
-                                        <span class="prize-amount">1,000 ฿</span>
-                                        <span class="prize-type">เงินสด / เงินโอน</span>
+                                        <span class="prize-who">🎯 ทายถูก</span>
+                                        <span class="prize-amount">Cashback 100%</span>
+                                        <span class="prize-type">สูงสุด 50,000 ฿ (หักภาษี 7%)</span>
                                     </div>
                                     <div class="prize-card">
-                                        <span class="prize-who">👤 ลูกค้า</span>
-                                        <span class="prize-amount">1,000 ฿</span>
+                                        <span class="prize-who">😢 ทายผิด</span>
+                                        <span class="prize-amount">GV 500 ฿</span>
                                         <span class="prize-type">Gift Voucher</span>
                                     </div>
                                 </div>
-                                <p class="prize-note">💡 หากใช้หลายสิทธิ์ทาย "เลขเดียวกัน" และถูกรางวัล → รับรางวัลทวีคูณตามจำนวนสิทธิ์ที่ได้รับอนุมัติ</p>
+                                <p class="prize-note">💡 สะสมครบ 5 คน → ทายเลข 1 ครั้ง ไม่ว่าผลจะเป็นอย่างไรก็ได้รับรางวัล!</p>
                             </div>
                         </div>
                     </div>
@@ -158,27 +158,27 @@
                         <div class="rule-item">
                             <span class="rule-icon">🕵️</span>
                             <div>
-                                <strong>ผู้ตรวจสอบสิทธิ์ (Auditor): คุณบอย</strong>
+                                <strong>ขั้นตอนการตรวจสอบ</strong>
                                 <div class="audit-steps">
                                     <div class="audit-step">
                                         <span class="audit-num">1</span>
                                         <div>
-                                            <strong>ตรวจสอบหลักฐาน</strong>
-                                            <p>ดูภาพแคปจาก Telegram → กด ✅ อนุมัติ หรือ ❌ ไม่อนุมัติ</p>
+                                            <strong>ลูกค้าแจ้งใช้บริการ</strong>
+                                            <p>เลือกพนักงาน + อัปโหลดสลิป + ให้คะแนนลับ</p>
                                         </div>
                                     </div>
                                     <div class="audit-step">
                                         <span class="audit-num">2</span>
                                         <div>
-                                            <strong>แจ้งผลพนักงาน</strong>
-                                            <p>ทักข้อความไปแจ้งน้องว่าสิทธิ์ได้รับอนุมัติหรือไม่</p>
+                                            <strong>Admin ตรวจสอบสลิป</strong>
+                                            <p>เทียบสลิปกับความเป็นจริง → กด ✅ อนุมัติ หรือ ❌ ปฏิเสธ (ไม่เห็นคะแนนโหวต)</p>
                                         </div>
                                     </div>
                                     <div class="audit-step">
                                         <span class="audit-num">3</span>
                                         <div>
-                                            <strong>แจ้งผลลูกค้า</strong>
-                                            <p>ทักแจ้งลูกค้าว่ารีวิวได้รับการอนุมัติเข้าร่วมแคมเปญแล้ว</p>
+                                            <strong>สะสมสิทธิ์อัตโนมัติ</strong>
+                                            <p>เมื่ออนุมัติ → หลอดสะสม +1 → ครบ 5/5 ปลดล็อกทายเลข</p>
                                         </div>
                                     </div>
                                 </div>
@@ -188,7 +188,7 @@
                             <span class="rule-icon">🔒</span>
                             <div>
                                 <strong>การคุ้มครองข้อมูลส่วนบุคคล (PDPA)</strong>
-                                <p>ข้อมูลของลูกค้าที่ปรากฏในภาพถ่ายหน้าจอ จะถูกเก็บรวบรวมและใช้เพื่อวัตถุประสงค์ในการยืนยันสิทธิ์สำหรับกิจกรรมนี้เท่านั้น ผู้เข้าร่วมกิจกรรมมีหน้าที่รักษาความลับและ<strong>ห้ามมิให้นำข้อมูลดังกล่าวไปเผยแพร่ในพื้นที่สาธารณะโดยเด็ดขาด</strong></p>
+                                <p>ข้อมูลของลูกค้าและคะแนนโหวตจะถูกเก็บรวบรวมและใช้เพื่อวัตถุประสงค์ในการจัดอันดับและยืนยันสิทธิ์เท่านั้น <strong>ห้ามนำข้อมูลไปเผยแพร่ในพื้นที่สาธารณะโดยเด็ดขาด</strong></p>
                             </div>
                         </div>
                     </div>
@@ -209,7 +209,7 @@
                             <span class="rule-icon">🚫</span>
                             <div>
                                 <strong>การทุจริต</strong>
-                                <p>หากผู้จัดกิจกรรมตรวจสอบพบว่ามีการปลอมแปลงหลักฐาน สร้างรีวิวเท็จ หรือกระทำการทุจริตใดๆ ผู้จัดกิจกรรมขอสงวนสิทธิ์ในการตัดสิทธิ์ผู้เข้าร่วมกิจกรรมทันที และอาจมีบทลงโทษทางวินัย</p>
+                                <p>หากตรวจสอบพบว่ามีการปลอมแปลงสลิป สร้างหลักฐานเท็จ หรือกระทำการทุจริตใดๆ ผู้จัดกิจกรรมขอสงวนสิทธิ์ในการตัดสิทธิ์ทันที</p>
                             </div>
                         </div>
                         <div class="rule-item">
@@ -230,23 +230,62 @@
                     <span>ข้าพเจ้าได้อ่านและยอมรับเงื่อนไขทั้งหมดข้างต้น</span>
                 </label>
                 <button class="btn-terms-accept" id="btn-terms-accept" disabled>
-                    เข้าสู่ระบบทายเลข →
+                    เข้าสู่ระบบ Kiss Me Ranking →
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- ==================== MAIN CONTENT (hidden until terms accepted) ==================== -->
+    <!-- ==================== LOGIN OPTIONS (shown after terms, before main) ==================== -->
+    <div class="login-options-overlay" id="login-options" style="display: none;">
+        <div class="login-options-container glass-panel">
+            <div class="login-options-header">
+                <div class="login-options-icon">🔐</div>
+                <h2>เข้าสู่ระบบ</h2>
+                <p class="login-options-subtitle">เลือกช่องทางล็อกอินเพื่อเริ่มสะสมสิทธิ์</p>
+            </div>
+            <div class="login-options-buttons">
+                <button class="login-btn login-btn-line" id="btn-login-line">
+                    <svg class="login-btn-icon" viewBox="0 0 24 24" width="24" height="24"><path fill="#fff" d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg>
+                    <span>เข้าสู่ระบบด้วย LINE</span>
+                </button>
+                <div class="login-divider">
+                    <span>หรือ</span>
+                </div>
+                <button class="login-btn login-btn-telegram" id="btn-login-telegram">
+                    <svg class="login-btn-icon" viewBox="0 0 24 24" width="24" height="24"><path fill="#fff" d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                    <span>เข้าสู่ระบบด้วย Telegram</span>
+                </button>
+                <!-- Telegram Login Widget (hidden, triggered by button click) -->
+                <div id="telegram-widget-container" style="display: none;">
+                    <script async src="https://telegram.org/js/telegram-widget.js?22"
+                        data-telegram-login="YOUR_BOT_USERNAME"
+                        data-size="large"
+                        data-onauth="onTelegramAuth(user)"
+                        data-request-access="write">
+                    </script>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MAIN CONTENT (hidden until logged in) ==================== -->
     <div class="container" id="main-content" style="display: none;">
         <header>
             <div class="logo-area">
-                <div class="logo-icon">🎰</div>
+                <div class="logo-icon">💋</div>
                 <div>
-                    <h1>ระบบทายเลขท้าย 2 ตัว</h1>
-                    <p class="subtitle">สำหรับพนักงานรวบรวมรีวิว &bull; ลุ้นรางวัลตามเลขรัฐบาล</p>
+                    <h1>Kiss Me Ranking</h1>
+                    <p class="subtitle">Gamified Loyalty &bull; สะสมสิทธิ์ &bull; ลุ้นรางวัล</p>
                 </div>
             </div>
             <div class="header-actions">
+                <!-- LIFF Profile Area -->
+                <div class="liff-profile" id="liff-profile">
+                    <img class="liff-avatar" id="liff-avatar" src="" alt="avatar">
+                    <span class="liff-name" id="liff-name">กำลังโหลด...</span>
+                </div>
+                <a href="profile.html" class="header-link profile-btn" id="btn-profile" title="ดูโปรไฟล์ของฉัน">👤 โปรไฟล์</a>
                 <a href="status.html" class="header-link">📊 สถานะ</a>
                 <a href="admin-login.html" class="admin-link">🔒 Admin</a>
             </div>
@@ -262,6 +301,25 @@
                 <span class="round-countdown-label">ออกรางวัล:</span>
                 <span class="round-draw-date" id="round-draw-date">-</span>
             </div>
+        </div>
+
+        <!-- ==================== PROGRESS BAR (หลอดสะสม) ==================== -->
+        <div class="progress-section glass-panel" id="progress-section">
+            <div class="progress-header">
+                <h3>🔥 หลอดสะสมสิทธิ์</h3>
+                <span class="progress-count" id="progress-count">0 / 5</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+            </div>
+            <div class="progress-dots">
+                <div class="progress-dot" data-index="1"><span>1</span></div>
+                <div class="progress-dot" data-index="2"><span>2</span></div>
+                <div class="progress-dot" data-index="3"><span>3</span></div>
+                <div class="progress-dot" data-index="4"><span>4</span></div>
+                <div class="progress-dot" data-index="5"><span>5</span></div>
+            </div>
+            <p class="progress-hint" id="progress-hint">สะสมให้ครบ 5 คน (พนักงานไม่ซ้ำ) เพื่อปลดล็อกทายเลข!</p>
         </div>
 
         <!-- ตารางวันออกรางวัล ปี 2569 -->
@@ -355,17 +413,17 @@
         <div class="steps-bar">
             <div class="step-item active" data-step="1">
                 <div class="step-circle">1</div>
-                <span>กรอกชื่อ</span>
+                <span>เลือกพนักงาน</span>
             </div>
             <div class="step-connector"></div>
             <div class="step-item" data-step="2">
                 <div class="step-circle">2</div>
-                <span>เลือกเลข</span>
+                <span>ให้คะแนน</span>
             </div>
             <div class="step-connector"></div>
             <div class="step-item" data-step="3">
                 <div class="step-circle">3</div>
-                <span>แนบหลักฐาน</span>
+                <span>แนบสลิป</span>
             </div>
             <div class="step-connector"></div>
             <div class="step-item" data-step="4">
@@ -374,33 +432,84 @@
             </div>
         </div>
 
-        <main class="grid-container">
-            <!-- Info Panel -->
-            <section class="info-panel glass-panel">
-                <div class="step-card">
-                    <div class="step-icon">📱</div>
-                    <h3>หลักฐานที่ต้องส่ง</h3>
-                    <p>แคปหน้าจอ Telegram ที่มี: <strong>ชื่อลูกค้า, ชื่อน้อง, เวลารีวิว</strong></p>
-                </div>
-                <div class="step-card">
-                    <div class="step-icon">🎫</div>
-                    <h3>อัตราสิทธิ์</h3>
-                    <p><strong>1 รีวิว = 1 สิทธิ์ทาย</strong> (ห้ามใช้รีวิวเชิงลบ)</p>
-                </div>
-                <div class="info-badge">
-                    <span class="badge-glow">🏆</span>
-                    <span>ทายถูก! รับ 1,000 ฿ ทั้งน้องและลูกค้า</span>
-                </div>
-                <div class="info-badge" style="margin-top: 10px; border-color: rgba(0, 240, 255, 0.2); color: var(--neon-cyan);">
-                    <span class="badge-glow" style="filter: hue-rotate(180deg);">🕵️</span>
-                    <span>ตรวจสอบโดย: <strong>คุณบอย</strong> (Auditor)</span>
-                </div>
+        <main class="grid-container-kiss">
+            <!-- ==================== LEFT: Submission Form ==================== -->
+            <section class="submission-panel glass-panel">
+                <h3>💌 แจ้งใช้บริการ</h3>
+                <form id="submission-form">
+                    <!-- Staff Dropdown -->
+                    <div class="input-group">
+                        <label for="staff-select">เลือกพนักงาน (น้อง)</label>
+                        <select id="staff-select" required>
+                            <option value="" disabled selected>-- กรุณาเลือกพนักงาน --</option>
+                            <!-- จะถูกเติมจาก API /api/staffs -->
+                        </select>
+                    </div>
+
+                    <!-- Rating Sliders -->
+                    <div class="rating-section">
+                        <h4>⭐ ให้คะแนนลับ (Admin ไม่เห็น)</h4>
+
+                        <div class="slider-group">
+                            <label for="score-looks">
+                                <span class="slider-label-text">💄 หน้าตา / รูปร่าง</span>
+                                <span class="slider-value" id="score-looks-val">5</span>
+                            </label>
+                            <input type="range" id="score-looks" name="looks_score" min="1" max="10" value="5" class="neon-slider">
+                            <div class="slider-range-labels"><span>1</span><span>10</span></div>
+                        </div>
+
+                        <div class="slider-group">
+                            <label for="score-service">
+                                <span class="slider-label-text">💆 การบริการ</span>
+                                <span class="slider-value" id="score-service-val">5</span>
+                            </label>
+                            <input type="range" id="score-service" name="service_score" min="1" max="10" value="5" class="neon-slider">
+                            <div class="slider-range-labels"><span>1</span><span>10</span></div>
+                        </div>
+
+                        <div class="slider-group">
+                            <label for="score-value">
+                                <span class="slider-label-text">💰 ความคุ้มค่า</span>
+                                <span class="slider-value" id="score-value-val">5</span>
+                            </label>
+                            <input type="range" id="score-value" name="value_score" min="1" max="10" value="5" class="neon-slider">
+                            <div class="slider-range-labels"><span>1</span><span>10</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Upload Slip -->
+                    <div class="upload-area">
+                        <label for="proof">📸 อัปโหลดภาพสลิปโอนเงิน / หลักฐานการจอง</label>
+                        <div class="upload-box" id="upload-box">
+                            <div class="upload-icon">📷</div>
+                            <span>คลิกเพื่ออัปโหลดภาพสลิป</span>
+                            <p class="upload-hint">รองรับไฟล์รูปภาพ (JPG, PNG)</p>
+                            <input type="file" id="proof" accept="image/*" hidden>
+                        </div>
+                        <div class="upload-preview" id="upload-preview" hidden>
+                            <img id="preview-img" alt="Preview">
+                            <button type="button" class="btn-remove-img" id="btn-remove-img">✕</button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-submit">
+                        <span class="btn-text">🚀 ส่งแจ้งใช้บริการ</span>
+                    </button>
+                </form>
             </section>
 
-            <!-- Step 2: Lotto Grid Selection -->
-            <section class="lotto-selection glass-panel">
+            <!-- ==================== RIGHT: Lotto Grid (Locked until 5/5) ==================== -->
+            <section class="lotto-selection glass-panel" id="lotto-section">
+                <!-- Lock Overlay -->
+                <div class="lotto-lock-overlay" id="lotto-lock-overlay">
+                    <div class="lock-icon">🔒</div>
+                    <p>สะสมให้ครบ <strong>5/5</strong> เพื่อปลดล็อก</p>
+                    <span class="lock-sub">หลอดสะสมปัจจุบัน: <span id="lock-progress-text">0/5</span></span>
+                </div>
+
                 <div class="section-header">
-                    <h3>เลือกเลขท้าย 2 ตัว (00-99)</h3>
+                    <h3>🎰 ทายเลขท้าย 2 ตัว (00-99)</h3>
                     <div class="selected-display" id="selected-display">
                         <span class="selected-label">เลขที่เลือก:</span>
                         <span class="selected-number" id="selected-number">--</span>
@@ -414,42 +523,31 @@
                     <span class="legend-item"><span class="legend-box selected"></span> เลือกแล้ว</span>
                     <span class="legend-item"><span class="legend-box sold-out"></span> เต็ม</span>
                 </div>
-            </section>
-
-            <!-- Step 3 & 4: Submission Form -->
-            <section class="submission-panel glass-panel">
-                <h3>ส่งข้อมูลหลักฐาน</h3>
-                <form id="submission-form">
-                    <div class="input-group">
-                        <label for="username">ชื่อพนักงาน (น้อง)</label>
-                        <input type="text" id="username" placeholder="ชื่อน้อง เช่น น้องพลอย" required>
-                    </div>
-                    <div class="upload-area">
-                        <label for="proof">แคปหน้าจอรีวิวจาก Telegram</label>
-                        <div class="upload-box" id="upload-box">
-                            <div class="upload-icon">📷</div>
-                            <span>คลิกเพื่ออัปโหลดรูปแคปหน้าจอ</span>
-                            <p class="upload-hint">ต้องแสดง: ชื่อลูกค้า / ชื่อน้อง / เวลารีวิว</p>
-                            <input type="file" id="proof" accept="image/*" hidden>
-                        </div>
-                        <div class="upload-preview" id="upload-preview" hidden>
-                            <img id="preview-img" alt="Preview">
-                            <button type="button" class="btn-remove-img" id="btn-remove-img">✕</button>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn-submit">
-                        <span class="btn-text">🚀 ยืนยันการทาย</span>
-                    </button>
-                </form>
+                <button type="button" class="btn-submit btn-lotto-confirm" id="btn-lotto-confirm" disabled>
+                    <span class="btn-text">🎯 ยืนยันทายเลข</span>
+                </button>
             </section>
         </main>
 
+        <!-- Info Cards -->
+        <div class="info-cards-row">
+            <div class="info-badge glass-panel">
+                <span class="badge-glow">🏆</span>
+                <span>ทายถูก → Cashback 100% สูงสุด 50,000 ฿ &bull; ทายผิด → รับ GV 500 ฿</span>
+            </div>
+            <div class="info-badge glass-panel" style="border-color: rgba(0, 240, 255, 0.2); color: var(--neon-cyan);">
+                <span class="badge-glow" style="filter: hue-rotate(180deg);">🔒</span>
+                <span>คะแนนโหวตเป็นความลับ — Admin มองไม่เห็น</span>
+            </div>
+        </div>
+
         <!-- Footer Links -->
         <footer class="footer-links" style="margin-top: 25px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-            <a href="status.html" class="btn-status-link">📊 ดูสถานะการทายผลปัจจุบัน</a>
+            <a href="status.html" class="btn-status-link">📊 ดูสถานะสะสมสิทธิ์</a>
             <button class="btn-status-link" id="btn-view-terms" style="cursor: pointer; border: 1px solid var(--neon-cyan); color: var(--neon-cyan); background: linear-gradient(135deg, rgba(0,240,255,0.1), rgba(0,240,255,0.03));">📜 ดูเงื่อนไขและกติกา</button>
         </footer>
     </div>
+
     <script src="script.js"></script>
 </body>
 </html>

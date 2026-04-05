@@ -3,6 +3,7 @@ node_modules/
 uploads/
 .env
 .codacy/
+.vscode/
 
 # Ignore vscode AI rules
 .github/instructions/codacy.instructions.md

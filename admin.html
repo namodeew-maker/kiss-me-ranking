@@ -3,18 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - ผู้ตรวจสอบสิทธิ์ (Auditor)</title>
+    <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="admin.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
+    <!-- Toast Notification -->
+    <div class="toast-container" id="toast-container"></div>
+
     <div class="container">
         <header class="admin-header">
             <div>
-                <h1>🕵️ Auditor Panel</h1>
-                <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0;">ผู้ตรวจสอบสิทธิ์: <strong style="color: var(--gold);">คุณบอย</strong></p>
+                <h1>💋 Kiss Me Ranking — Auditor Panel</h1>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0;">ผู้ตรวจสอบสิทธิ์ (Auditor) &bull; <strong style="color: var(--gold);">คะแนนโหวตจะไม่แสดงในหน้านี้</strong></p>
             </div>
             <a href="index.html" class="btn-back">← กลับหน้าหลัก</a>
             <button class="btn-back" id="btn-logout" style="margin-left: 10px; background: rgba(255,68,68,0.15); border-color: rgba(255,68,68,0.3); color: #ff6666; cursor: pointer;">🚪 ออกจากระบบ</button>
@@ -42,24 +45,27 @@
                     <div class="audit-wf-step">
                         <span class="audit-wf-num">1</span>
                         <div>
-                            <strong>ตรวจสอบหลักฐาน</strong>
-                            <p>ดูภาพแคปจาก Telegram → กด ✅ อนุมัติ / ❌ ไม่อนุมัติ</p>
+                            <strong>ตรวจสอบสลิป</strong>
+                            <p>ดูภาพสลิปโอนเงิน / หลักฐานการจอง → เทียบกับความเป็นจริง</p>
                         </div>
                     </div>
                     <div class="audit-wf-step">
                         <span class="audit-wf-num">2</span>
                         <div>
-                            <strong>แจ้งผลพนักงาน</strong>
-                            <p>ทักข้อความไปแจ้งน้องว่าสิทธิ์ได้รับอนุมัติหรือไม่</p>
+                            <strong>อนุมัติ / ปฏิเสธ</strong>
+                            <p>กด ✅ อนุมัติ → ลูกค้าได้สะสม +1 สิทธิ์ หรือ ❌ ปฏิเสธ</p>
                         </div>
                     </div>
                     <div class="audit-wf-step">
                         <span class="audit-wf-num">3</span>
                         <div>
-                            <strong>แจ้งผลลูกค้า</strong>
-                            <p>ทักแจ้งลูกค้าว่ารีวิวได้รับการอนุมัติเข้าร่วมแคมเปญแล้ว</p>
+                            <strong>ระบบแจ้งลูกค้าอัตโนมัติ</strong>
+                            <p>เมื่อสะสมครบ 5/5 → ลูกค้าปลดล็อกทายเลข</p>
                         </div>
                     </div>
+                </div>
+                <div class="audit-notice">
+                    <span>🔒</span> <strong>คะแนนโหวต (หน้าตา / บริการ / ความคุ้มค่า) เป็นความลับสูงสุด — ไม่แสดงในหน้า Admin</strong>
                 </div>
             </section>
 
@@ -69,19 +75,23 @@
                 <div class="stat-cards">
                     <div class="stat-card">
                         <span class="stat-number" id="total-users">0</span>
-                        <span class="stat-label">ผู้ทายทั้งหมด</span>
+                        <span class="stat-label">ลูกค้าทั้งหมด</span>
                     </div>
                     <div class="stat-card stat-card-warning">
                         <span class="stat-number" id="pending-count">0</span>
-                        <span class="stat-label">รออนุมัติ</span>
+                        <span class="stat-label">สลิปรออนุมัติ</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number" id="total-transactions">0</span>
+                        <span class="stat-label">รายการทั้งหมด</span>
                     </div>
                     <div class="stat-card">
                         <span class="stat-number" id="sold-slots">0</span>
-                        <span class="stat-label">ช่องที่ถูกจองแล้ว</span>
+                        <span class="stat-label">เลขที่ถูกจองแล้ว</span>
                     </div>
                     <div class="stat-card">
                         <span class="stat-number" id="available-slots">100</span>
-                        <span class="stat-label">ช่องว่าง</span>
+                        <span class="stat-label">เลขว่าง</span>
                     </div>
                 </div>
             </section>
@@ -101,51 +111,18 @@
                 </div>
             </section>
 
-            <!-- Grant Permissions -->
-            <section class="admin-panel">
-                <h3>ให้สิทธิ์ผู้ใช้ทายผล</h3>
-                <form id="grant-form">
-                    <div class="input-row">
-                        <input type="text" id="grant-username" placeholder="ชื่อผู้ใช้" required>
-                        <select id="grant-slots" title="จำนวนสิทธิ์">
-                            <option value="1">1 สิทธิ์</option>
-                            <option value="2">2 สิทธิ์</option>
-                            <option value="3" selected>3 สิทธิ์</option>
-                            <option value="5">5 สิทธิ์</option>
-                        </select>
-                        <button type="submit" class="btn-action btn-blue">ให้สิทธิ์</button>
-                    </div>
-                </form>
-                <table class="admin-table" id="permissions-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>ชื่อผู้ใช้</th>
-                            <th>สิทธิ์ที่ได้รับ</th>
-                            <th>ใช้ไปแล้ว</th>
-                            <th>สถานะ</th>
-                            <th>จัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="permissions-body">
-                        <!-- Rows will be inserted by JS -->
-                    </tbody>
-                </table>
-                <p class="empty-msg" id="no-permissions">ยังไม่มีผู้ใช้ที่ได้รับสิทธิ์</p>
-            </section>
-
             <!-- Approval Queue -->
             <section class="admin-panel approval-panel">
-                <h3>📋 รายการรออนุมัติ</h3>
+                <h3>📋 คิวรออนุมัติ (Approval Queue)</h3>
                 <table class="admin-table" id="approval-table">
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>ชื่อผู้ใช้</th>
-                            <th>เลขที่ทาย</th>
-                            <th>รูปหลักฐาน</th>
-                            <th>วันที่ส่ง</th>
-                            <th>อนุมัติ</th>
+                            <th>วันเวลาที่ส่ง</th>
+                            <th>ชื่อลูกค้า</th>
+                            <th>ชื่อพนักงาน</th>
+                            <th>รูปสลิป</th>
+                            <th>จัดการ</th>
                         </tr>
                     </thead>
                     <tbody id="approval-body">
@@ -154,18 +131,21 @@
                 <p class="empty-msg" id="no-approval">ไม่มีรายการรออนุมัติ</p>
             </section>
 
-            <!-- Submission History -->
+            <!-- Submission History (Transactions + Lottery Results) -->
             <section class="admin-panel">
-                <h3>ประวัติการทายผล</h3>
+                <h3>📊 ประวัติการใช้บริการ & ผลทายเลข</h3>
                 <table class="admin-table" id="history-table">
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>ชื่อผู้ใช้</th>
-                            <th>เลขที่ทาย</th>
-                            <th>รูปหลักฐาน</th>
                             <th>วันที่</th>
+                            <th>ชื่อลูกค้า</th>
+                            <th>ชื่อพนักงาน</th>
+                            <th>รูปสลิป</th>
                             <th>สถานะ</th>
+                            <th>เลขที่ทาย</th>
+                            <th>ผลรางวัล</th>
+                            <th>Cashback / GV</th>
                             <th>จัดการ</th>
                         </tr>
                     </thead>
@@ -173,7 +153,38 @@
                         <!-- Rows will be inserted by JS -->
                     </tbody>
                 </table>
-                <p class="empty-msg" id="no-history">ยังไม่มีประวัติการทายผล</p>
+                <p class="empty-msg" id="no-history">ยังไม่มีประวัติ</p>
+            </section>
+
+            <!-- Cashback Summary -->
+            <section class="admin-panel cashback-panel">
+                <h3>💰 สรุปยอด Cashback & GV ในรอบนี้</h3>
+                <div class="cashback-summary" id="cashback-summary">
+                    <div class="cashback-card">
+                        <span class="cashback-label">🎯 ทายถูก (Cashback)</span>
+                        <span class="cashback-value" id="cashback-winners">0 คน</span>
+                    </div>
+                    <div class="cashback-card">
+                        <span class="cashback-label">💵 ยอด Cashback รวม (ก่อนภาษี)</span>
+                        <span class="cashback-value" id="cashback-total-gross">0 ฿</span>
+                    </div>
+                    <div class="cashback-card">
+                        <span class="cashback-label">🧾 ภาษี 7%</span>
+                        <span class="cashback-value cashback-tax" id="cashback-tax">0 ฿</span>
+                    </div>
+                    <div class="cashback-card cashback-card-net">
+                        <span class="cashback-label">✅ ยอดจ่ายจริง (หลังหักภาษี)</span>
+                        <span class="cashback-value cashback-net" id="cashback-total-net">0 ฿</span>
+                    </div>
+                    <div class="cashback-card">
+                        <span class="cashback-label">🎁 GV 500 ฿ (ทายผิด)</span>
+                        <span class="cashback-value" id="cashback-gv-count">0 คน</span>
+                    </div>
+                    <div class="cashback-card">
+                        <span class="cashback-label">📦 มูลค่า GV รวม</span>
+                        <span class="cashback-value" id="cashback-gv-total">0 ฿</span>
+                    </div>
+                </div>
             </section>
 
             <!-- Guess Chart -->
@@ -228,7 +239,7 @@
     <div class="img-modal-overlay" id="img-modal" hidden>
         <div class="img-modal-content">
             <button class="img-modal-close" id="img-modal-close">&times;</button>
-            <img id="img-modal-img" src="" alt="หลักฐานรีวิว">
+            <img id="img-modal-img" src="" alt="หลักฐานสลิป">
         </div>
     </div>
 

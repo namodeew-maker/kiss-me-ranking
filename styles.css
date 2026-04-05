@@ -1407,3 +1407,717 @@ header h1 {
 .lotto-selection { animation: fadeInUp 0.5s ease-out 0.1s both; }
 .submission-panel { animation: fadeInUp 0.5s ease-out 0.2s both; }
 .status-panel { animation: fadeInUp 0.5s ease-out 0.3s both; }
+
+/* ==================== LIFF PROFILE ==================== */
+.liff-profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 30px;
+}
+
+.liff-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--neon-cyan);
+    object-fit: cover;
+}
+
+.liff-name {
+    font-size: 0.85rem;
+    color: var(--text-silver);
+    font-weight: 600;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ==================== PROGRESS BAR (หลอดสะสม) ==================== */
+.progress-section {
+    padding: 20px 25px;
+    margin-bottom: 20px;
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.progress-header h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    color: var(--neon-red);
+}
+
+.progress-count {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 900;
+    color: var(--neon-green);
+    text-shadow: 0 0 10px rgba(0, 255, 170, 0.4);
+}
+
+.progress-track {
+    width: 100%;
+    height: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    position: relative;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--neon-red), #ff6644, var(--neon-green));
+    border-radius: 10px;
+    transition: width 0.6s ease;
+    position: relative;
+}
+
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.progress-dots {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    padding: 0 2px;
+}
+
+.progress-dot {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(20, 20, 40, 0.8);
+    transition: all 0.3s;
+}
+
+.progress-dot span {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.progress-dot.filled {
+    border-color: var(--neon-green);
+    background: rgba(0, 255, 170, 0.15);
+    box-shadow: 0 0 10px rgba(0, 255, 170, 0.3);
+}
+
+.progress-dot.filled span {
+    color: var(--neon-green);
+}
+
+.progress-dot.current {
+    border-color: var(--neon-red);
+    background: rgba(255, 60, 60, 0.15);
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.progress-dot.current span {
+    color: var(--neon-red);
+}
+
+.progress-hint {
+    text-align: center;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin: 12px 0 0;
+}
+
+.progress-hint.unlocked {
+    color: var(--neon-green);
+    font-weight: 600;
+}
+
+/* ==================== KISS ME GRID LAYOUT ==================== */
+.grid-container-kiss {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+/* ==================== STAFF DROPDOWN ==================== */
+.submission-panel select {
+    width: 100%;
+    background: rgba(20, 20, 40, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 12px 14px;
+    margin: 5px 0 15px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-family: 'Kanit', sans-serif;
+    transition: border-color 0.3s;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ff3c3c' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    cursor: pointer;
+}
+
+.submission-panel select:focus {
+    outline: none;
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
+}
+
+.submission-panel select option {
+    background: #1a1a2e;
+    color: white;
+}
+
+/* ==================== RATING SLIDERS ==================== */
+.rating-section {
+    margin: 20px 0;
+    padding: 18px;
+    background: rgba(255, 170, 0, 0.03);
+    border: 1px solid rgba(255, 170, 0, 0.1);
+    border-radius: 12px;
+}
+
+.rating-section h4 {
+    margin: 0 0 16px;
+    font-size: 0.95rem;
+    color: var(--gold);
+}
+
+.slider-group {
+    margin-bottom: 18px;
+}
+
+.slider-group:last-child {
+    margin-bottom: 0;
+}
+
+.slider-group label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.slider-label-text {
+    font-size: 0.85rem;
+    color: var(--text-silver);
+}
+
+.slider-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: var(--neon-cyan);
+    min-width: 30px;
+    text-align: center;
+    text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+}
+
+.neon-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+}
+
+.neon-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--neon-cyan), #0088aa);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+    transition: box-shadow 0.2s;
+}
+
+.neon-slider::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.6);
+}
+
+.neon-slider::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--neon-cyan), #0088aa);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+.slider-range-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2px;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    opacity: 0.6;
+}
+
+/* ==================== LOTTO LOCK OVERLAY ==================== */
+.lotto-selection {
+    position: relative;
+    overflow: hidden;
+}
+
+.lotto-lock-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    background: rgba(6, 6, 18, 0.92);
+    backdrop-filter: blur(6px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border-radius: 16px;
+    text-align: center;
+    padding: 20px;
+}
+
+.lotto-lock-overlay.hidden {
+    display: none;
+}
+
+.lock-icon {
+    font-size: 4rem;
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.lotto-lock-overlay p {
+    font-size: 1.1rem;
+    color: var(--text-silver);
+    margin: 0;
+}
+
+.lock-sub {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.btn-lotto-confirm {
+    margin-top: 15px;
+}
+
+/* ==================== INFO CARDS ROW ==================== */
+.info-cards-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.info-cards-row .info-badge {
+    margin-top: 0;
+    padding: 18px;
+}
+
+/* ==================== RESPONSIVE: Kiss Me Layout ==================== */
+@media (max-width: 1024px) {
+    .grid-container-kiss {
+        grid-template-columns: 1fr;
+    }
+
+    .info-cards-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .liff-profile {
+        display: none;
+    }
+
+    .progress-dot {
+        width: 30px;
+        height: 30px;
+    }
+
+    .progress-dot span {
+        font-size: 0.65rem;
+    }
+
+    .grid-container-kiss {
+        grid-template-columns: 1fr;
+    }
+
+    .info-cards-row {
+        grid-template-columns: 1fr;
+    }
+
+    .slider-value {
+        font-size: 0.9rem;
+    }
+}
+
+/* ==================== LOGIN OPTIONS OVERLAY ==================== */
+.login-options-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    background: var(--dark-bg);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 30px 20px;
+}
+
+.login-options-container {
+    max-width: 440px;
+    width: 100%;
+    padding: 40px 30px;
+    text-align: center;
+}
+
+.login-options-header {
+    margin-bottom: 30px;
+}
+
+.login-options-icon {
+    font-size: 3rem;
+    margin-bottom: 12px;
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.login-options-header h2 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.4rem;
+    color: var(--neon-cyan);
+    margin: 0 0 8px;
+    letter-spacing: 2px;
+}
+
+.login-options-subtitle {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.login-options-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.login-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 12px;
+    font-family: 'Kanit', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.3s;
+    letter-spacing: 0.5px;
+}
+
+.login-btn-icon {
+    flex-shrink: 0;
+}
+
+.login-btn-line {
+    background: linear-gradient(135deg, #00B900, #00C300);
+    box-shadow: 0 4px 15px rgba(0, 185, 0, 0.3);
+}
+
+.login-btn-line:hover {
+    background: linear-gradient(135deg, #00A000, #00B300);
+    box-shadow: 0 6px 20px rgba(0, 185, 0, 0.5);
+    transform: translateY(-2px);
+}
+
+.login-btn-telegram {
+    background: linear-gradient(135deg, #0088cc, #0099DD);
+    box-shadow: 0 4px 15px rgba(0, 136, 204, 0.3);
+}
+
+.login-btn-telegram:hover {
+    background: linear-gradient(135deg, #0077bb, #0088cc);
+    box-shadow: 0 6px 20px rgba(0, 136, 204, 0.5);
+    transform: translateY(-2px);
+}
+
+.login-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 4px 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.login-divider::before,
+.login-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* ==================== PROFILE BUTTON ==================== */
+.profile-btn {
+    background: none;
+    border: 1px solid rgba(0, 240, 255, 0.25);
+    color: var(--neon-cyan);
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-family: 'Kanit', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+}
+
+.profile-btn:hover {
+    background: rgba(0, 240, 255, 0.1);
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+}
+
+/* ==================== PROFILE MODAL ==================== */
+.profile-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(6px);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 40px 20px;
+    overflow-y: auto;
+}
+
+.profile-modal {
+    max-width: 600px;
+    width: 100%;
+    padding: 0;
+    overflow: hidden;
+    animation: fadeInUp 0.3s ease-out;
+}
+
+.profile-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    border-bottom: 1px solid rgba(0, 240, 255, 0.15);
+    background: linear-gradient(180deg, rgba(0, 240, 255, 0.06), transparent);
+}
+
+.profile-modal-header h2 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    color: var(--neon-cyan);
+    margin: 0;
+    letter-spacing: 1px;
+}
+
+.profile-close-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.8rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+    transition: color 0.2s;
+}
+
+.profile-close-btn:hover {
+    color: var(--neon-red);
+}
+
+.profile-modal-body {
+    padding: 20px 25px;
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+.profile-modal-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.profile-modal-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.profile-modal-body::-webkit-scrollbar-thumb {
+    background: rgba(0, 240, 255, 0.3);
+    border-radius: 3px;
+}
+
+.profile-section {
+    margin-bottom: 24px;
+}
+
+.profile-section:last-child {
+    margin-bottom: 0;
+}
+
+.profile-section-title {
+    font-size: 0.95rem;
+    color: var(--neon-red);
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 60, 60, 0.15);
+}
+
+.profile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.profile-empty {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    padding: 20px;
+}
+
+.profile-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    gap: 10px;
+}
+
+.profile-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.profile-item-primary {
+    color: var(--text-silver);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.profile-item-secondary {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.profile-badge {
+    flex-shrink: 0;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.profile-badge.pending {
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.profile-badge.approved {
+    background: rgba(0, 255, 170, 0.15);
+    color: var(--neon-green);
+    border: 1px solid rgba(0, 255, 170, 0.3);
+}
+
+.profile-badge.rejected {
+    background: rgba(255, 60, 60, 0.15);
+    color: var(--neon-red);
+    border: 1px solid rgba(255, 60, 60, 0.3);
+}
+
+.profile-badge.won {
+    background: rgba(255, 215, 0, 0.15);
+    color: #ffd700;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.profile-badge.lost {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-muted);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.profile-badge.waiting {
+    background: rgba(0, 240, 255, 0.1);
+    color: var(--neon-cyan);
+    border: 1px solid rgba(0, 240, 255, 0.2);
+}
+
+@media (max-width: 480px) {
+    .login-options-container {
+        padding: 30px 20px;
+    }
+
+    .login-btn {
+        padding: 12px 16px;
+        font-size: 0.9rem;
+    }
+
+    .profile-modal-header {
+        padding: 16px 18px;
+    }
+
+    .profile-modal-body {
+        padding: 16px 18px;
+    }
+
+    .profile-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .profile-badge {
+        align-self: flex-end;
+    }
+}

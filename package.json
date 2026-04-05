@@ -1,7 +1,7 @@
 {
-  "name": "lotto-projact",
-  "version": "1.0.0",
-  "description": "",
+  "name": "kiss-me-ranking",
+  "version": "2.0.0",
+  "description": "Kiss Me Ranking — Gamified Loyalty & CRM on LINE LIFF",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

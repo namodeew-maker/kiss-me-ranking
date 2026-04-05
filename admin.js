@@ -22,6 +22,23 @@ async function authFetch(url, options = {}) {
     return res;
 }
 
+// --- Toast Notification ---
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+    toast.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-msg">${message}</span>`;
+    container.appendChild(toast);
+    // Trigger animation
+    requestAnimationFrame(() => toast.classList.add('toast-show'));
+    setTimeout(() => {
+        toast.classList.remove('toast-show');
+        toast.classList.add('toast-hide');
+        setTimeout(() => toast.remove(), 400);
+    }, 3500);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     // Verify token is still valid
     try {
@@ -62,7 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (imagePath) {
             // Support both full URL (R2) and local path
             const src = imagePath.startsWith('http') ? imagePath : `/uploads/${encodeURIComponent(imagePath)}`;
-            return `<img src="${src}" class="admin-thumb" data-fullimg="${src}" alt="หลักฐาน">`;
+            return `<img src="${src}" class="admin-thumb" data-fullimg="${src}" alt="สลิป">`;
         }
         return '<span class="text-muted">ไม่มีรูป</span>';
     }
@@ -71,6 +88,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         container.querySelectorAll('.admin-thumb').forEach(img => {
             img.addEventListener('click', () => openImageModal(img.dataset.fullimg));
         });
+    }
+
+    // --- Format Helpers ---
+    function formatCurrency(amount) {
+        return Number(amount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ฿';
     }
 
     // --- Render Functions ---
@@ -93,48 +115,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateStats();
     }
 
-    async function renderPermissions() {
-        const tbody = document.getElementById('permissions-body');
-        const noMsg = document.getElementById('no-permissions');
-        try {
-            const res = await fetch(`${API_BASE}/permissions`);
-            const permissions = await res.json();
-
-            if (permissions.length === 0) {
-                tbody.innerHTML = '';
-                noMsg.classList.remove('hidden');
-                return;
-            }
-
-            noMsg.classList.add('hidden');
-            tbody.innerHTML = permissions.map((p, i) => {
-                const statusClass = p.revoked ? 'badge-revoked' : (p.used >= p.slots ? 'badge-used' : 'badge-active');
-                const statusText = p.revoked ? 'ถูกเพิกถอน' : (p.used >= p.slots ? 'ใช้ครบแล้ว' : 'ใช้งานได้');
-                return `<tr>
-                    <td>${i + 1}</td>
-                    <td>${escapeHtml(p.name)}</td>
-                    <td>${p.slots}</td>
-                    <td>${p.used}</td>
-                    <td><span class="badge ${statusClass}">${statusText}</span></td>
-                    <td>
-                        ${!p.revoked ? `<button class="btn-small" data-revoke="${p.id}">เพิกถอน</button>` : '—'}
-                    </td>
-                </tr>`;
-            }).join('');
-
-            tbody.querySelectorAll('[data-revoke]').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    await authFetch(`${API_BASE}/permissions/${btn.dataset.revoke}/revoke`, { method: 'PUT' });
-                    renderPermissions();
-                    updateStats();
-                });
-            });
-        } catch (err) {
-            tbody.innerHTML = '';
-            noMsg.classList.remove('hidden');
-        }
-    }
-
     async function renderHistory() {
         const tbody = document.getElementById('history-body');
         const noMsg = document.getElementById('no-history');
@@ -150,6 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             noMsg.classList.add('hidden');
             tbody.innerHTML = history.map((h, i) => {
+                // Transaction status
                 let statusClass, statusText;
                 if (h.approved === 'rejected') {
                     statusClass = 'badge-revoked';
@@ -157,24 +138,48 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else if (h.approved === 'pending') {
                     statusClass = 'badge-pending';
                     statusText = 'รออนุมัติ';
-                } else if (h.won === true) {
-                    statusClass = 'badge-active';
-                    statusText = 'ถูกรางวัล!';
-                } else if (h.won === false) {
-                    statusClass = 'badge-revoked';
-                    statusText = 'ไม่ถูก';
                 } else {
-                    statusClass = 'badge-used';
-                    statusText = 'อนุมัติแล้ว - รอผล';
+                    statusClass = 'badge-active';
+                    statusText = 'อนุมัติแล้ว';
                 }
-                const dateStr = new Date(h.date).toLocaleString('th-TH');
+
+                // Lottery result
+                let lotteryNum = '—';
+                let resultBadge = '';
+                let cashbackCell = '—';
+
+                if (h.guess_number) {
+                    lotteryNum = h.guess_number;
+                }
+
+                if (h.lottery_result === 'won') {
+                    resultBadge = '<span class="badge badge-won">🎯 ถูกรางวัล!</span>';
+                    // Calculate cashback: 100% of spending, max 50,000, minus 7% tax
+                    const grossAmount = h.reward_amount || 0;
+                    const tax = grossAmount * 0.07;
+                    const netAmount = grossAmount - tax;
+                    cashbackCell = `<span class="cashback-won">${formatCurrency(netAmount)}</span><br><span class="cashback-detail">ก่อนภาษี: ${formatCurrency(grossAmount)}</span>`;
+                } else if (h.lottery_result === 'lost') {
+                    resultBadge = '<span class="badge badge-lost">ไม่ถูก</span>';
+                    cashbackCell = '<span class="cashback-gv">GV 500 ฿</span>';
+                } else if (h.lottery_result === 'pending') {
+                    resultBadge = '<span class="badge badge-pending">รอผล</span>';
+                }
+
+                const dateStr = new Date(h.date || h.created_at).toLocaleString('th-TH');
+                const customerName = h.customer_name || h.name || '—';
+                const staffName = h.staff_name || '—';
+
                 return `<tr>
                     <td>${i + 1}</td>
-                    <td>${escapeHtml(h.name)}</td>
-                    <td>${h.number}</td>
-                    <td>${imageCell(h.image_path)}</td>
                     <td>${dateStr}</td>
+                    <td>${escapeHtml(customerName)}</td>
+                    <td>${escapeHtml(staffName)}</td>
+                    <td>${imageCell(h.image_path || h.slip_image_url)}</td>
                     <td><span class="badge ${statusClass}">${statusText}</span></td>
+                    <td class="lottery-num-cell">${lotteryNum}</td>
+                    <td>${resultBadge || '—'}</td>
+                    <td>${cashbackCell}</td>
                     <td>
                         <button class="btn-small" data-delete-history="${h.id}">ลบ</button>
                     </td>
@@ -188,6 +193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await authFetch(`${API_BASE}/history/${btn.dataset.deleteHistory}`, { method: 'DELETE' });
                     renderHistory();
                     renderApproval();
+                    renderCashbackSummary();
                     updateStats();
                 });
             });
@@ -214,13 +220,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             noMsg.classList.add('hidden');
             tbody.innerHTML = pending.map((h, i) => {
-                const dateStr = new Date(h.date).toLocaleString('th-TH');
+                const dateStr = new Date(h.date || h.created_at).toLocaleString('th-TH');
+                const customerName = h.customer_name || h.name || '—';
+                const staffName = h.staff_name || '—';
+                // NOTE: NO rating scores shown here — top secret!
                 return `<tr>
                     <td>${i + 1}</td>
-                    <td>${escapeHtml(h.name)}</td>
-                    <td>${h.number}</td>
-                    <td>${imageCell(h.image_path)}</td>
                     <td>${dateStr}</td>
+                    <td>${escapeHtml(customerName)}</td>
+                    <td>${escapeHtml(staffName)}</td>
+                    <td>${imageCell(h.image_path || h.slip_image_url)}</td>
                     <td>
                         <button class="btn-action btn-green btn-approve" data-approve="${h.id}">✅ อนุมัติ</button>
                         <button class="btn-action btn-red btn-reject" data-reject="${h.id}">❌ ไม่อนุมัติ</button>
@@ -232,16 +241,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             tbody.querySelectorAll('[data-approve]').forEach(btn => {
                 btn.addEventListener('click', async () => {
-                    await authFetch(`${API_BASE}/history/${btn.dataset.approve}/approve`, { method: 'PUT' });
+                    try {
+                        await authFetch(`${API_BASE}/history/${btn.dataset.approve}/approve`, { method: 'PUT' });
+                        showToast('อนุมัติสำเร็จ: ลูกค้าได้คะแนนสะสม 1 สิทธิ์', 'success');
+                    } catch (err) {
+                        showToast('เกิดข้อผิดพลาดในการอนุมัติ', 'error');
+                    }
                     renderApproval();
                     renderHistory();
+                    renderCashbackSummary();
                     updateStats();
                 });
             });
 
             tbody.querySelectorAll('[data-reject]').forEach(btn => {
                 btn.addEventListener('click', async () => {
-                    await authFetch(`${API_BASE}/history/${btn.dataset.reject}/reject`, { method: 'PUT' });
+                    try {
+                        await authFetch(`${API_BASE}/history/${btn.dataset.reject}/reject`, { method: 'PUT' });
+                        showToast('ปฏิเสธรายการเรียบร้อย', 'info');
+                    } catch (err) {
+                        showToast('เกิดข้อผิดพลาดในการปฏิเสธ', 'error');
+                    }
                     renderApproval();
                     renderHistory();
                     updateStats();
@@ -253,14 +273,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // --- Cashback Summary ---
+    async function renderCashbackSummary() {
+        try {
+            const res = await fetch(`${API_BASE}/history`);
+            const all = await res.json();
+
+            const winners = all.filter(h => h.lottery_result === 'won');
+            const losers = all.filter(h => h.lottery_result === 'lost');
+
+            const totalGross = winners.reduce((sum, w) => sum + (Number(w.reward_amount) || 0), 0);
+            const totalTax = totalGross * 0.07;
+            const totalNet = totalGross - totalTax;
+            const gvTotal = losers.length * 500;
+
+            document.getElementById('cashback-winners').textContent = `${winners.length} คน`;
+            document.getElementById('cashback-total-gross').textContent = formatCurrency(totalGross);
+            document.getElementById('cashback-tax').textContent = formatCurrency(totalTax);
+            document.getElementById('cashback-total-net').textContent = formatCurrency(totalNet);
+            document.getElementById('cashback-gv-count').textContent = `${losers.length} คน`;
+            document.getElementById('cashback-gv-total').textContent = formatCurrency(gvTotal);
+        } catch (err) {
+            console.error('ไม่สามารถโหลดข้อมูล Cashback', err);
+        }
+    }
+
     async function updateStats() {
         try {
             const res = await fetch(`${API_BASE}/stats`);
             const stats = await res.json();
-            document.getElementById('total-users').textContent = stats.totalUsers;
-            document.getElementById('sold-slots').textContent = stats.soldSlots;
-            document.getElementById('available-slots').textContent = stats.availableSlots;
+            document.getElementById('total-users').textContent = stats.totalUsers || 0;
+            document.getElementById('sold-slots').textContent = stats.soldSlots || 0;
+            document.getElementById('available-slots').textContent = stats.availableSlots || 100;
             document.getElementById('pending-count').textContent = stats.pendingCount || 0;
+            document.getElementById('total-transactions').textContent = stats.totalTransactions || 0;
         } catch (err) {
             console.error('ไม่สามารถโหลดสถิติได้', err);
         }
@@ -295,24 +341,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         input.value = '';
     });
 
-    // --- Grant Permission ---
-    document.getElementById('grant-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const nameInput = document.getElementById('grant-username');
-        const slotsSelect = document.getElementById('grant-slots');
-        const name = nameInput.value.trim();
-        if (!name) return;
-
-        await authFetch(`${API_BASE}/permissions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, slots: parseInt(slotsSelect.value, 10) })
-        });
-        renderPermissions();
-        updateStats();
-        nameInput.value = '';
-    });
-
     // --- Announce Draw ---
     document.getElementById('btn-announce').addEventListener('click', async () => {
         const input = document.getElementById('winning-number');
@@ -344,7 +372,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     ? `ผู้ถูกรางวัล: ${result.winners.join(', ')}`
                     : 'ไม่มีผู้ถูกรางวัลในรอบนี้';
 
+            if (result.winners.length > 0) {
+                showToast(`🎉 มีผู้ถูกรางวัล ${result.winners.length} คน! Cashback จะถูกคำนวณอัตโนมัติ`, 'success');
+            } else {
+                showToast('ประกาศผลเรียบร้อย — ไม่มีผู้ถูกรางวัล (ทุกคนได้ GV 500 ฿)', 'info');
+            }
+
             renderHistory();
+            renderCashbackSummary();
         } catch (err) {
             alert('เกิดข้อผิดพลาดในการประกาศผล');
         }
@@ -353,9 +388,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- Initial Render ---
     renderSoldOut();
-    renderPermissions();
     renderHistory();
     renderApproval();
+    renderCashbackSummary();
     updateStats();
 
     // --- Load Round Info ---
@@ -365,9 +400,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const infoEl = document.getElementById('admin-round-info');
         const drawEl = document.getElementById('admin-draw-date');
         if (round.open) {
-            infoEl.textContent = `รอบที่ ${round.round} — เปิดรับทายผล`;
+            infoEl.textContent = `รอบที่ ${round.round} — เปิดรับแจ้งใช้บริการ`;
         } else {
-            infoEl.textContent = 'ปิดรับทายผลชั่วคราว — สิทธิ์ที่ส่งจะยกยอดไปรอบถัดไป';
+            infoEl.textContent = 'ปิดรับชั่วคราว — รายการที่ส่งจะยกยอดไปรอบถัดไป';
         }
         if (drawEl) drawEl.textContent = round.drawDate;
 
@@ -381,14 +416,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const dateSelect = document.getElementById('draw-date-select');
         if (dateSelect && round.drawDates) {
             dateSelect.innerHTML = '<option value="">-- เลือกงวด --</option>';
-            const now = new Date();
-            const currentMonth = now.getMonth() + 1;
-            const currentDay = now.getDate();
             round.drawDates.forEach(d => {
                 const opt = document.createElement('option');
                 opt.value = d.label;
                 opt.textContent = `งวด ${d.label}`;
-                // Auto-select the upcoming draw date
                 if (round.nextDraw && d.day === round.nextDraw.day && d.month === round.nextDraw.month) {
                     opt.selected = true;
                 }
@@ -402,7 +433,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Guess Chart ---
     let guessChart = null;
 
-    // Set default date range: start of current month to today
     const today = new Date();
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     document.getElementById('chart-start-date').value = startOfMonth.toISOString().split('T')[0];
@@ -437,7 +467,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             noDataMsg.style.display = 'none';
             summaryEl.style.display = '';
 
-            // Format date range for display
             const fmtDate = (d) => {
                 const dt = new Date(d + 'T00:00:00');
                 return `${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear() + 543}`;
@@ -515,7 +544,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     document.getElementById('btn-load-chart').addEventListener('click', loadGuessChart);
-    // Auto-load chart on page load
     loadGuessChart();
 
     // --- Logout ---
