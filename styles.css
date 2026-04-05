@@ -644,6 +644,20 @@
     box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
 }
 
+.logout-btn {
+    background: rgba(255, 68, 68, 0.1);
+    border-color: rgba(255, 68, 68, 0.4);
+    color: #ff6666;
+    cursor: pointer;
+    font-family: 'Kanit', sans-serif;
+}
+
+.logout-btn:hover {
+    background: rgba(255, 68, 68, 0.3);
+    color: #fff;
+    box-shadow: 0 0 15px rgba(255, 68, 68, 0.3);
+}
+
 .upload-hint {
     font-size: 0.7rem;
     color: var(--neon-cyan);

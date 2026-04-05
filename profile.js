@@ -20,6 +20,17 @@ function thaiDate(isoStr) {
 function showEl(id) { const el = document.getElementById(id); if (el) el.style.display = ''; }
 function hideEl(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
 
+// ==================== LOGOUT ====================
+const logoutBtn = document.getElementById('btn-logout');
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+        sessionStorage.removeItem('currentUser');
+        sessionStorage.removeItem('terms_accepted');
+        try { if (typeof liff !== 'undefined' && liff.isLoggedIn()) liff.logout(); } catch (e) { /* ignore */ }
+        window.location.href = 'index.html';
+    });
+}
+
 // ==================== PARTICLES ====================
 function spawnParticles() {
     const container = document.getElementById('particles');

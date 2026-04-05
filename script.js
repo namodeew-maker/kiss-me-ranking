@@ -118,15 +118,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /** Show login options or main content based on currentUser */
     function showLoginOrMain() {
+        const logoutBtn = document.getElementById('btn-logout');
         if (currentUser) {
             loginOptions.style.display = 'none';
             mainContent.style.display = '';
+            if (logoutBtn) logoutBtn.style.display = '';
             updateProfileUI();
         } else {
             loginOptions.style.display = '';
             mainContent.style.display = 'none';
+            if (logoutBtn) logoutBtn.style.display = 'none';
         }
     }
+
+    /** Logout — clear session and reload */
+    function handleLogout() {
+        sessionStorage.removeItem('currentUser');
+        sessionStorage.removeItem('terms_accepted');
+        currentUser = null;
+        // LIFF logout if available
+        try { if (typeof liff !== 'undefined' && liff.isLoggedIn()) liff.logout(); } catch (e) { /* ignore */ }
+        window.location.reload();
+    }
+
+    // Bind logout button
+    const logoutBtn = document.getElementById('btn-logout');
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
 
     /** After successful login — hide login, show main */
     function onLoginSuccess() {
