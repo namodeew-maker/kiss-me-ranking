@@ -60,11 +60,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==================== LIFF AUTO-LOGIN (non-blocking) ====================
     (async () => {
         try {
-            if (typeof liff !== 'undefined') {
-                await liff.init({ liffId: '2009696727-evibES3H' });
-                liffInitialized = true;
-                // If LIFF user is logged in, register with backend immediately
-                if (liff.isLoggedIn() && !sessionStorage.getItem('currentUser')) {
+            if (typeof liff === 'undefined') return;
+
+            // Show a subtle loading state
+            const loadingTimeout = setTimeout(() => {
+                // If LIFF takes more than 5 seconds, just show the normal UI
+                console.warn('LIFF init timeout — showing normal UI');
+                showLoginOrMain();
+            }, 5000);
+
+            await liff.init({ liffId: '2009696727-evibES3H' });
+            liffInitialized = true;
+
+            // If LIFF user is logged in, register with backend immediately
+            if (liff.isLoggedIn() && !sessionStorage.getItem('currentUser')) {
+                try {
                     const profile = await liff.getProfile();
                     const res = await fetch(`${API_BASE}/auth/login`, {
                         method: 'POST',
@@ -80,15 +90,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (res.ok && data.user) {
                         currentUser = data.user;
                         sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
-                        // Auto-skip terms + show main if LIFF login succeeded
                         sessionStorage.setItem('terms_accepted', 'true');
                         termsOverlay.classList.add('hidden');
-                        showLoginOrMain();
                     }
+                } catch (profileErr) {
+                    console.warn('LIFF profile/login failed:', profileErr.message);
                 }
             }
+
+            clearTimeout(loadingTimeout);
+            showLoginOrMain();
         } catch (liffErr) {
             console.warn('LIFF auto-init:', liffErr.message);
+            showLoginOrMain();
         }
     })();
 

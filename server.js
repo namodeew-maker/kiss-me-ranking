@@ -100,6 +100,13 @@ const pool = process.env.DATABASE_URL
 
 app.use(cors());
 app.use(express.json());
+
+// Skip ngrok browser warning for all requests (especially LIFF redirects)
+app.use((req, res, next) => {
+    res.setHeader('ngrok-skip-browser-warning', 'true');
+    next();
+});
+
 app.use(express.static(path.join(__dirname)));
 app.use('/uploads', express.static(uploadsDir));
 
