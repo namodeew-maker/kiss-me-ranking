@@ -340,39 +340,41 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Load sold-out numbers from database
-    let soldOutNumbers = [];
-    try {
-        const res = await fetch(`${API_BASE}/sold-out`);
-        soldOutNumbers = await res.json();
-    } catch (err) {
-        console.error('ไม่สามารถโหลดข้อมูล sold out:', err);
-    }
-
-    // Generate 100 Lotto numbers (00-99)
-    for (let i = 0; i <= 99; i++) {
-        const numDiv = document.createElement('div');
-        numDiv.className = 'lotto-num';
-        const formattedNum = i.toString().padStart(2, '0');
-        numDiv.textContent = formattedNum;
-
-        if (soldOutNumbers.includes(i)) {
-            numDiv.classList.add('sold-out');
-            numDiv.textContent = formattedNum + ' SOLD OUT';
+    // Load sold-out numbers from database + generate lotto grid
+    (async () => {
+        let soldOutNumbers = [];
+        try {
+            const res = await fetch(`${API_BASE}/sold-out`);
+            soldOutNumbers = await res.json();
+        } catch (err) {
+            console.error('ไม่สามารถโหลดข้อมูล sold out:', err);
         }
 
-        numDiv.addEventListener('click', () => {
-            if (!numDiv.classList.contains('sold-out')) {
-                const prev = document.querySelector('.lotto-num.selected');
-                if (prev) prev.classList.remove('selected');
-                numDiv.classList.add('selected');
-                selectedNumber.textContent = formattedNum;
-                setActiveStep(3);
-            }
-        });
+        // Generate 100 Lotto numbers (00-99)
+        for (let i = 0; i <= 99; i++) {
+            const numDiv = document.createElement('div');
+            numDiv.className = 'lotto-num';
+            const formattedNum = i.toString().padStart(2, '0');
+            numDiv.textContent = formattedNum;
 
-        lottoGrid.appendChild(numDiv);
-    }
+            if (soldOutNumbers.includes(i)) {
+                numDiv.classList.add('sold-out');
+                numDiv.textContent = formattedNum + ' SOLD OUT';
+            }
+
+            numDiv.addEventListener('click', () => {
+                if (!numDiv.classList.contains('sold-out')) {
+                    const prev = document.querySelector('.lotto-num.selected');
+                    if (prev) prev.classList.remove('selected');
+                    numDiv.classList.add('selected');
+                    selectedNumber.textContent = formattedNum;
+                    setActiveStep(3);
+                }
+            });
+
+            lottoGrid.appendChild(numDiv);
+        }
+    })();
 
     // Handle Form submission - send to database
     const form = document.getElementById('submission-form');
