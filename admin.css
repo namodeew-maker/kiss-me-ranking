@@ -15,6 +15,87 @@
     letter-spacing: 2px;
 }
 
+/* ==================== ADMIN TABS ==================== */
+.admin-tabs {
+    display: flex;
+    gap: 0;
+    margin: 20px 0 0;
+    border-bottom: 2px solid rgba(255, 60, 60, 0.2);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.admin-tabs::-webkit-scrollbar { display: none; }
+
+.admin-tab {
+    flex: 1;
+    min-width: 140px;
+    padding: 14px 20px;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--text-muted, #888);
+    font-family: 'Kanit', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    position: relative;
+}
+
+.admin-tab:hover {
+    color: var(--text-silver, #ccc);
+    background: rgba(255, 60, 60, 0.05);
+}
+
+.admin-tab.active {
+    color: var(--neon-red, #ff3c3c);
+    border-bottom-color: var(--neon-red, #ff3c3c);
+    background: rgba(255, 60, 60, 0.08);
+    text-shadow: 0 0 8px rgba(255, 60, 60, 0.3);
+}
+
+.admin-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--neon-red, #ff3c3c);
+    box-shadow: 0 0 10px var(--neon-red, #ff3c3c), 0 0 20px rgba(255, 60, 60, 0.3);
+}
+
+/* Tab pending badge */
+.admin-tab .tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    margin-left: 6px;
+    border-radius: 10px;
+    background: #ffcc00;
+    color: #000;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: 'Orbitron', sans-serif;
+    animation: pulse-pending 1.5s infinite;
+}
+
+/* Tab Content */
+.tab-content {
+    display: none;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.tab-content.active {
+    display: flex;
+}
+
 /* Audit Workflow Steps */
 .audit-workflow {
     display: flex;
@@ -778,6 +859,16 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+    .admin-tabs {
+        gap: 0;
+    }
+
+    .admin-tab {
+        min-width: 0;
+        padding: 12px 10px;
+        font-size: 0.82rem;
+    }
+
     .stat-cards {
         grid-template-columns: repeat(2, 1fr);
     }

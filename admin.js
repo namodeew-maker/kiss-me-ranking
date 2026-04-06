@@ -56,6 +56,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    // --- Tab Navigation ---
+    const tabButtons = document.querySelectorAll('.admin-tab[data-tab]');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    function switchTab(tabId) {
+        tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabId));
+        tabContents.forEach(tc => tc.classList.toggle('active', tc.id === `tab-${tabId}`));
+    }
+
+    tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.appendChild(document.createTextNode(text));
@@ -309,6 +322,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('available-slots').textContent = stats.availableSlots || 100;
             document.getElementById('pending-count').textContent = stats.pendingCount || 0;
             document.getElementById('total-transactions').textContent = stats.totalTransactions || 0;
+
+            // Update approval tab badge
+            const approvalTab = document.querySelector('.admin-tab[data-tab="approval"]');
+            if (approvalTab) {
+                const pending = stats.pendingCount || 0;
+                let badge = approvalTab.querySelector('.tab-badge');
+                if (pending > 0) {
+                    if (!badge) {
+                        badge = document.createElement('span');
+                        badge.className = 'tab-badge';
+                        approvalTab.appendChild(badge);
+                    }
+                    badge.textContent = pending;
+                } else if (badge) {
+                    badge.remove();
+                }
+            }
         } catch (err) {
             console.error('ไม่สามารถโหลดสถิติได้', err);
         }
