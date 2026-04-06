@@ -1,4 +1,6 @@
-const API_BASE = '/api';
+const API_BASE = window.location.hostname === 'namodeew-maker.github.io'
+    ? 'https://kiss-me-ranking.onrender.com/api'
+    : '/api';
 const LIFF_ID = '2009696727-evibES3H';
 
 let currentUser = null;

@@ -98,7 +98,15 @@ const pool = process.env.DATABASE_URL
         port: parseInt(process.env.DB_PORT, 10) || 5432,
     });
 
-app.use(cors());
+app.use(cors({
+    origin: [
+        'https://namodeew-maker.github.io',
+        'http://localhost:3000',
+        /\.trycloudflare\.com$/,
+        /\.ngrok-free\.dev$/
+    ],
+    credentials: true
+}));
 app.use(express.json());
 
 // Skip ngrok browser warning for all requests (especially LIFF redirects)

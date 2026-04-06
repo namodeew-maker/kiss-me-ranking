@@ -1,4 +1,6 @@
-const API_BASE = '/api';
+const API_BASE = window.location.hostname === 'namodeew-maker.github.io'
+    ? 'https://kiss-me-ranking.onrender.com/api'
+    : '/api';
 
 // ==================== GLOBAL STATE ====================
 let currentUser = null; // { id, platform, platform_id, display_name, picture_url, progress_count }
