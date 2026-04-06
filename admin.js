@@ -117,6 +117,189 @@ document.addEventListener('DOMContentLoaded', async () => {
         return date.toLocaleDateString('th-TH');
     }
 
+    function formatDateTime(value) {
+        if (!value) return '—';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleString('th-TH');
+    }
+
+    function formatPlatformBadge(platform) {
+        const normalized = platform === 'telegram' ? 'telegram' : 'line';
+        const label = normalized === 'telegram' ? 'Telegram' : 'LINE';
+        return `<span class="platform-badge platform-badge-${normalized}">${label}</span>`;
+    }
+
+    function userAvatarSrc(user) {
+        if (user.picture_url) return user.picture_url;
+        const name = user.display_name || user.platform_id || 'User';
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=1a1a2e&color=ff3c3c&size=96`;
+    }
+
+    const userSearchInput = document.getElementById('user-search-input');
+    const userPlatformFilter = document.getElementById('user-platform-filter');
+    const userBody = document.getElementById('users-body');
+    const noUsers = document.getElementById('no-users');
+    const userDetailEmpty = document.getElementById('user-detail-empty');
+    const userDetailContent = document.getElementById('user-detail-content');
+    const userDetailAvatar = document.getElementById('user-detail-avatar');
+    const userDetailName = document.getElementById('user-detail-name');
+    const userDetailMeta = document.getElementById('user-detail-meta');
+    const userDetailTags = document.getElementById('user-detail-tags');
+    const userDetailStats = document.getElementById('user-detail-stats');
+    const userLinkedAccounts = document.getElementById('user-linked-accounts');
+    const userOaBindings = document.getElementById('user-oa-bindings');
+    const userRecentTransactions = document.getElementById('user-recent-transactions');
+    const userRecentPoints = document.getElementById('user-recent-points');
+    const userEditDisplayName = document.getElementById('user-edit-display-name');
+    const userEditPictureUrl = document.getElementById('user-edit-picture-url');
+    let selectedUserId = null;
+
+    function clearUserDetail() {
+        selectedUserId = null;
+        if (userDetailEmpty) userDetailEmpty.classList.remove('hidden');
+        if (userDetailContent) userDetailContent.classList.add('hidden');
+        if (userEditDisplayName) userEditDisplayName.value = '';
+        if (userEditPictureUrl) userEditPictureUrl.value = '';
+    }
+
+    async function renderUsers() {
+        if (!userBody || !noUsers) return;
+
+        const params = new URLSearchParams({
+            search: userSearchInput?.value?.trim() || '',
+            platform: userPlatformFilter?.value || 'all'
+        });
+
+        try {
+            const res = await authFetch(`${API_BASE}/admin/users?${params.toString()}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'load-failed');
+
+            document.getElementById('users-total-accounts').textContent = data.summary.total_accounts || 0;
+            document.getElementById('users-line-accounts').textContent = data.summary.line_accounts || 0;
+            document.getElementById('users-telegram-accounts').textContent = data.summary.telegram_accounts || 0;
+            document.getElementById('users-active-accounts').textContent = data.summary.active_accounts || 0;
+
+            if (!data.users.length) {
+                userBody.innerHTML = '';
+                noUsers.textContent = 'ไม่พบข้อมูลผู้ใช้ตามเงื่อนไขที่เลือก';
+                noUsers.classList.remove('hidden');
+                return;
+            }
+
+            noUsers.classList.add('hidden');
+            userBody.innerHTML = data.users.map((user, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>
+                        <div class="user-cell">
+                            <img class="user-cell-avatar" src="${userAvatarSrc(user)}" alt="${escapeHtml(user.display_name || 'User')}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user.display_name || user.platform_id || 'User')}&background=1a1a2e&color=ff3c3c&size=96'">
+                            <div>
+                                <div class="user-cell-name">${escapeHtml(user.display_name || 'ไม่มีชื่อ')}</div>
+                                <div class="user-cell-sub">${user.global_user_id ? `Global: ${escapeHtml(String(user.global_user_id))}` : 'ยังไม่มี global_user_id'}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>${formatPlatformBadge(user.platform)}</td>
+                    <td>${escapeHtml(user.platform_id || '—')}</td>
+                    <td>${user.progress_count ?? 0}/5</td>
+                    <td>${(user.total_points || 0).toLocaleString('th-TH')}</td>
+                    <td>${user.transaction_count || 0}</td>
+                    <td>${formatDateTime(user.last_activity_at || user.created_at)}</td>
+                    <td><button class="btn-small" data-view-user="${user.id}">ดูรายละเอียด</button></td>
+                </tr>
+            `).join('');
+
+            userBody.querySelectorAll('[data-view-user]').forEach((btn) => {
+                btn.addEventListener('click', () => loadUserDetail(btn.dataset.viewUser));
+            });
+        } catch (err) {
+            userBody.innerHTML = '';
+            noUsers.textContent = 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้';
+            noUsers.classList.remove('hidden');
+        }
+    }
+
+    function renderUserActivityList(container, items, renderItem) {
+        if (!container) return;
+        if (!items.length) {
+            container.innerHTML = '<p class="empty-msg">ไม่มีข้อมูล</p>';
+            return;
+        }
+        container.innerHTML = items.map(renderItem).join('');
+    }
+
+    async function loadUserDetail(id) {
+        if (!id) return;
+        try {
+            const res = await authFetch(`${API_BASE}/admin/users/${id}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'detail-failed');
+
+            selectedUserId = Number(id);
+            userDetailEmpty.classList.add('hidden');
+            userDetailContent.classList.remove('hidden');
+
+            userDetailAvatar.src = userAvatarSrc(data.user);
+            userDetailName.textContent = data.user.display_name || 'ไม่มีชื่อ';
+            userDetailMeta.textContent = `บัญชีหลัก: ${data.user.platform} • ${data.user.platform_id} • สร้างเมื่อ ${formatDateTime(data.user.created_at)}`;
+            userEditDisplayName.value = data.user.display_name || '';
+            userEditPictureUrl.value = data.user.picture_url || '';
+
+            userDetailTags.innerHTML = [
+                `<span class="user-tag">สิทธิ์รอบนี้ ${data.user.current_round_progress || 0}/5</span>`,
+                `<span class="user-tag">เชื่อม ${data.user.linked_account_count || 1} บัญชี</span>`,
+                data.user.global_user_id ? `<span class="user-tag">Global ${escapeHtml(String(data.user.global_user_id))}</span>` : ''
+            ].filter(Boolean).join('');
+
+            userDetailStats.innerHTML = [
+                { label: 'รายการทั้งหมด', value: data.stats.transaction_count || 0 },
+                { label: 'อนุมัติแล้ว', value: data.stats.approved_count || 0 },
+                { label: 'รอตรวจ', value: data.stats.pending_count || 0 },
+                { label: 'ไม่อนุมัติ', value: data.stats.rejected_count || 0 },
+                { label: 'ทายเลข', value: data.stats.lottery_guess_count || 0 },
+                { label: 'แต้มสะสม', value: data.stats.total_points || 0 }
+            ].map((item) => `
+                <div class="user-detail-stat">
+                    <span class="user-detail-stat-value">${Number(item.value).toLocaleString('th-TH')}</span>
+                    <span class="user-detail-stat-label">${item.label}</span>
+                </div>
+            `).join('');
+
+            renderUserActivityList(userLinkedAccounts, data.linkedAccounts, (account) => `
+                <div class="user-linked-chip">
+                    ${formatPlatformBadge(account.platform)}
+                    <span>${escapeHtml(account.platform_id)}</span>
+                </div>
+            `);
+
+            renderUserActivityList(userOaBindings, data.oaBindings, (binding) => `
+                <div class="user-linked-chip">
+                    <span>${escapeHtml(binding.oa_id)}</span>
+                    <span>${escapeHtml(binding.oa_user_id)}</span>
+                </div>
+            `);
+
+            renderUserActivityList(userRecentTransactions, data.recentTransactions, (tx) => `
+                <div class="user-activity-item">
+                    <div class="user-activity-title">${escapeHtml(tx.staff_name || '—')} • ${escapeHtml(tx.status || '—')}</div>
+                    <div class="user-activity-meta">${formatServiceDate(tx.service_date)} • ส่งเมื่อ ${formatDateTime(tx.created_at)} • ${escapeHtml(tx.platform)}:${escapeHtml(tx.platform_id)}</div>
+                </div>
+            `);
+
+            renderUserActivityList(userRecentPoints, data.recentPoints, (point) => `
+                <div class="user-activity-item">
+                    <div class="user-activity-title">${escapeHtml(point.activity_type || 'กิจกรรม')} • +${Number(point.points || 0).toLocaleString('th-TH')} แต้ม</div>
+                    <div class="user-activity-meta">${escapeHtml(point.source_platform || 'system')} • ${formatDateTime(point.created_at)}</div>
+                </div>
+            `);
+        } catch (err) {
+            showToast('ไม่สามารถโหลดรายละเอียดผู้ใช้ได้', 'error');
+            clearUserDetail();
+        }
+    }
+
     // --- Render Functions ---
     async function renderSoldOut() {
         const list = document.getElementById('sold-out-list');
@@ -355,6 +538,62 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    document.getElementById('btn-user-search')?.addEventListener('click', renderUsers);
+    document.getElementById('btn-user-refresh')?.addEventListener('click', () => {
+        if (userSearchInput) userSearchInput.value = '';
+        if (userPlatformFilter) userPlatformFilter.value = 'all';
+        renderUsers();
+    });
+    userSearchInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') renderUsers();
+    });
+    userPlatformFilter?.addEventListener('change', renderUsers);
+    document.getElementById('btn-save-user')?.addEventListener('click', async () => {
+        if (!selectedUserId) {
+            showToast('กรุณาเลือกผู้ใช้ก่อน', 'error');
+            return;
+        }
+        try {
+            const res = await authFetch(`${API_BASE}/admin/users/${selectedUserId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    display_name: userEditDisplayName.value,
+                    picture_url: userEditPictureUrl.value
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'save-failed');
+            showToast('อัปเดตข้อมูลผู้ใช้แล้ว', 'success');
+            renderUsers();
+            loadUserDetail(selectedUserId);
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถบันทึกข้อมูลผู้ใช้ได้', 'error');
+        }
+    });
+    document.getElementById('btn-delete-user')?.addEventListener('click', async () => {
+        if (!selectedUserId) {
+            showToast('กรุณาเลือกผู้ใช้ก่อน', 'error');
+            return;
+        }
+        const confirmed = window.confirm('ลบ User ถาวรใช่หรือไม่? ระบบจะลบประวัติการใช้บริการและการทายเลขของผู้ใช้นี้ด้วย');
+        if (!confirmed) return;
+        try {
+            const res = await authFetch(`${API_BASE}/admin/users/${selectedUserId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'delete-failed');
+            showToast(`ลบผู้ใช้ ${data.deleted_display_name || ''} แล้ว`, 'success');
+            clearUserDetail();
+            renderUsers();
+            renderHistory();
+            renderApproval();
+            renderCashbackSummary();
+            updateStats();
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถลบผู้ใช้ได้', 'error');
+        }
+    });
+
     // --- Sold Out Controls ---
     document.getElementById('btn-add-soldout').addEventListener('click', async () => {
         const input = document.getElementById('sold-out-input');
@@ -435,6 +674,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderApproval();
     renderCashbackSummary();
     updateStats();
+    renderUsers();
 
     // --- Load Round Info ---
     try {

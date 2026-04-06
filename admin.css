@@ -1049,3 +1049,226 @@
     font-family: 'Orbitron', sans-serif;
     margin-left: 8px;
 }
+
+/* ==================== USER MANAGEMENT ==================== */
+.user-management-panel {
+    border-color: rgba(0, 240, 255, 0.18);
+}
+
+.user-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.user-filter-row input {
+    flex: 1 1 320px;
+}
+
+.user-filter-row select {
+    min-width: 160px;
+}
+
+.user-stat-cards {
+    margin-top: 18px;
+}
+
+.platform-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+.platform-badge-line {
+    background: rgba(0, 204, 102, 0.12);
+    border: 1px solid rgba(0, 204, 102, 0.3);
+    color: #00ff88;
+}
+
+.platform-badge-telegram {
+    background: rgba(51, 153, 255, 0.12);
+    border: 1px solid rgba(51, 153, 255, 0.3);
+    color: #7cc2ff;
+}
+
+.user-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-cell-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.user-cell-name {
+    font-weight: 700;
+    color: var(--text-silver);
+}
+
+.user-cell-sub {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+}
+
+.user-detail-content {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.user-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.user-detail-avatar {
+    width: 82px;
+    height: 82px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(0, 240, 255, 0.25);
+}
+
+.user-detail-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.user-detail-name {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-silver);
+}
+
+.user-detail-meta {
+    font-size: 0.84rem;
+    color: var(--text-muted);
+}
+
+.user-detail-tags,
+.user-linked-accounts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.user-tag,
+.user-linked-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #d7d7d7;
+    font-size: 0.78rem;
+}
+
+.user-detail-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.user-detail-stat {
+    padding: 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.user-detail-stat-value {
+    display: block;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--neon-cyan);
+    font-family: 'Orbitron', sans-serif;
+}
+
+.user-detail-stat-label {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.user-detail-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.user-detail-form-row input {
+    flex: 1 1 280px;
+}
+
+.user-detail-columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.user-detail-card {
+    padding: 16px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.user-detail-card h4 {
+    margin: 0 0 12px;
+    color: var(--neon-cyan);
+}
+
+.user-activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.user-activity-item {
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.user-activity-title {
+    font-weight: 700;
+    color: var(--text-silver);
+}
+
+.user-activity-meta {
+    margin-top: 3px;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+    .user-detail-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .user-detail-columns {
+        grid-template-columns: 1fr;
+    }
+}

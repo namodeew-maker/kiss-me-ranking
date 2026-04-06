@@ -225,6 +225,11 @@ function requireAuth(req, res, next) {
     next();
 }
 
+async function tableExists(client, tableName) {
+    const result = await client.query('SELECT to_regclass($1) AS regclass', [`public.${tableName}`]);
+    return Boolean(result.rows[0]?.regclass);
+}
+
 // POST /api/login
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
@@ -607,6 +612,19 @@ async function getCurrentRoundApprovedCount(userId, roundLabel = getCurrentRound
          FROM transactions
          WHERE user_id = $1 AND round_label = $2 AND status = 'approved'`,
         [userId, roundLabel]
+    );
+
+    return progressResult.rows[0]?.approved_count || 0;
+}
+
+async function getCurrentRoundApprovedCountForUsers(userIds, roundLabel = getCurrentRoundLabel()) {
+    if (!Array.isArray(userIds) || userIds.length === 0) return 0;
+
+    const progressResult = await pool.query(
+        `SELECT COUNT(DISTINCT staff_id)::int AS approved_count
+         FROM transactions
+         WHERE user_id = ANY($1::int[]) AND round_label = $2 AND status = 'approved'`,
+        [userIds, roundLabel]
     );
 
     return progressResult.rows[0]?.approved_count || 0;
@@ -1390,6 +1408,312 @@ app.get('/api/stats', async (req, res) => {
     } catch (err) {
         console.error('Stats error:', err);
         res.status(500).json({ error: 'ไม่สามารถโหลดสถิติได้' });
+    }
+});
+
+app.get('/api/admin/users', requireAuth, async (req, res) => {
+    const search = String(req.query.search || '').trim();
+    const platform = String(req.query.platform || 'all').trim().toLowerCase();
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const like = `%${search}%`;
+
+    try {
+        const [summaryResult, usersResult] = await Promise.all([
+            pool.query(
+                `SELECT
+                    COUNT(*)::int AS total_accounts,
+                    COUNT(*) FILTER (WHERE u.platform = 'line')::int AS line_accounts,
+                    COUNT(*) FILTER (WHERE u.platform = 'telegram')::int AS telegram_accounts,
+                    COUNT(*) FILTER (
+                        WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.user_id = u.id)
+                    )::int AS active_accounts
+                 FROM users u
+                 WHERE ($1 = '' OR u.display_name ILIKE $2 OR u.platform_id ILIKE $2 OR COALESCE(u.global_user_id::text, '') ILIKE $2)
+                   AND ($3 = 'all' OR u.platform = $3)`,
+                [search, like, platform]
+            ),
+            pool.query(
+                `WITH user_rows AS (
+                    SELECT
+                        u.id,
+                        u.global_user_id,
+                        u.platform,
+                        u.platform_id,
+                        u.display_name,
+                        u.picture_url,
+                        u.progress_count,
+                        u.created_at,
+                        u.updated_at,
+                        COUNT(t.id)::int AS transaction_count,
+                        COALESCE(SUM(CASE WHEN t.status = 'approved' THEN 1 ELSE 0 END), 0)::int AS approved_count,
+                        COALESCE(SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END), 0)::int AS pending_count,
+                        COALESCE((
+                            SELECT SUM(p.points)::int
+                            FROM points p
+                            WHERE p.global_user_id = u.global_user_id
+                        ), 0) AS total_points,
+                        MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_activity_at
+                    FROM users u
+                    LEFT JOIN transactions t ON t.user_id = u.id
+                    WHERE ($1 = '' OR u.display_name ILIKE $2 OR u.platform_id ILIKE $2 OR COALESCE(u.global_user_id::text, '') ILIKE $2)
+                      AND ($3 = 'all' OR u.platform = $3)
+                    GROUP BY u.id, u.global_user_id, u.platform, u.platform_id, u.display_name, u.picture_url, u.progress_count, u.created_at, u.updated_at
+                )
+                SELECT *
+                FROM user_rows
+                ORDER BY COALESCE(last_activity_at, created_at) DESC, created_at DESC
+                LIMIT $4`,
+                [search, like, platform, limit]
+            )
+        ]);
+
+        res.json({
+            summary: summaryResult.rows[0],
+            users: usersResult.rows
+        });
+    } catch (err) {
+        console.error('Admin users list error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้' });
+    }
+});
+
+app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'Invalid ID' });
+
+    const client = await pool.connect();
+    try {
+        const userResult = await client.query(
+            `SELECT id, global_user_id, platform, platform_id, display_name, picture_url, progress_count, created_at, updated_at
+             FROM users
+             WHERE id = $1`,
+            [userId]
+        );
+        const user = userResult.rows[0];
+        if (!user) return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+
+        let linkedAccounts = [user];
+        if (user.global_user_id) {
+            const linkedResult = await client.query(
+                `SELECT id, global_user_id, platform, platform_id, display_name, picture_url, progress_count, created_at, updated_at
+                 FROM users
+                 WHERE global_user_id = $1
+                 ORDER BY created_at ASC`,
+                [user.global_user_id]
+            );
+            linkedAccounts = linkedResult.rows;
+        }
+
+        const linkedUserIds = linkedAccounts.map((account) => account.id);
+        const [statsResult, lotteryResult, recentTransactionsResult] = await Promise.all([
+            client.query(
+                `SELECT
+                    COUNT(*)::int AS transaction_count,
+                    COALESCE(SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END), 0)::int AS approved_count,
+                    COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0)::int AS pending_count,
+                    COALESCE(SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END), 0)::int AS rejected_count,
+                    MAX(COALESCE(service_date::timestamp, created_at)) AS last_activity_at
+                 FROM transactions
+                 WHERE user_id = ANY($1::int[])`,
+                [linkedUserIds]
+            ),
+            client.query(
+                `SELECT COUNT(*)::int AS lottery_guess_count
+                 FROM lottery_guesses
+                 WHERE user_id = ANY($1::int[])`,
+                [linkedUserIds]
+            ),
+            client.query(
+                `SELECT
+                    t.id,
+                    t.status,
+                    t.service_date,
+                    t.created_at,
+                    COALESCE(s.nickname, s.name, '—') AS staff_name,
+                    u.platform,
+                    u.platform_id
+                 FROM transactions t
+                 JOIN users u ON u.id = t.user_id
+                 LEFT JOIN staffs s ON s.id = t.staff_id
+                 WHERE t.user_id = ANY($1::int[])
+                 ORDER BY COALESCE(t.service_date::timestamp, t.created_at) DESC
+                 LIMIT 10`,
+                [linkedUserIds]
+            )
+        ]);
+
+        const currentProgressCount = await getCurrentRoundApprovedCountForUsers(linkedUserIds);
+
+        let totalPoints = 0;
+        let recentPoints = [];
+        let oaBindings = [];
+
+        if (user.global_user_id && await tableExists(client, 'points')) {
+            const [pointsSummaryResult, recentPointsResult] = await Promise.all([
+                client.query(
+                    `SELECT COALESCE(SUM(points), 0)::int AS total_points
+                     FROM points
+                     WHERE global_user_id = $1`,
+                    [user.global_user_id]
+                ),
+                client.query(
+                    `SELECT id, activity_type, points, source_platform, source_oa_id, created_at
+                     FROM points
+                     WHERE global_user_id = $1
+                     ORDER BY created_at DESC
+                     LIMIT 10`,
+                    [user.global_user_id]
+                )
+            ]);
+            totalPoints = pointsSummaryResult.rows[0]?.total_points || 0;
+            recentPoints = recentPointsResult.rows;
+        }
+
+        if (user.global_user_id && await tableExists(client, 'user_oa_mapping')) {
+            const oaBindingsResult = await client.query(
+                `SELECT oa_id, oa_user_id, updated_at
+                 FROM user_oa_mapping
+                 WHERE global_user_id = $1
+                 ORDER BY updated_at DESC`,
+                [user.global_user_id]
+            );
+            oaBindings = oaBindingsResult.rows;
+        }
+
+        res.json({
+            user: {
+                ...user,
+                current_round_progress: currentProgressCount,
+                linked_account_count: linkedAccounts.length
+            },
+            stats: {
+                ...statsResult.rows[0],
+                lottery_guess_count: lotteryResult.rows[0]?.lottery_guess_count || 0,
+                total_points: totalPoints
+            },
+            linkedAccounts,
+            oaBindings,
+            recentPoints,
+            recentTransactions: recentTransactionsResult.rows
+        });
+    } catch (err) {
+        console.error('Admin user detail error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดรายละเอียดผู้ใช้ได้' });
+    } finally {
+        client.release();
+    }
+});
+
+app.put('/api/admin/users/:id', requireAuth, async (req, res) => {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'Invalid ID' });
+
+    const { display_name, picture_url } = req.body || {};
+    if (display_name === undefined && picture_url === undefined) {
+        return res.status(400).json({ error: 'ไม่มีข้อมูลที่ต้องอัปเดต' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const userResult = await client.query('SELECT id, global_user_id FROM users WHERE id = $1', [userId]);
+        const user = userResult.rows[0];
+        if (!user) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+        }
+
+        const idsResult = user.global_user_id
+            ? await client.query('SELECT id FROM users WHERE global_user_id = $1', [user.global_user_id])
+            : { rows: [{ id: user.id }] };
+        const targetIds = idsResult.rows.map((row) => row.id);
+
+        const setClauses = [];
+        const values = [];
+        let index = 1;
+
+        if (display_name !== undefined) {
+            const trimmedName = String(display_name).trim();
+            if (!trimmedName) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ error: 'ชื่อผู้ใช้ห้ามว่าง' });
+            }
+            setClauses.push(`display_name = $${index++}`);
+            values.push(trimmedName);
+        }
+
+        if (picture_url !== undefined) {
+            const trimmedUrl = String(picture_url).trim();
+            setClauses.push(`picture_url = $${index++}`);
+            values.push(trimmedUrl || null);
+        }
+
+        setClauses.push('updated_at = NOW()');
+        values.push(targetIds);
+
+        await client.query(
+            `UPDATE users
+             SET ${setClauses.join(', ')}
+             WHERE id = ANY($${index}::int[])`,
+            values
+        );
+
+        await client.query('COMMIT');
+        res.json({ success: true, updated_count: targetIds.length });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Admin user update error:', err);
+        res.status(500).json({ error: 'ไม่สามารถอัปเดตข้อมูลผู้ใช้ได้' });
+    } finally {
+        client.release();
+    }
+});
+
+app.delete('/api/admin/users/:id', requireAuth, async (req, res) => {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'Invalid ID' });
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const userResult = await client.query(
+            'SELECT id, global_user_id, display_name FROM users WHERE id = $1',
+            [userId]
+        );
+        const user = userResult.rows[0];
+        if (!user) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+        }
+
+        const linkedUsersResult = user.global_user_id
+            ? await client.query('SELECT id FROM users WHERE global_user_id = $1', [user.global_user_id])
+            : { rows: [{ id: user.id }] };
+        const targetIds = linkedUsersResult.rows.map((row) => row.id);
+
+        if (user.global_user_id && await tableExists(client, 'user_oa_mapping')) {
+            await client.query('DELETE FROM user_oa_mapping WHERE global_user_id = $1', [user.global_user_id]);
+        }
+
+        if (user.global_user_id && await tableExists(client, 'points')) {
+            await client.query('DELETE FROM points WHERE global_user_id = $1', [user.global_user_id]);
+        }
+
+        await client.query('DELETE FROM users WHERE id = ANY($1::int[])', [targetIds]);
+
+        await client.query('COMMIT');
+        res.json({
+            success: true,
+            deleted_count: targetIds.length,
+            deleted_display_name: user.display_name
+        });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Admin user delete error:', err);
+        res.status(500).json({ error: 'ไม่สามารถลบผู้ใช้ได้' });
+    } finally {
+        client.release();
     }
 });
 
