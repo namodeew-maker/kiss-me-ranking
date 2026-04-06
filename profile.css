@@ -143,6 +143,8 @@
 .user-stats {
     display: flex;
     gap: 24px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 .user-stat {
     display: flex;

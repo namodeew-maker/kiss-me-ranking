@@ -178,6 +178,7 @@ function renderUserCard(user, stats) {
     document.getElementById('stat-total-slips').textContent = stats.totalSlips;
     document.getElementById('stat-approved').textContent = stats.approved;
     document.getElementById('stat-lotto').textContent = stats.lotto;
+    document.getElementById('stat-points').textContent = Number(stats.totalPoints || 0).toLocaleString('th-TH');
 }
 
 function renderProgress(count) {
@@ -292,11 +293,12 @@ async function loadProfileData(platformId, platform) {
         const stats = {
             totalSlips: data.transactions.length,
             approved: data.transactions.filter(t => t.status === 'approved').length,
-            lotto: data.guesses.length
+            lotto: data.guesses.length,
+            totalPoints: data.total_points || 0
         };
 
         renderUserCard({ ...data.user, platform, platform_id: platformId }, stats);
-        renderProgress(data.user.progress_count || 0);
+        renderProgress(data.current_round_progress ?? (data.user.progress_count || 0));
         renderRankCard(data.lifetime_approved || 0, data.total_points || 0);
         renderRewardSummary(data.guesses);
         renderTransactions(data.transactions);

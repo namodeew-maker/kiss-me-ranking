@@ -13,6 +13,8 @@ try { require('dotenv').config(); } catch { /* dotenv optional locally */ }
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const TELEGRAM_BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || '';
+const TELEGRAM_AUTH_MAX_AGE_SECONDS = 86400;
 
 // ============ CLOUDFLARE R2 CONFIG ============
 
@@ -453,6 +455,103 @@ app.get('/api/ranking/customers', async (req, res) => {
 
 // ============ CUSTOMER AUTH (Multi-Platform Login) ============
 
+function toAuthenticatedUser(user) {
+    return {
+        id: user.id,
+        platform: user.platform,
+        platform_id: user.platform_id,
+        display_name: user.display_name,
+        picture_url: user.picture_url,
+        progress_count: user.progress_count
+    };
+}
+
+async function upsertCustomerUser({ platform, platformId, displayName, pictureUrl }) {
+    const result = await pool.query(
+        `INSERT INTO users (platform, platform_id, display_name, picture_url)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (platform, platform_id) DO UPDATE SET
+            display_name = EXCLUDED.display_name,
+            picture_url = EXCLUDED.picture_url,
+            updated_at = NOW()
+         RETURNING *`,
+        [platform, platformId, displayName || '', pictureUrl || null]
+    );
+
+    return result.rows[0];
+}
+
+function verifyTelegramAuthPayload(payload) {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+        throw new Error('TELEGRAM_BOT_TOKEN is not configured');
+    }
+
+    const incomingHash = String(payload.hash || '');
+    const authDate = Number(payload.auth_date || 0);
+    const telegramId = String(payload.id || '');
+
+    if (!incomingHash || !authDate || !telegramId) {
+        return false;
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (Math.abs(nowSeconds - authDate) > TELEGRAM_AUTH_MAX_AGE_SECONDS) {
+        return false;
+    }
+
+    const dataCheckString = Object.keys(payload)
+        .filter((key) => key !== 'hash' && payload[key] !== undefined && payload[key] !== null && payload[key] !== '')
+        .sort()
+        .map((key) => `${key}=${payload[key]}`)
+        .join('\n');
+
+    const secretKey = crypto.createHash('sha256').update(botToken).digest();
+    const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+    if (incomingHash.length !== calculatedHash.length) {
+        return false;
+    }
+
+    return crypto.timingSafeEqual(Buffer.from(incomingHash, 'utf8'), Buffer.from(calculatedHash, 'utf8'));
+}
+
+// GET /api/auth/telegram/config — public config for Telegram Login Widget
+app.get('/api/auth/telegram/config', (req, res) => {
+    const enabled = Boolean(process.env.TELEGRAM_BOT_TOKEN && TELEGRAM_BOT_USERNAME);
+    res.json({
+        enabled,
+        botUsername: enabled ? TELEGRAM_BOT_USERNAME : null
+    });
+});
+
+// POST /api/auth/telegram — verify Telegram widget payload before creating login session
+app.post('/api/auth/telegram', async (req, res) => {
+    if (!process.env.TELEGRAM_BOT_TOKEN || !TELEGRAM_BOT_USERNAME) {
+        return res.status(503).json({ error: 'ระบบ Telegram Login ยังไม่ได้ตั้งค่า' });
+    }
+
+    if (!verifyTelegramAuthPayload(req.body || {})) {
+        return res.status(401).json({ error: 'Telegram auth ไม่ถูกต้องหรือหมดอายุ' });
+    }
+
+    const displayName = [req.body.first_name, req.body.last_name].filter(Boolean).join(' ').trim() || req.body.username || `Telegram ${req.body.id}`;
+
+    try {
+        const user = await upsertCustomerUser({
+            platform: 'telegram',
+            platformId: String(req.body.id),
+            displayName,
+            pictureUrl: req.body.photo_url || null
+        });
+
+        res.json({ success: true, user: toAuthenticatedUser(user) });
+    } catch (err) {
+        console.error('Telegram login error:', err);
+        res.status(500).json({ error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ Telegram' });
+    }
+});
+
 // POST /api/auth/login — customer login / register from any platform
 // Body: { platform, platform_id, display_name, picture_url }
 app.post('/api/auth/login', async (req, res) => {
@@ -465,27 +564,15 @@ app.post('/api/auth/login', async (req, res) => {
         return res.status(400).json({ error: 'platform ต้องเป็น line หรือ telegram' });
     }
     try {
-        const result = await pool.query(
-            `INSERT INTO users (platform, platform_id, display_name, picture_url)
-             VALUES ($1, $2, $3, $4)
-             ON CONFLICT (platform, platform_id) DO UPDATE SET
-                display_name = EXCLUDED.display_name,
-                picture_url = EXCLUDED.picture_url,
-                updated_at = NOW()
-             RETURNING *`,
-            [plat, platform_id, display_name || '', picture_url || null]
-        );
-        const user = result.rows[0];
+        const user = await upsertCustomerUser({
+            platform: plat,
+            platformId: platform_id,
+            displayName: display_name,
+            pictureUrl: picture_url
+        });
         res.json({
             success: true,
-            user: {
-                id: user.id,
-                platform: user.platform,
-                platform_id: user.platform_id,
-                display_name: user.display_name,
-                picture_url: user.picture_url,
-                progress_count: user.progress_count
-            }
+            user: toAuthenticatedUser(user)
         });
     } catch (err) {
         console.error('Customer login error:', err);
@@ -494,6 +581,17 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ============ USER & PROGRESS API ============
+
+async function getCurrentRoundApprovedCount(userId, roundLabel = getCurrentRoundLabel()) {
+    const progressResult = await pool.query(
+        `SELECT COUNT(DISTINCT staff_id)::int AS approved_count
+         FROM transactions
+         WHERE user_id = $1 AND round_label = $2 AND status = 'approved'`,
+        [userId, roundLabel]
+    );
+
+    return progressResult.rows[0]?.approved_count || 0;
+}
 
 // POST /api/users/upsert — create or update user from any platform profile
 app.post('/api/users/upsert', async (req, res) => {
@@ -542,13 +640,7 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
         const user = userResult.rows[0];
 
         // Count approved unique staff in this round
-        const progressResult = await pool.query(
-            `SELECT COUNT(DISTINCT staff_id)::int AS approved_count
-             FROM transactions
-             WHERE user_id = $1 AND round_label = $2 AND status = 'approved'`,
-            [user.id, roundLabel]
-        );
-        const approvedCount = progressResult.rows[0].approved_count;
+        const approvedCount = await getCurrentRoundApprovedCount(user.id, roundLabel);
 
         // Check if already guessed lottery this round
         const guessResult = await pool.query(
@@ -586,6 +678,7 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
     const { platform_id } = req.params;
     const platform = req.query.platform || 'line';
     try {
+        const roundLabel = getCurrentRoundLabel();
         // Find user
         const userResult = await pool.query(
             'SELECT id, display_name, picture_url, progress_count, global_user_id FROM users WHERE platform = $1 AND platform_id = $2',
@@ -595,6 +688,7 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
             return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
         }
         const user = userResult.rows[0];
+        const currentProgressCount = await getCurrentRoundApprovedCount(user.id, roundLabel);
 
         // Transaction history with staff name
         const txResult = await pool.query(
@@ -651,13 +745,15 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
                 id: user.id,
                 display_name: user.display_name,
                 picture_url: user.picture_url,
-                progress_count: user.progress_count,
+                progress_count: currentProgressCount,
                 global_user_id: user.global_user_id
             },
             transactions: txResult.rows,
             guesses: guessResult.rows,
             lifetime_approved: lifetimeResult.rows[0].total_approved,
-            total_points: totalPoints
+            total_points: totalPoints,
+            current_round_label: roundLabel,
+            current_round_progress: currentProgressCount
         });
     } catch (err) {
         console.error('User history fetch error:', err);
@@ -1695,6 +1791,7 @@ app.get('/api/unified/profile', async (req, res) => {
              FROM points WHERE global_user_id = $1`,
             [userRow.global_user_id]
         );
+        const currentProgressCount = await getCurrentRoundApprovedCount(userRow.id);
 
         // Check if this user has a Telegram identity linked
         let telegramId = null;
@@ -1731,7 +1828,8 @@ app.get('/api/unified/profile', async (req, res) => {
             line_login_user_id: lineId,
             telegram_user_id: telegramId,
             total_points: pointsResult.rows[0].total_points,
-            progress_count: userRow.progress_count,
+            progress_count: currentProgressCount,
+            current_round_progress: currentProgressCount,
             oa_bindings: oaMappings.rows,
             created_at: userRow.created_at
         });

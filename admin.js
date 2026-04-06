@@ -618,16 +618,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             grid.innerHTML = staffs.map(s => {
+                const displayName = s.nickname || s.name || '—';
                 const avatarSrc = s.avatar_url
                     ? (s.avatar_url.startsWith('http') ? s.avatar_url : `/uploads/${encodeURIComponent(s.avatar_url)}`)
-                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(s.nickname || s.name)}&background=1a1a2e&color=00f0ff&size=80`;
+                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=80`;
                 const statusClass = s.is_active ? 'staff-active' : 'staff-inactive';
                 const statusText = s.is_active ? '✅ ใช้งาน' : '❌ ปิดใช้งาน';
                 return `<div class="staff-card ${statusClass}">
-                    <img class="staff-card-avatar" src="${avatarSrc}" alt="${escapeHtml(s.name)}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=1a1a2e&color=00f0ff&size=80'">
+                    <img class="staff-card-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=80'">
                     <div class="staff-card-info">
-                        <div class="staff-card-name">${escapeHtml(s.name)}</div>
-                        ${s.nickname ? `<div class="staff-card-nick">${escapeHtml(s.nickname)}</div>` : ''}
+                        <div class="staff-card-name">${escapeHtml(displayName)}</div>
                         <span class="staff-status-badge ${statusClass}">${statusText}</span>
                     </div>
                     <div class="staff-card-actions">
@@ -706,13 +706,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Add staff
     document.getElementById('btn-add-staff').addEventListener('click', async () => {
         const nameInput = document.getElementById('staff-name-input');
-        const nickInput = document.getElementById('staff-nickname-input');
         const name = nameInput.value.trim();
-        if (!name) { showToast('กรุณากรอกชื่อพนักงาน', 'error'); return; }
+        if (!name) { showToast('กรุณากรอกชื่อเล่นพนักงาน', 'error'); return; }
 
         const formData = new FormData();
         formData.append('name', name);
-        if (nickInput.value.trim()) formData.append('nickname', nickInput.value.trim());
+        formData.append('nickname', name);
         if (staffAvatarInput.files.length > 0) formData.append('avatar', staffAvatarInput.files[0]);
 
         try {
@@ -721,7 +720,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (res.ok && data.success) {
                 showToast(`เพิ่มพนักงาน "${name}" สำเร็จ`, 'success');
                 nameInput.value = '';
-                nickInput.value = '';
                 staffAvatarInput.value = '';
                 staffPreview.hidden = true;
                 renderStaffGrid();

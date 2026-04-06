@@ -1482,12 +1482,47 @@ header h1 {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 14px;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
 .progress-header h3 {
     margin: 0;
     font-size: 1.05rem;
     color: var(--neon-red);
+}
+
+.progress-summary {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.progress-points {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 170, 0, 0.2);
+    background: linear-gradient(135deg, rgba(255, 170, 0, 0.12), rgba(255, 60, 60, 0.05));
+}
+
+.progress-points-label {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    letter-spacing: 0.4px;
+}
+
+.progress-points-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 0 10px rgba(255, 170, 0, 0.3);
 }
 
 .progress-count {
@@ -1609,8 +1644,8 @@ header h1 {
     font-size: 0.95rem;
     font-family: 'Kanit', sans-serif;
     transition: border-color 0.3s;
-    appearance: none;
     -webkit-appearance: none;
+    appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ff3c3c' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 14px center;
@@ -1665,8 +1700,31 @@ header h1 {
     background: rgba(0, 240, 255, 0.1);
     box-shadow: 0 0 16px rgba(0, 240, 255, 0.3), inset 0 0 8px rgba(0, 240, 255, 0.1);
 }
+
+.staff-pick-card.is-locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+    border-color: rgba(255, 255, 255, 0.05);
+    background: rgba(20, 20, 40, 0.35);
+}
+
+.staff-pick-card.is-locked:hover {
+    transform: none;
+    border-color: rgba(255, 255, 255, 0.05);
+    background: rgba(20, 20, 40, 0.35);
+}
+
+.staff-pick-card.is-locked .staff-pick-name {
+    color: rgba(255, 255, 255, 0.45);
+}
 .staff-pick-card.selected .staff-pick-name {
     color: var(--neon-cyan);
+}
+.staff-pick-avatar-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .staff-pick-avatar {
     width: 60px;
@@ -1675,6 +1733,38 @@ header h1 {
     object-fit: cover;
     border: 2px solid rgba(255, 255, 255, 0.1);
     transition: border-color 0.25s, box-shadow 0.25s;
+}
+.staff-pick-avatar-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: transparent;
+    border: none;
+    cursor: zoom-in;
+    border-radius: 50%;
+}
+
+.staff-pick-avatar-hint {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(0, 240, 255, 0.16);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    color: var(--neon-cyan);
+    font-size: 0.75rem;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.18);
+    pointer-events: none;
+}
+
+.staff-pick-card.is-locked .staff-pick-avatar-hint {
+    opacity: 0.5;
 }
 .staff-pick-card.selected .staff-pick-avatar {
     border-color: var(--neon-cyan);
@@ -1688,6 +1778,55 @@ header h1 {
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 100%;
+}
+
+.img-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(4, 6, 18, 0.88);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+}
+
+.img-modal-overlay[hidden] {
+    display: none;
+}
+
+.img-modal-content {
+    position: relative;
+    max-width: min(92vw, 560px);
+    width: 100%;
+}
+
+.img-modal-content img {
+    width: 100%;
+    max-height: 82vh;
+    object-fit: contain;
+    display: block;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    background: rgba(20, 20, 40, 0.92);
+}
+
+.img-modal-close {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 60, 60, 0.92);
+    color: #fff;
+    font-size: 1.5rem;
+    cursor: pointer;
+    box-shadow: 0 12px 24px rgba(255, 60, 60, 0.3);
 }
 
 /* ==================== RATING SLIDERS ==================== */
@@ -1846,6 +1985,7 @@ header h1 {
     inset: 0;
     z-index: 10;
     background: rgba(6, 6, 18, 0.92);
+    -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
     display: flex;
     flex-direction: column;
@@ -2034,6 +2174,22 @@ header h1 {
     font-size: 0.8rem;
 }
 
+.telegram-widget-shell {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.telegram-widget-note {
+    margin: 0;
+    font-size: 0.78rem;
+    text-align: center;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
 .login-divider::before,
 .login-divider::after {
     content: '';
@@ -2069,6 +2225,7 @@ header h1 {
     inset: 0;
     z-index: 10000;
     background: rgba(0, 0, 0, 0.7);
+    -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
     display: flex;
     justify-content: center;

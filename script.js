@@ -4,6 +4,9 @@ const API_BASE = window.location.hostname === 'namodeew-maker.github.io'
 
 // ==================== GLOBAL STATE ====================
 let currentUser = null; // { id, platform, platform_id, display_name, picture_url, progress_count }
+let currentVisitedStaffIds = new Set();
+let telegramWidgetLoadedFor = null;
+let telegramLoginConfig = null;
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -157,15 +160,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('เข้าสู่ระบบล้มเหลว: ' + (data.error || 'Unknown error'));
                 return false;
             }
-            currentUser = data.user;
-            sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
-            onLoginSuccess();
+            finalizeLogin(data.user);
             return true;
         } catch (err) {
             console.error('Login error:', err);
             alert('ไม่สามารถเชื่อมต่อ Server ได้');
             return false;
         }
+    }
+
+    function finalizeLogin(user) {
+        currentUser = user;
+        sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+        onLoginSuccess();
     }
 
     /** Show login options or main content based on currentUser */
@@ -176,6 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mainContent.style.display = '';
             if (logoutBtn) logoutBtn.style.display = '';
             updateProfileUI();
+            refreshUserRuntimeState();
         } else {
             loginOptions.style.display = '';
             mainContent.style.display = 'none';
@@ -202,6 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loginOptions.style.display = 'none';
         mainContent.style.display = '';
         updateProfileUI();
+        refreshUserRuntimeState();
     }
 
     /** Update header LIFF profile area with currentUser info */
@@ -216,6 +225,117 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (nameEl) {
             nameEl.textContent = currentUser.display_name || currentUser.platform_id;
+        }
+    }
+
+    function renderProgressState(progressCount) {
+        const normalizedCount = Math.max(0, Math.min(Number(progressCount) || 0, 5));
+        const progressCountEl = document.getElementById('progress-count');
+        const progressFillEl = document.getElementById('progress-fill');
+        const lockProgressEl = document.getElementById('lock-progress-text');
+        const progressHintEl = document.getElementById('progress-hint');
+
+        if (progressCountEl) progressCountEl.textContent = `${normalizedCount} / 5`;
+        if (progressFillEl) progressFillEl.style.width = `${(normalizedCount / 5) * 100}%`;
+        if (lockProgressEl) lockProgressEl.textContent = `${normalizedCount}/5`;
+
+        if (progressHintEl) {
+            const isUnlocked = normalizedCount >= 5;
+            progressHintEl.textContent = isUnlocked
+                ? 'ปลดล็อกสิทธิ์ทายเลขแล้ว เลือกเลขได้เลย'
+                : 'สะสมให้ครบ 5 คน (พนักงานไม่ซ้ำ) เพื่อปลดล็อกทายเลข!';
+            progressHintEl.classList.toggle('unlocked', isUnlocked);
+        }
+
+        document.querySelectorAll('#progress-section .progress-dot').forEach((dot, index) => {
+            const dotIndex = index + 1;
+            dot.classList.toggle('filled', dotIndex <= normalizedCount);
+            dot.classList.toggle('current', normalizedCount < 5 && dotIndex === normalizedCount + 1);
+        });
+    }
+
+    function renderTotalPoints(totalPoints) {
+        const pointsEl = document.getElementById('total-points-value');
+        if (pointsEl) {
+            pointsEl.textContent = Number(totalPoints || 0).toLocaleString('th-TH');
+        }
+    }
+
+    function clearSelectedStaff() {
+        const selectedCard = document.querySelector('.staff-pick-card.selected');
+        if (selectedCard) selectedCard.classList.remove('selected');
+
+        const staffInput = document.getElementById('staff-select');
+        if (staffInput) staffInput.value = '';
+
+        setActiveStep(1);
+    }
+
+    function applyVisitedStaffState(staffIds) {
+        currentVisitedStaffIds = new Set((staffIds || []).map(String));
+
+        document.querySelectorAll('.staff-pick-card').forEach(card => {
+            const isLocked = currentVisitedStaffIds.has(card.dataset.staffId);
+            card.classList.toggle('is-locked', isLocked);
+            card.setAttribute('aria-disabled', isLocked ? 'true' : 'false');
+
+            if (isLocked && card.classList.contains('selected')) {
+                clearSelectedStaff();
+            }
+        });
+    }
+
+    function syncLottoState(progressData) {
+        const overlay = document.getElementById('lotto-lock-overlay');
+        const overlayText = overlay ? overlay.querySelector('p') : null;
+        const lockProgressEl = document.getElementById('lock-progress-text');
+
+        if (!overlay) return;
+
+        if (progressData?.already_guessed) {
+            overlay.classList.remove('hidden');
+            if (overlayText) overlayText.textContent = 'ใช้สิทธิ์ทายเลขรอบนี้แล้ว';
+            if (lockProgressEl) {
+                lockProgressEl.textContent = progressData.lottery_guess?.guess_number
+                    ? `เลขที่ทาย: ${progressData.lottery_guess.guess_number}`
+                    : 'ทายเลขรอบนี้แล้ว';
+            }
+            return;
+        }
+
+        if (overlayText) overlayText.innerHTML = 'สะสมให้ครบ <strong>5/5</strong> เพื่อปลดล็อก';
+        overlay.classList.toggle('hidden', Boolean(progressData?.can_guess_lottery));
+    }
+
+    async function refreshUserRuntimeState() {
+        if (!currentUser?.platform_id) return;
+
+        const platform = currentUser.platform || 'line';
+
+        try {
+            const [progressRes, unifiedRes] = await Promise.all([
+                fetch(`${API_BASE}/users/${encodeURIComponent(currentUser.platform_id)}/progress?platform=${encodeURIComponent(platform)}`),
+                fetch(`${API_BASE}/unified/profile?by=${encodeURIComponent(platform)}&id=${encodeURIComponent(currentUser.platform_id)}`)
+            ]);
+
+            const progressData = progressRes.ok ? await progressRes.json() : null;
+            const unifiedData = unifiedRes.ok ? await unifiedRes.json() : null;
+            const progressCount = Number(
+                progressData?.progress_count ?? unifiedData?.current_round_progress ?? unifiedData?.progress_count ?? currentUser.progress_count ?? 0
+            );
+
+            renderProgressState(progressCount);
+            renderTotalPoints(unifiedData?.total_points || 0);
+            applyVisitedStaffState(progressData?.visited_staff_ids || []);
+            syncLottoState(progressData);
+
+            currentUser.progress_count = progressCount;
+            sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+        } catch (error) {
+            console.error('Runtime state refresh error:', error);
+            renderProgressState(currentUser?.progress_count || 0);
+            renderTotalPoints(0);
+            syncLottoState(null);
         }
     }
 
@@ -251,30 +371,121 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Telegram Login ---
     const btnLoginTelegram = document.getElementById('btn-login-telegram');
+    const telegramWidgetShell = document.getElementById('telegram-widget-shell');
+    const telegramWidgetContainer = document.getElementById('telegram-widget-container');
+
+    async function getTelegramLoginConfig(force = false) {
+        if (telegramLoginConfig && !force) return telegramLoginConfig;
+
+        const res = await fetch(`${API_BASE}/auth/telegram/config`);
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.error || 'ไม่สามารถโหลดการตั้งค่า Telegram Login ได้');
+        }
+
+        telegramLoginConfig = data;
+        return data;
+    }
+
+    async function ensureTelegramWidget() {
+        const config = await getTelegramLoginConfig();
+        if (!config.enabled || !config.botUsername) {
+            throw new Error('ระบบ Telegram Login ยังไม่ได้ตั้งค่า bot username หรือ bot token');
+        }
+
+        if (!telegramWidgetContainer || !telegramWidgetShell) {
+            throw new Error('ไม่พบพื้นที่สำหรับ Telegram Widget');
+        }
+
+        telegramWidgetShell.hidden = false;
+
+        if (telegramWidgetLoadedFor === config.botUsername) {
+            return config;
+        }
+
+        telegramWidgetContainer.innerHTML = '';
+        const widgetScript = document.createElement('script');
+        widgetScript.async = true;
+        widgetScript.src = 'https://telegram.org/js/telegram-widget.js?22';
+        widgetScript.setAttribute('data-telegram-login', config.botUsername);
+        widgetScript.setAttribute('data-size', 'large');
+        widgetScript.setAttribute('data-onauth', 'onTelegramAuth(user)');
+        widgetScript.setAttribute('data-request-access', 'write');
+        widgetScript.setAttribute('data-userpic', 'true');
+        widgetScript.setAttribute('data-radius', '12');
+        telegramWidgetContainer.appendChild(widgetScript);
+        telegramWidgetLoadedFor = config.botUsername;
+        return config;
+    }
+
     if (btnLoginTelegram) {
-        btnLoginTelegram.addEventListener('click', () => {
-            // Trigger the hidden Telegram widget
-            const widgetContainer = document.getElementById('telegram-widget-container');
-            if (widgetContainer) {
-                widgetContainer.style.display = 'block';
+        btnLoginTelegram.addEventListener('click', async () => {
+            const originalHtml = btnLoginTelegram.innerHTML;
+            btnLoginTelegram.disabled = true;
+            btnLoginTelegram.textContent = 'กำลังโหลด Telegram...';
+            try {
+                await ensureTelegramWidget();
                 btnLoginTelegram.style.display = 'none';
+            } catch (err) {
+                console.error('Telegram widget init error:', err);
+                alert(err.message || 'ไม่สามารถเปิด Telegram Login ได้');
+            } finally {
+                btnLoginTelegram.disabled = false;
+                btnLoginTelegram.innerHTML = originalHtml;
             }
         });
     }
 
     /** Telegram Widget callback — attached to window for the widget's data-onauth */
     window.onTelegramAuth = async function(user) {
-        const displayName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-        await loginToBackend({
-            platform: 'telegram',
-            platform_id: String(user.id),
-            display_name: displayName,
-            picture_url: user.photo_url || null
-        });
+        try {
+            const res = await fetch(`${API_BASE}/auth/telegram`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(user)
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || 'เข้าสู่ระบบ Telegram ไม่สำเร็จ');
+            }
+            finalizeLogin(data.user);
+        } catch (err) {
+            console.error('Telegram login error:', err);
+            alert(err.message || 'เข้าสู่ระบบ Telegram ล้มเหลว');
+            if (btnLoginTelegram) {
+                btnLoginTelegram.style.display = '';
+            }
+            if (telegramWidgetShell) {
+                telegramWidgetShell.hidden = true;
+            }
+        }
     };
 
-    // ==================== PROFILE MODAL ====================
-    // Profile is now a separate page (profile.html) — no modal logic needed here
+    // ==================== IMAGE MODAL ====================
+    const staffImgModal = document.getElementById('staff-img-modal');
+    const staffImgModalImg = document.getElementById('staff-img-modal-img');
+    const staffImgModalClose = document.getElementById('staff-img-modal-close');
+
+    function openStaffImageModal(src, alt) {
+        if (!staffImgModal || !staffImgModalImg) return;
+        staffImgModalImg.src = src;
+        staffImgModalImg.alt = alt || 'รูปพนักงาน';
+        staffImgModal.hidden = false;
+    }
+
+    if (staffImgModalClose) {
+        staffImgModalClose.addEventListener('click', () => {
+            staffImgModal.hidden = true;
+        });
+    }
+
+    if (staffImgModal) {
+        staffImgModal.addEventListener('click', (event) => {
+            if (event.target === staffImgModal) {
+                staffImgModal.hidden = true;
+            }
+        });
+    }
 
     /** Escape HTML to prevent XSS */
     function escapeHtml(str) {
@@ -436,23 +647,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             staffGrid.innerHTML = staffs.map(s => {
+                const displayName = s.nickname || s.name || '—';
                 const avatarSrc = s.avatar_url
                     ? (s.avatar_url.startsWith('http') ? s.avatar_url : `/uploads/${encodeURIComponent(s.avatar_url)}`)
-                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(s.nickname || s.name)}&background=1a1a2e&color=00f0ff&size=80`;
+                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=80`;
+                const avatarNode = s.avatar_url
+                    ? `<button type="button" class="staff-pick-avatar-btn" data-fullimg="${avatarSrc}" data-staff-name="${escapeHtml(displayName)}" aria-label="ดูรูป ${escapeHtml(displayName)} เต็ม">
+                            <img class="staff-pick-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=80'">
+                        </button>
+                        <span class="staff-pick-avatar-hint">+</span>`
+                    : `<img class="staff-pick-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=80'">`;
                 return `<div class="staff-pick-card" data-staff-id="${s.id}">
-                    <img class="staff-pick-avatar" src="${avatarSrc}" alt="${s.nickname || s.name}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=1a1a2e&color=00f0ff&size=80'">
-                    <span class="staff-pick-name">${s.nickname || s.name}</span>
+                    <div class="staff-pick-avatar-wrap">${avatarNode}</div>
+                    <span class="staff-pick-name">${escapeHtml(displayName)}</span>
                 </div>`;
             }).join('');
 
+            staffGrid.querySelectorAll('.staff-pick-avatar-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    openStaffImageModal(button.dataset.fullimg, button.dataset.staffName);
+                });
+            });
+
             staffGrid.querySelectorAll('.staff-pick-card').forEach(card => {
                 card.addEventListener('click', () => {
+                    if (card.classList.contains('is-locked')) {
+                        return;
+                    }
                     staffGrid.querySelectorAll('.staff-pick-card').forEach(c => c.classList.remove('selected'));
                     card.classList.add('selected');
                     staffInput.value = card.dataset.staffId;
                     setActiveStep(2);
                 });
             });
+
+            applyVisitedStaffState(Array.from(currentVisitedStaffIds));
         } catch (err) {
             staffGrid.innerHTML = '<p class="staff-pick-loading">ไม่สามารถโหลดรายชื่อพนักงานได้</p>';
         }
@@ -463,7 +693,10 @@ document.addEventListener('DOMContentLoaded', () => {
         let soldOutNumbers = [];
         try {
             const res = await fetch(`${API_BASE}/sold-out`);
-            soldOutNumbers = await res.json();
+            const soldOutData = await res.json();
+            soldOutNumbers = Array.isArray(soldOutData)
+                ? soldOutData.map(number => Number(number))
+                : [];
         } catch (err) {
             console.error('ไม่สามารถโหลดข้อมูล sold out:', err);
         }
