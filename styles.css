@@ -1110,10 +1110,30 @@ header h1 {
     transition: border-color 0.3s;
 }
 
-.submission-panel input[type="text"]:focus {
+.submission-panel input[type="date"] {
+    width: 100%;
+    background: rgba(20, 20, 40, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 12px 14px;
+    margin: 5px 0 8px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-family: 'Kanit', sans-serif;
+    transition: border-color 0.3s;
+}
+
+.submission-panel input[type="text"]:focus,
+.submission-panel input[type="date"]:focus {
     outline: none;
     border-color: var(--neon-cyan);
     box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
+}
+
+.input-help {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.78rem;
 }
 
 .btn-submit {
@@ -1700,6 +1720,13 @@ header h1 {
     margin-bottom: 6px;
 }
 
+.star-rating-group {
+    padding: 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 170, 0, 0.14);
+    background: rgba(255, 255, 255, 0.025);
+}
+
 .slider-label-text {
     font-size: 0.85rem;
     color: var(--text-silver);
@@ -1713,6 +1740,52 @@ header h1 {
     min-width: 30px;
     text-align: center;
     text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+}
+
+.star-rating {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.star-rating-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 10px 6px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(20, 20, 40, 0.75);
+    color: #7d7d91;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: 'Kanit', sans-serif;
+}
+
+.star-rating-btn:hover {
+    border-color: rgba(255, 196, 64, 0.28);
+    color: #ffd57d;
+    transform: translateY(-1px);
+}
+
+.star-rating-btn.is-active {
+    border-color: rgba(255, 196, 64, 0.42);
+    background: linear-gradient(135deg, rgba(255, 205, 77, 0.18), rgba(255, 129, 37, 0.12));
+    color: #ffd76d;
+    box-shadow: 0 0 18px rgba(255, 196, 64, 0.12);
+}
+
+.star-rating-icon {
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.star-rating-score {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
 }
 
 .neon-slider {

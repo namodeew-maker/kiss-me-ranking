@@ -165,18 +165,17 @@
                     </div>
                 </section>
 
-                <!-- Manage Sold Out Numbers -->
-                <section class="admin-panel">
-                    <h3>🔢 จัดการเลขที่ปิดขาย (Sold Out)</h3>
-                    <div class="sold-out-controls">
-                        <div class="input-row">
-                            <input type="text" id="sold-out-input" placeholder="กรอกเลข 00-99" maxlength="2" pattern="[0-9]{2}">
-                            <button class="btn-action btn-red" id="btn-add-soldout">+ เพิ่ม Sold Out</button>
-                            <button class="btn-action btn-green" id="btn-remove-soldout">- ปลด Sold Out</button>
-                        </div>
-                        <div class="sold-out-list" id="sold-out-list">
-                            <p class="empty-msg">ยังไม่มีเลขที่ปิดขาย</p>
-                        </div>
+                <section class="admin-panel ranking-reset-panel">
+                    <h3>🔁 รีอันดับ</h3>
+                    <p class="panel-caption">กำหนดวันที่เริ่มนับอันดับใหม่ โดยข้อมูลเดิมจะยังถูกเก็บไว้ แต่ leaderboard จะนับจากวันที่ที่คุณเลือก</p>
+                    <div class="input-row ranking-reset-row">
+                        <label for="ranking-reset-date" class="panel-caption ranking-reset-label">วันที่เริ่มนับอันดับใหม่</label>
+                        <input type="date" id="ranking-reset-date" title="เลือกวันที่รีอันดับ">
+                        <button class="btn-action btn-gold" id="btn-save-ranking-reset">บันทึกวันที่รีอันดับ</button>
+                    </div>
+                    <div class="ranking-reset-meta">
+                        <span>วันที่รีอันดับปัจจุบัน:</span>
+                        <strong id="ranking-reset-current">ยังไม่ได้ตั้งค่า</strong>
                     </div>
                 </section>
 
@@ -192,6 +191,7 @@
                         <thead>
                             <tr>
                                 <th>#</th>
+                                <th>วันที่ใช้บริการ</th>
                                 <th>วันเวลาที่ส่ง</th>
                                 <th>ชื่อลูกค้า</th>
                                 <th>ชื่อพนักงาน</th>
@@ -212,6 +212,7 @@
                         <thead>
                             <tr>
                                 <th>#</th>
+                                <th>วันที่ใช้บริการ</th>
                                 <th>วันที่</th>
                                 <th>ชื่อลูกค้า</th>
                                 <th>ชื่อพนักงาน</th>
@@ -234,6 +235,20 @@
 
             <!-- ======================== TAB 4: การทายเลข ======================== -->
             <div class="tab-content" id="tab-lottery">
+
+                <section class="admin-panel">
+                    <h3>🔢 จัดการเลขที่ปิดขาย (Sold Out)</h3>
+                    <div class="sold-out-controls">
+                        <div class="input-row">
+                            <input type="text" id="sold-out-input" placeholder="กรอกเลข 00-99" maxlength="2" pattern="[0-9]{2}">
+                            <button class="btn-action btn-red" id="btn-add-soldout">+ เพิ่ม Sold Out</button>
+                            <button class="btn-action btn-green" id="btn-remove-soldout">- ปลด Sold Out</button>
+                        </div>
+                        <div class="sold-out-list" id="sold-out-list">
+                            <p class="empty-msg">ยังไม่มีเลขที่ปิดขาย</p>
+                        </div>
+                    </div>
+                </section>
 
                 <!-- Guess Chart -->
                 <section class="admin-panel chart-panel">

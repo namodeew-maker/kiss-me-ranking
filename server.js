@@ -118,6 +118,29 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname)));
 app.use('/uploads', express.static(uploadsDir));
 
+async function ensureDatabaseStructure() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key VARCHAR(100) PRIMARY KEY,
+                value TEXT,
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
+        await pool.query('ALTER TABLE transactions ADD COLUMN IF NOT EXISTS service_date DATE');
+    } catch (err) {
+        console.error('Database bootstrap error:', err);
+        throw err;
+    }
+}
+
+async function getRankingResetDate() {
+    const result = await pool.query(
+        "SELECT value FROM app_settings WHERE key = 'ranking_reset_date' LIMIT 1"
+    );
+    return result.rows[0]?.value || null;
+}
+
 // ============ ROUND LOGIC ============
 // Round A: day 1-14, draw on 16th
 // Round B: day 16-29, draw on 1st of next month
@@ -330,22 +353,31 @@ app.delete('/api/staffs/:id/permanent', requireAuth, async (req, res) => {
     }
 });
 
-// POST /api/staffs/reset-ranking — reset all staff ranking (admin, with date)
+// GET /api/staffs/reset-ranking — get ranking reset date (admin)
+app.get('/api/staffs/reset-ranking', requireAuth, async (req, res) => {
+    try {
+        const date = await getRankingResetDate();
+        res.json({ reset_date: date });
+    } catch (err) {
+        console.error('Get ranking reset date error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดวันที่รีอันดับได้' });
+    }
+});
+
+// POST /api/staffs/reset-ranking — set ranking reset date (admin)
 app.post('/api/staffs/reset-ranking', requireAuth, async (req, res) => {
     const { date } = req.body;
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return res.status(400).json({ error: 'กรุณาระบุวันที่ (YYYY-MM-DD)' });
     }
     try {
-        // Archive old transactions/rankings by setting a reset_at date (if schema supports), or delete/clear
-        // Here: delete all transactions and ratings before or on the reset date
-        const tx = await pool.query('SELECT id FROM transactions WHERE created_at <= $1', [date + ' 23:59:59']);
-        const txIds = tx.rows.map(r => r.id);
-        if (txIds.length > 0) {
-            await pool.query('DELETE FROM ratings WHERE transaction_id = ANY($1)', [txIds]);
-            await pool.query('DELETE FROM transactions WHERE id = ANY($1)', [txIds]);
-        }
-        res.json({ success: true, deleted: txIds.length });
+        await pool.query(
+            `INSERT INTO app_settings (key, value, updated_at)
+             VALUES ('ranking_reset_date', $1, NOW())
+             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+            [date]
+        );
+        res.json({ success: true, reset_date: date });
     } catch (err) {
         console.error('Reset staff ranking error:', err);
         res.status(500).json({ error: 'ไม่สามารถรีอันดับได้' });
@@ -355,6 +387,7 @@ app.post('/api/staffs/reset-ranking', requireAuth, async (req, res) => {
 // GET /api/ranking/staff — staff ranking by approved transaction count + avg scores
 app.get('/api/ranking/staff', async (req, res) => {
     try {
+        const resetDate = await getRankingResetDate();
         const result = await pool.query(`
             SELECT
                 s.id, s.name, s.nickname, s.avatar_url,
@@ -364,12 +397,14 @@ app.get('/api/ranking/staff', async (req, res) => {
                 COALESCE(ROUND(AVG(r.value_score), 1), 0) AS avg_value,
                 COALESCE(ROUND((AVG(r.looks_score) + AVG(r.service_score) + AVG(r.value_score)) / 3, 1), 0) AS avg_overall
             FROM staffs s
-            LEFT JOIN transactions t ON t.staff_id = s.id AND t.status = 'approved'
+            LEFT JOIN transactions t ON t.staff_id = s.id
+                AND t.status = 'approved'
+                AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
             LEFT JOIN ratings r ON r.transaction_id = t.id
             WHERE s.is_active = TRUE
             GROUP BY s.id, s.name, s.nickname, s.avatar_url
             ORDER BY total_votes DESC, avg_overall DESC
-        `);
+        `, [resetDate]);
         res.json(result.rows);
     } catch (err) {
         console.error('Staff ranking error:', err);
@@ -380,17 +415,30 @@ app.get('/api/ranking/staff', async (req, res) => {
 // GET /api/ranking/customers — customer ranking by lifetime approved + points
 app.get('/api/ranking/customers', async (req, res) => {
     try {
+        const resetDate = await getRankingResetDate();
         const result = await pool.query(`
             SELECT
                 u.id, u.display_name, u.picture_url, u.platform,
                 COUNT(t.id)::int AS total_approved,
-                COALESCE((SELECT SUM(p.points)::int FROM points p WHERE p.global_user_id = u.global_user_id), 0) AS total_points
+                COALESCE((
+                    SELECT SUM(p.points)::int
+                    FROM points p
+                    WHERE p.global_user_id = u.global_user_id
+                      AND ($1::date IS NULL OR p.created_at::date >= $1::date)
+                ), 0) AS total_points
             FROM users u
-            LEFT JOIN transactions t ON t.user_id = u.id AND t.status = 'approved'
+            LEFT JOIN transactions t ON t.user_id = u.id
+                AND t.status = 'approved'
+                AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
             GROUP BY u.id, u.display_name, u.picture_url, u.platform, u.global_user_id
             HAVING COUNT(t.id) > 0
-            ORDER BY COUNT(t.id) DESC, COALESCE((SELECT SUM(p.points)::int FROM points p WHERE p.global_user_id = u.global_user_id), 0) DESC
-        `);
+            ORDER BY COUNT(t.id) DESC, COALESCE((
+                SELECT SUM(p.points)::int
+                FROM points p
+                WHERE p.global_user_id = u.global_user_id
+                  AND ($1::date IS NULL OR p.created_at::date >= $1::date)
+            ), 0) DESC
+        `, [resetDate]);
         res.json(result.rows);
     } catch (err) {
         console.error('Customer ranking error:', err);
@@ -548,6 +596,7 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
             `SELECT
                 t.id,
                 t.created_at,
+                t.service_date,
                 t.status,
                 t.round_label,
                 t.slip_image_url,
@@ -615,7 +664,7 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
 
 // POST /api/transactions — customer submits a bill (slip + staff + ratings)
 app.post('/api/transactions', upload.single('slip'), async (req, res) => {
-    const { staff_id, looks_score, service_score, value_score, platform } = req.body;
+    const { staff_id, looks_score, service_score, value_score, platform, service_date } = req.body;
     // Accept platform_id or legacy line_uid
     const platform_id = req.body.platform_id || req.body.line_uid;
     const plat = platform || 'line';
@@ -625,6 +674,9 @@ app.post('/api/transactions', upload.single('slip'), async (req, res) => {
     }
     if (!req.file) {
         return res.status(400).json({ error: 'กรุณาแนบรูปสลิป' });
+    }
+    if (!service_date || !/^\d{4}-\d{2}-\d{2}$/.test(service_date)) {
+        return res.status(400).json({ error: 'กรุณาระบุวันที่มาใช้บริการ' });
     }
 
     const staffIdNum = parseInt(staff_id, 10);
@@ -679,10 +731,10 @@ app.post('/api/transactions', upload.single('slip'), async (req, res) => {
 
         // Insert transaction
         const txResult = await client.query(
-            `INSERT INTO transactions (user_id, staff_id, slip_image_url, round_label, status)
-             VALUES ($1, $2, $3, $4, 'pending')
+            `INSERT INTO transactions (user_id, staff_id, slip_image_url, round_label, status, service_date)
+             VALUES ($1, $2, $3, $4, 'pending', $5)
              RETURNING id`,
-            [userId, staffIdNum, slipUrl, roundLabel]
+            [userId, staffIdNum, slipUrl, roundLabel, service_date]
         );
         const txId = txResult.rows[0].id;
 
@@ -1016,6 +1068,7 @@ app.get('/api/history', async (req, res) => {
             `SELECT
                 t.id,
                 t.created_at,
+                t.service_date,
                 t.status AS approved,
                 t.slip_image_url,
                 t.round_label,
@@ -1724,6 +1777,14 @@ app.post('/api/oa-accounts', requireAuth, async (req, res) => {
 
 // ============ START SERVER ============
 
-app.listen(PORT, () => {
-    console.log(`Kiss Me Ranking server running at http://localhost:${PORT}`);
+async function startServer() {
+    await ensureDatabaseStructure();
+    app.listen(PORT, () => {
+        console.log(`Kiss Me Ranking server running at http://localhost:${PORT}`);
+    });
+}
+
+startServer().catch(err => {
+    console.error('Server startup failed:', err);
+    process.exit(1);
 });

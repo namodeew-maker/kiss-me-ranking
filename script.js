@@ -383,6 +383,46 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function renderStarRatings() {
+        document.querySelectorAll('.star-rating').forEach(container => {
+            const targetId = container.dataset.target;
+            const outputId = container.dataset.output;
+            const input = document.getElementById(targetId);
+            const output = document.getElementById(outputId);
+            if (!input || !output) return;
+
+            const setValue = (value) => {
+                input.value = String(value);
+                output.textContent = String(value);
+                container.querySelectorAll('.star-rating-btn').forEach(btn => {
+                    btn.classList.toggle('is-active', Number(btn.dataset.value) <= value);
+                    btn.setAttribute('aria-pressed', Number(btn.dataset.value) === value ? 'true' : 'false');
+                });
+            };
+
+            container.innerHTML = Array.from({ length: 10 }, (_, index) => {
+                const score = index + 1;
+                return `<button type="button" class="star-rating-btn" data-value="${score}" aria-label="ให้คะแนน ${score} จาก 10">
+                    <span class="star-rating-icon">★</span>
+                    <span class="star-rating-score">${score}</span>
+                </button>`;
+            }).join('');
+
+            container.querySelectorAll('.star-rating-btn').forEach(btn => {
+                btn.addEventListener('click', () => setValue(Number(btn.dataset.value)));
+            });
+
+            setValue(Number(input.value || 5));
+        });
+    }
+
+    renderStarRatings();
+
+    const serviceDateInput = document.getElementById('service-date');
+    if (serviceDateInput && !serviceDateInput.value) {
+        serviceDateInput.value = new Date().toISOString().split('T')[0];
+    }
+
     // --- Load Staff Cards ---
     (async () => {
         const staffGrid = document.getElementById('staff-pick-grid');
@@ -477,6 +517,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const serviceDate = document.getElementById('service-date')?.value || '';
+        if (!serviceDate) {
+            alert('กรุณาเลือกวันที่มาใช้บริการครับ!');
+            return;
+        }
+
         const looksScore = document.getElementById('score-looks') ? document.getElementById('score-looks').value : 5;
         const serviceScore = document.getElementById('score-service') ? document.getElementById('score-service').value : 5;
         const valueScore = document.getElementById('score-value') ? document.getElementById('score-value').value : 5;
@@ -486,6 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('platform', currentUser.platform);
             formData.append('platform_id', currentUser.platform_id);
             formData.append('staff_id', staffId);
+            formData.append('service_date', serviceDate);
             formData.append('looks_score', looksScore);
             formData.append('service_score', serviceScore);
             formData.append('value_score', valueScore);
@@ -501,8 +548,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 setActiveStep(4);
                 alert('ส่งสลิปสำเร็จ! รอ Admin ตรวจสอบ');
                 form.reset();
-                // Reset slider displays
-                document.querySelectorAll('.slider-value').forEach(el => el.textContent = '5');
+                ['score-looks', 'score-service', 'score-value'].forEach(id => {
+                    const input = document.getElementById(id);
+                    if (input) input.value = '5';
+                });
+                renderStarRatings();
+                if (serviceDateInput) {
+                    serviceDateInput.value = new Date().toISOString().split('T')[0];
+                }
                 // Reset upload preview
                 const preview = document.getElementById('upload-preview');
                 const uploadBox = document.getElementById('upload-box');

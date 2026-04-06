@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     staff_id INTEGER NOT NULL REFERENCES staffs(id) ON DELETE RESTRICT,
     slip_image_url TEXT NOT NULL,                   -- URL รูปสลิปที่อัปโหลด
+    service_date DATE,                              -- วันที่ลูกค้ามาใช้บริการจริง
     status VARCHAR(20) NOT NULL DEFAULT 'pending'   -- pending / approved / rejected
         CHECK (status IN ('pending', 'approved', 'rejected')),
     reviewed_by INTEGER,                            -- admin_users.id ที่ตรวจสอบ
@@ -114,7 +115,17 @@ CREATE TABLE IF NOT EXISTS sold_out (
 );
 
 -- ============================================
--- 7. ตาราง admin_users — ผู้ดูแลระบบ (Auditor)
+-- 7.1 ตาราง app_settings — ค่าตั้งค่าระดับระบบ
+-- ใช้เก็บวันที่รีอันดับ และ settings อื่นในอนาคต
+-- ============================================
+CREATE TABLE IF NOT EXISTS app_settings (
+    key VARCHAR(100) PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================
+-- 8. ตาราง admin_users — ผู้ดูแลระบบ (Auditor)
 -- ใช้ตรวจสอบสลิปและจัดการข้อมูล
 -- ============================================
 CREATE TABLE IF NOT EXISTS admin_users (
@@ -125,7 +136,7 @@ CREATE TABLE IF NOT EXISTS admin_users (
 );
 
 -- ============================================
--- 8. Seed ข้อมูลเริ่มต้น — Admin User
+-- 9. Seed ข้อมูลเริ่มต้น — Admin User
 -- username: Kissmy456 / password: Kiss@456789
 -- ============================================
 INSERT INTO admin_users (username, password_hash)

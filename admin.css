@@ -1005,4 +1005,47 @@
 }
 .staff-card-actions {
     margin-top: 4px;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+.ranking-reset-panel {
+    border-color: rgba(255, 194, 77, 0.24);
+    background: rgba(255, 194, 77, 0.04);
+}
+
+.panel-caption {
+    margin: 0 0 12px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.ranking-reset-row {
+    align-items: stretch;
+}
+
+.ranking-reset-label {
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+}
+
+.ranking-reset-meta {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 194, 77, 0.14);
+    color: var(--text-muted);
+    font-size: 0.84rem;
+}
+
+.ranking-reset-meta strong {
+    color: #ffd27a;
+    font-family: 'Orbitron', sans-serif;
+    margin-left: 8px;
 }

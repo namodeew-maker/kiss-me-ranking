@@ -24,6 +24,123 @@ function getCustomerRank(totalApproved, totalPoints) {
     return rank;
 }
 
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.appendChild(document.createTextNode(text ?? ''));
+    return div.innerHTML;
+}
+
+function getAvatarSrc(entry, fallbackName) {
+    if (entry && entry.avatar_url) {
+        return entry.avatar_url.startsWith('http')
+            ? entry.avatar_url
+            : `/uploads/${encodeURIComponent(entry.avatar_url)}`;
+    }
+    if (entry && entry.picture_url) {
+        return entry.picture_url;
+    }
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName || 'U')}&background=1a1a2e&color=00f0ff&size=160`;
+}
+
+function formatRank(rank) {
+    return String(rank).padStart(2, '0');
+}
+
+function renderLeaderboardBoard(list, options) {
+    if (!list.length) {
+        return '<div class="ranking-empty">ยังไม่มีข้อมูลอันดับ</div>';
+    }
+
+    const topThree = [0, 1, 2]
+        .map(index => list[index])
+        .filter(Boolean);
+    const best = list[0];
+
+    const podiumSlots = topThree.map((entry, index) => {
+        const rank = index + 1;
+        const avatarSrc = options.getAvatar(entry);
+        return `<div class="podium-slot ${rank === 1 ? 'is-first' : ''}">
+            <div class="podium-slot-rank">${formatRank(rank)}</div>
+            <img class="podium-avatar" src="${avatarSrc}" alt="${escapeHtml(options.getDisplayName(entry))}"
+                 onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(options.getDisplayName(entry))}&background=1a1a2e&color=00f0ff&size=160'">
+            <div class="podium-name">${escapeHtml(options.getDisplayName(entry))}</div>
+            <div class="podium-meta">${escapeHtml(options.getSubtitle(entry))}</div>
+            <div class="podium-points">${escapeHtml(options.getMetric(entry))}</div>
+        </div>`;
+    }).join('');
+
+    const rows = list.map((entry, index) => {
+        const rank = index + 1;
+        return `<div class="leaderboard-row ${rank === 1 ? 'is-top-1' : ''}" style="animation-delay:${index * 0.04}s">
+            <div class="leaderboard-row-rank">${formatRank(rank)}</div>
+            <div>
+                <div class="leaderboard-row-name">${escapeHtml(options.getDisplayName(entry))}</div>
+                <div class="leaderboard-row-sub">${escapeHtml(options.getSubtitle(entry))}</div>
+            </div>
+            <div class="leaderboard-row-points">${escapeHtml(options.getMetric(entry))}</div>
+        </div>`;
+    }).join('');
+
+    return `<section class="leaderboard-card leaderboard-podium">
+        <div class="leaderboard-card-header">
+            <div>
+                <h2 class="leaderboard-card-title">Leaderboard</h2>
+                <p class="leaderboard-card-subtitle">Top 3 champions</p>
+            </div>
+            <span class="leaderboard-mini-label">${escapeHtml(options.boardLabel)}</span>
+        </div>
+        <div class="leaderboard-trophy-row">
+            <div class="trophy-pill">🏆 1</div>
+            <div class="trophy-pill">🥈 2</div>
+            <div class="trophy-pill">🥉 3</div>
+        </div>
+        <div class="leaderboard-podium-grid">
+            ${podiumSlots}
+        </div>
+    </section>
+
+    <section class="leaderboard-card leaderboard-table-card">
+        <div class="leaderboard-card-header">
+            <div>
+                <h2 class="leaderboard-card-title">Ranking Table</h2>
+                <p class="leaderboard-card-subtitle">Live scoreboard</p>
+            </div>
+            <span class="leaderboard-mini-label">${escapeHtml(options.metricHeader)}</span>
+        </div>
+        <div class="leaderboard-table">
+            <div class="leaderboard-table-head">
+                <div>Rank</div>
+                <div>Name</div>
+                <div style="text-align:right;">${escapeHtml(options.metricHeader)}</div>
+            </div>
+            ${rows}
+        </div>
+    </section>
+
+    <section class="leaderboard-card leaderboard-best-card">
+        <div class="best-player-inner">
+            <div class="leaderboard-card-header">
+                <div>
+                    <h2 class="leaderboard-card-title">Best Player</h2>
+                    <p class="leaderboard-card-subtitle">Current No.1</p>
+                </div>
+            </div>
+            <div class="best-player-top">
+                <div class="best-player-rank">1</div>
+                <div class="best-player-label">Best<br>Player</div>
+            </div>
+            <div class="best-player-score-wrap">
+                <div class="best-player-score-label">${escapeHtml(options.metricHeader)}</div>
+                <div class="best-player-score">${escapeHtml(options.getMetric(best))}</div>
+            </div>
+            <div class="best-player-name">${escapeHtml(options.getDisplayName(best))}</div>
+            <div class="best-player-meta">
+                ${options.getBestMeta(best).map(meta => `<div class="best-player-chip"><span>${escapeHtml(meta.label)}</span><strong>${escapeHtml(meta.value)}</strong></div>`).join('')}
+            </div>
+        </div>
+    </section>`;
+}
+
 // ==================== PARTICLES ====================
 function spawnParticles() {
     const container = document.getElementById('particles');
@@ -44,10 +161,10 @@ function initTabs() {
     document.querySelectorAll('.rank-tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.rank-tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.rank-tab-content').forEach(c => { c.style.display = 'none'; });
+            document.querySelectorAll('.rank-tab-content').forEach(c => c.classList.add('rank-tab-hidden'));
             btn.classList.add('active');
             const target = document.getElementById('tab-' + btn.dataset.tab);
-            if (target) target.style.display = '';
+            if (target) target.classList.remove('rank-tab-hidden');
         });
     });
 }
@@ -62,31 +179,22 @@ async function loadStaffRanking() {
             list.innerHTML = '<div class="ranking-loading">ยังไม่มีข้อมูลอันดับ</div>';
             return;
         }
-        list.innerHTML = staffs.map((s, idx) => {
-            const rank = idx + 1;
-            const avatarSrc = s.avatar_url
-                ? (s.avatar_url.startsWith('http') ? s.avatar_url : `/uploads/${encodeURIComponent(s.avatar_url)}`)
-                : `https://ui-avatars.com/api/?name=${encodeURIComponent(s.nickname || s.name)}&background=1a1a2e&color=00f0ff&size=80`;
-            const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
-            const topClass = rank <= 3 ? `rank-top-${rank}` : '';
-            return `<div class="ranking-item ${topClass}" style="animation-delay: ${idx * 0.05}s">
-                <div class="ranking-position">${medal}</div>
-                <img class="ranking-avatar" src="${avatarSrc}" alt="${s.nickname || s.name}"
-                     onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=1a1a2e&color=00f0ff&size=80'">
-                <div class="ranking-info">
-                    <div class="ranking-name">${s.nickname || s.name}</div>
-                    ${s.nickname && s.name !== s.nickname ? `<div class="ranking-sub">${s.name}</div>` : ''}
-                    <div class="ranking-stats-row">
-                        <span class="ranking-stat">💌 ${s.total_votes} โหวต</span>
-                        <span class="ranking-stat">⭐ ${s.avg_overall}/10</span>
-                    </div>
-                </div>
-                <div class="ranking-score-circle">
-                    <span class="ranking-score-num">${s.total_votes}</span>
-                    <span class="ranking-score-label">โหวต</span>
-                </div>
-            </div>`;
-        }).join('');
+        list.innerHTML = renderLeaderboardBoard(staffs, {
+            boardLabel: 'Staff Leaderboard',
+            metricHeader: 'Points',
+            getAvatar: (staff) => getAvatarSrc(staff, staff.nickname || staff.name),
+            getDisplayName: (staff) => staff.nickname || staff.name || '—',
+            getSubtitle: (staff) => {
+                const realName = staff.name && staff.name !== staff.nickname ? `ชื่อจริง ${staff.name}` : 'พนักงานยอดนิยม';
+                return `${realName} • เรต ${Number(staff.avg_overall || 0).toFixed(1)}/10`;
+            },
+            getMetric: (staff) => String(staff.total_votes || 0),
+            getBestMeta: (staff) => [
+                { label: 'Votes', value: String(staff.total_votes || 0) },
+                { label: 'Avg Score', value: `${Number(staff.avg_overall || 0).toFixed(1)}/10` },
+                { label: 'Service', value: `${Number(staff.avg_service || 0).toFixed(1)}/10` }
+            ]
+        });
     } catch (err) {
         list.innerHTML = '<div class="ranking-loading">ไม่สามารถโหลดอันดับได้</div>';
     }
@@ -102,31 +210,25 @@ async function loadCustomerRanking() {
             list.innerHTML = '<div class="ranking-loading">ยังไม่มีข้อมูลอันดับ</div>';
             return;
         }
-        list.innerHTML = customers.map((c, idx) => {
-            const rank = idx + 1;
-            const avatarSrc = c.picture_url
-                || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.display_name || 'U')}&background=1a1a2e&color=00f0ff&size=80`;
-            const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
-            const topClass = rank <= 3 ? `rank-top-${rank}` : '';
-            const tierInfo = getCustomerRank(c.total_approved, c.total_points);
-            return `<div class="ranking-item ${topClass}" style="animation-delay: ${idx * 0.05}s">
-                <div class="ranking-position">${medal}</div>
-                <img class="ranking-avatar" src="${avatarSrc}" alt="${c.display_name}"
-                     onerror="this.src='https://ui-avatars.com/api/?name=U&background=1a1a2e&color=00f0ff&size=80'">
-                <div class="ranking-info">
-                    <div class="ranking-name">${c.display_name || '—'}</div>
-                    <div class="ranking-tier" style="color:${tierInfo.color}">${tierInfo.icon} ${tierInfo.name}</div>
-                    <div class="ranking-stats-row">
-                        <span class="ranking-stat">✅ ${c.total_approved} สลิป</span>
-                        <span class="ranking-stat">💎 ${c.total_points.toLocaleString()} แต้ม</span>
-                    </div>
-                </div>
-                <div class="ranking-score-circle" style="--score-color:${tierInfo.color}">
-                    <span class="ranking-score-num">${c.total_approved}</span>
-                    <span class="ranking-score-label">สลิป</span>
-                </div>
-            </div>`;
-        }).join('');
+        list.innerHTML = renderLeaderboardBoard(customers, {
+            boardLabel: 'Customer Leaderboard',
+            metricHeader: 'Points',
+            getAvatar: (customer) => getAvatarSrc(customer, customer.display_name || 'U'),
+            getDisplayName: (customer) => customer.display_name || '—',
+            getSubtitle: (customer) => {
+                const tierInfo = getCustomerRank(customer.total_approved, customer.total_points);
+                return `${tierInfo.icon} ${tierInfo.name} • อนุมัติ ${customer.total_approved || 0} ครั้ง`;
+            },
+            getMetric: (customer) => Number(customer.total_points || 0).toLocaleString('th-TH'),
+            getBestMeta: (customer) => {
+                const tierInfo = getCustomerRank(customer.total_approved, customer.total_points);
+                return [
+                    { label: 'Approved', value: String(customer.total_approved || 0) },
+                    { label: 'Tier', value: tierInfo.name },
+                    { label: 'Points', value: Number(customer.total_points || 0).toLocaleString('th-TH') }
+                ];
+            }
+        });
     } catch (err) {
         list.innerHTML = '<div class="ranking-loading">ไม่สามารถโหลดอันดับได้</div>';
     }

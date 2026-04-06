@@ -110,6 +110,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         return Number(amount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ฿';
     }
 
+    function formatServiceDate(value) {
+        if (!value) return '—';
+        const date = new Date(`${value}T00:00:00`);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleDateString('th-TH');
+    }
+
     // --- Render Functions ---
     async function renderSoldOut() {
         const list = document.getElementById('sold-out-list');
@@ -182,11 +189,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 const dateStr = new Date(h.date || h.created_at).toLocaleString('th-TH');
+                const serviceDate = formatServiceDate(h.service_date);
                 const customerName = h.customer_name || h.name || '—';
                 const staffName = h.staff_name || '—';
 
                 return `<tr>
                     <td>${i + 1}</td>
+                    <td>${serviceDate}</td>
                     <td>${dateStr}</td>
                     <td>${escapeHtml(customerName)}</td>
                     <td>${escapeHtml(staffName)}</td>
@@ -236,11 +245,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             noMsg.classList.add('hidden');
             tbody.innerHTML = pending.map((h, i) => {
                 const dateStr = new Date(h.date || h.created_at).toLocaleString('th-TH');
+                const serviceDate = formatServiceDate(h.service_date);
                 const customerName = h.customer_name || h.name || '—';
                 const staffName = h.staff_name || '—';
                 // NOTE: NO rating scores shown here — top secret!
                 return `<tr>
                     <td>${i + 1}</td>
+                    <td>${serviceDate}</td>
                     <td>${dateStr}</td>
                     <td>${escapeHtml(customerName)}</td>
                     <td>${escapeHtml(staffName)}</td>
@@ -578,6 +589,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btn-load-chart').addEventListener('click', loadGuessChart);
     loadGuessChart();
 
+    async function loadRankingResetDate() {
+        const currentEl = document.getElementById('ranking-reset-current');
+        const inputEl = document.getElementById('ranking-reset-date');
+        if (!currentEl || !inputEl) return;
+        try {
+            const res = await authFetch(`${API_BASE}/staffs/reset-ranking`);
+            const data = await res.json();
+            if (data.reset_date) {
+                inputEl.value = data.reset_date;
+                currentEl.textContent = formatServiceDate(data.reset_date);
+            } else {
+                currentEl.textContent = 'ยังไม่ได้ตั้งค่า';
+            }
+        } catch (err) {
+            currentEl.textContent = 'โหลดไม่สำเร็จ';
+        }
+    }
+
     // --- Staff Management ---
     async function renderStaffGrid() {
         const grid = document.getElementById('staff-grid');
@@ -606,6 +635,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             ? `<button class="btn-small btn-red" data-deactivate-staff="${s.id}">ปิดใช้งาน</button>`
                             : `<button class="btn-small btn-green" data-activate-staff="${s.id}">เปิดใช้งาน</button>`
                         }
+                        <button class="btn-small btn-red" data-delete-staff="${s.id}" type="button">ลบถาวร</button>
                     </div>
                 </div>`;
             }).join('');
@@ -627,6 +657,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await authFetch(`${API_BASE}/staffs/${btn.dataset.activateStaff}`, { method: 'PUT', body: formData });
                     showToast('เปิดใช้งานพนักงานแล้ว', 'success');
                     renderStaffGrid();
+                });
+            });
+            grid.querySelectorAll('[data-delete-staff]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const confirmed = window.confirm('ลบพนักงานถาวรใช่หรือไม่? รายการใช้งานของพนักงานคนนี้จะถูกลบด้วย');
+                    if (!confirmed) return;
+                    try {
+                        await authFetch(`${API_BASE}/staffs/${btn.dataset.deleteStaff}/permanent`, { method: 'DELETE' });
+                        showToast('ลบพนักงานถาวรแล้ว', 'success');
+                        renderStaffGrid();
+                        renderHistory();
+                        renderApproval();
+                    } catch (err) {
+                        showToast('ไม่สามารถลบพนักงานได้', 'error');
+                    }
                 });
             });
         } catch (err) {
@@ -688,7 +733,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    const btnSaveRankingReset = document.getElementById('btn-save-ranking-reset');
+    if (btnSaveRankingReset) {
+        btnSaveRankingReset.addEventListener('click', async () => {
+            const inputEl = document.getElementById('ranking-reset-date');
+            const date = inputEl?.value;
+            if (!date) {
+                showToast('กรุณาเลือกวันที่รีอันดับ', 'error');
+                return;
+            }
+            try {
+                const res = await authFetch(`${API_BASE}/staffs/reset-ranking`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'save-failed');
+                showToast(`ตั้งวันที่รีอันดับเป็น ${formatServiceDate(date)} แล้ว`, 'success');
+                loadRankingResetDate();
+            } catch (err) {
+                showToast('ไม่สามารถบันทึกวันที่รีอันดับได้', 'error');
+            }
+        });
+    }
+
     renderStaffGrid();
+    loadRankingResetDate();
 
     // --- Logout ---
     document.getElementById('btn-logout').addEventListener('click', async () => {

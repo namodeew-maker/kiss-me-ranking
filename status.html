@@ -204,8 +204,8 @@
         function getStatus(h) {
             if (h.approved === 'pending') return { text: '⏳ รออนุมัติ', cls: 'badge-pending', group: 'pending' };
             if (h.approved === 'rejected') return { text: '❌ ไม่อนุมัติ', cls: 'badge-rejected', group: 'rejected' };
-            if (h.won === true) return { text: '🎉 ถูกรางวัล!', cls: 'badge-won', group: 'decided' };
-            if (h.won === false) return { text: '❌ ไม่ถูก', cls: 'badge-lost', group: 'decided' };
+            if (h.lottery_result === 'won') return { text: '🎉 ถูกรางวัล!', cls: 'badge-won', group: 'decided' };
+            if (h.lottery_result === 'lost') return { text: '❌ ไม่ถูก', cls: 'badge-lost', group: 'decided' };
             return { text: '✅ อนุมัติแล้ว - รอผล', cls: 'badge-approved', group: 'approved' };
         }
 
@@ -240,11 +240,13 @@
             emptyDiv.style.display = 'none';
             tbody.innerHTML = filtered.map((h, i) => {
                 const s = getStatus(h);
-                const dateStr = new Date(h.date).toLocaleString('th-TH');
+                const dateStr = new Date(h.created_at || h.date).toLocaleString('th-TH');
+                const customerName = h.customer_name || h.display_name || h.name || '—';
+                const guessNumber = h.guess_number ? String(h.guess_number).padStart(2, '0') : 'รอทาย';
                 return `<tr>
                     <td>${i + 1}</td>
-                    <td>${h.name}</td>
-                    <td>${h.number}</td>
+                    <td>${customerName}</td>
+                    <td>${guessNumber}</td>
                     <td>${dateStr}</td>
                     <td><span class="badge ${s.cls}">${s.text}</span></td>
                 </tr>`;
