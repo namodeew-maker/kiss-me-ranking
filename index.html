@@ -286,6 +286,7 @@
                     <span class="liff-name" id="liff-name">กำลังโหลด...</span>
                 </div>
                 <a href="profile.html" class="header-link profile-btn" id="btn-profile" title="ดูโปรไฟล์ของฉัน">👤 โปรไฟล์</a>
+                <a href="ranking.html" class="header-link">🏆 อันดับ</a>
                 <a href="status.html" class="header-link">📊 สถานะ</a>
                 <a href="admin-login.html" class="admin-link">🔒 Admin</a>
                 <button class="header-link logout-btn" id="btn-logout" title="ออกจากระบบ" style="display:none;">🚪 ออก</button>
@@ -438,13 +439,13 @@
             <section class="submission-panel glass-panel">
                 <h3>💌 แจ้งใช้บริการ</h3>
                 <form id="submission-form">
-                    <!-- Staff Dropdown -->
+                    <!-- Staff Selection Cards -->
                     <div class="input-group">
-                        <label for="staff-select">เลือกพนักงาน (น้อง)</label>
-                        <select id="staff-select" required>
-                            <option value="" disabled selected>-- กรุณาเลือกพนักงาน --</option>
-                            <!-- จะถูกเติมจาก API /api/staffs -->
-                        </select>
+                        <label>เลือกพนักงาน (น้อง)</label>
+                        <div class="staff-pick-grid" id="staff-pick-grid">
+                            <p class="staff-pick-loading">กำลังโหลดรายชื่อ...</p>
+                        </div>
+                        <input type="hidden" id="staff-select" required>
                     </div>
 
                     <!-- Rating Sliders -->
@@ -544,6 +545,7 @@
 
         <!-- Footer Links -->
         <footer class="footer-links" style="margin-top: 25px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+            <a href="ranking.html" class="btn-status-link">🏆 อันดับ</a>
             <a href="status.html" class="btn-status-link">📊 ดูสถานะสะสมสิทธิ์</a>
             <button class="btn-status-link" id="btn-view-terms" style="cursor: pointer; border: 1px solid var(--neon-cyan); color: var(--neon-cyan); background: linear-gradient(135deg, rgba(0,240,255,0.1), rgba(0,240,255,0.03));">📜 ดูเงื่อนไขและกติกา</button>
         </footer>

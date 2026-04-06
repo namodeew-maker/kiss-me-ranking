@@ -49,6 +49,116 @@ function spawnParticles() {
 }
 
 // ==================== RENDER FUNCTIONS ====================
+
+// ==================== RANK SYSTEM ====================
+const RANK_TIERS = [
+    { name: 'Unranked',  icon: '🔘', color: '#888888', minApproved: 0,  minPoints: 0    },
+    { name: 'Bronze',    icon: '🥉', color: '#cd7f32', minApproved: 3,  minPoints: 0    },
+    { name: 'Silver',    icon: '🥈', color: '#c0c0c0', minApproved: 10, minPoints: 50   },
+    { name: 'Gold',      icon: '🥇', color: '#ffd700', minApproved: 25, minPoints: 150  },
+    { name: 'Platinum',  icon: '💎', color: '#00f0ff', minApproved: 50, minPoints: 400  },
+    { name: 'Diamond',   icon: '👑', color: '#b44aff', minApproved: 100,minPoints: 1000 },
+    { name: 'Master',    icon: '🏆', color: '#ff3c3c', minApproved: 200,minPoints: 2500 },
+];
+
+function calculateRank(lifetimeApproved, totalPoints) {
+    let rank = RANK_TIERS[0];
+    for (let i = RANK_TIERS.length - 1; i >= 0; i--) {
+        if (lifetimeApproved >= RANK_TIERS[i].minApproved && totalPoints >= RANK_TIERS[i].minPoints) {
+            rank = RANK_TIERS[i];
+            break;
+        }
+    }
+    // Find next rank
+    const currentIdx = RANK_TIERS.indexOf(rank);
+    const nextRank = currentIdx < RANK_TIERS.length - 1 ? RANK_TIERS[currentIdx + 1] : null;
+    return { current: rank, next: nextRank, currentIdx };
+}
+
+function renderRankCard(lifetimeApproved, totalPoints) {
+    const { current, next, currentIdx } = calculateRank(lifetimeApproved, totalPoints);
+    const el = document.getElementById('rank-card');
+    if (!el) return;
+
+    // Progress to next rank
+    let progressHtml = '';
+    if (next) {
+        const approvedPct = next.minApproved > 0 ? Math.min(lifetimeApproved / next.minApproved * 100, 100) : 100;
+        const pointsPct = next.minPoints > 0 ? Math.min(totalPoints / next.minPoints * 100, 100) : 100;
+        const overallPct = Math.min((approvedPct + pointsPct) / 2, 100);
+        progressHtml = `
+            <div class="rank-progress-section">
+                <div class="rank-next-label">ถัดไป: <span style="color:${next.color}">${next.icon} ${next.name}</span></div>
+                <div class="rank-progress-bar">
+                    <div class="rank-progress-fill" style="width:${overallPct}%; background:linear-gradient(90deg, ${current.color}, ${next.color})"></div>
+                </div>
+                <div class="rank-progress-details">
+                    <span>สลิป: ${lifetimeApproved}/${next.minApproved}</span>
+                    <span>แต้ม: ${totalPoints.toLocaleString()}/${next.minPoints.toLocaleString()}</span>
+                </div>
+            </div>`;
+    } else {
+        progressHtml = '<div class="rank-max-label">🏆 แรงค์สูงสุดแล้ว!</div>';
+    }
+
+    // Rank tier dots
+    const dotsHtml = RANK_TIERS.slice(1).map((tier, idx) => {
+        const achieved = idx + 1 <= currentIdx;
+        return `<div class="rank-tier-dot ${achieved ? 'achieved' : ''}" style="--tier-color:${tier.color}" title="${tier.name}">
+            <span>${tier.icon}</span>
+        </div>`;
+    }).join('');
+
+    el.innerHTML = `
+        <div class="rank-display">
+            <div class="rank-icon-wrap" style="--rank-color:${current.color}">
+                <span class="rank-icon">${current.icon}</span>
+            </div>
+            <div class="rank-info">
+                <div class="rank-label">แรงค์ปัจจุบัน</div>
+                <div class="rank-name" style="color:${current.color}">${current.name}</div>
+                <div class="rank-stats-mini">สลิปอนุมัติ: ${lifetimeApproved} &bull; แต้ม: ${totalPoints.toLocaleString()}</div>
+            </div>
+        </div>
+        <div class="rank-tier-track">${dotsHtml}</div>
+        ${progressHtml}
+    `;
+}
+
+function renderRewardSummary(guesses) {
+    const el = document.getElementById('reward-summary');
+    if (!el) return;
+
+    const wonGuesses = guesses.filter(g => g.result === 'won');
+    const lostGuesses = guesses.filter(g => g.result === 'lost');
+    const pendingGuesses = guesses.filter(g => g.result === 'pending');
+
+    const totalCashback = wonGuesses.reduce((sum, g) => sum + parseFloat(g.reward_amount || 0), 0);
+    const cashbackAfterTax = totalCashback * 0.93; // 7% tax
+    const totalGV = lostGuesses.length * 500;
+
+    el.innerHTML = `
+        <div class="reward-summary-header">🎁 สรุปรางวัลทั้งหมด</div>
+        <div class="reward-summary-grid">
+            <div class="reward-card reward-cashback">
+                <div class="reward-card-icon">💰</div>
+                <div class="reward-card-value">${totalCashback.toLocaleString('th-TH')} ฿</div>
+                <div class="reward-card-label">Cashback (ก่อนภาษี)</div>
+                <div class="reward-card-sub">หักภาษี 7% = <strong>${cashbackAfterTax.toLocaleString('th-TH', { maximumFractionDigits: 0 })} ฿</strong></div>
+                <div class="reward-card-count">${wonGuesses.length} ครั้งที่ถูก</div>
+            </div>
+            <div class="reward-card reward-gv-card">
+                <div class="reward-card-icon">🎟️</div>
+                <div class="reward-card-value">${totalGV.toLocaleString('th-TH')} ฿</div>
+                <div class="reward-card-label">Gift Voucher</div>
+                <div class="reward-card-sub">500 ฿ × ${lostGuesses.length} ครั้ง</div>
+                <div class="reward-card-count">${lostGuesses.length} ครั้งที่ไม่ถูก</div>
+            </div>
+        </div>
+        ${pendingGuesses.length > 0 ? `<div class="reward-pending-note">⏳ รอผลอีก ${pendingGuesses.length} รายการ</div>` : ''}
+    `;
+}
+
 function renderUserCard(user, stats) {
     const avatar = document.getElementById('user-avatar');
     if (user.picture_url) {
@@ -187,6 +297,8 @@ async function loadProfileData(platformId, platform) {
 
         renderUserCard({ ...data.user, platform, platform_id: platformId }, stats);
         renderProgress(data.user.progress_count || 0);
+        renderRankCard(data.lifetime_approved || 0, data.total_points || 0);
+        renderRewardSummary(data.guesses);
         renderTransactions(data.transactions);
         renderLottery(data.guesses);
 

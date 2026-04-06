@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kiss Me Ranking — อันดับ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ranking.css">
+</head>
+<body class="futuristic-bg">
+    <div class="bg-particles" id="particles"></div>
+
+    <div class="container ranking-page">
+        <header>
+            <div class="logo-area">
+                <a href="index.html" class="back-btn">← กลับหน้าหลัก</a>
+                <div class="logo-icon">🏆</div>
+                <div>
+                    <h1>อันดับ Kiss Me Ranking</h1>
+                    <p class="subtitle">Leaderboard</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tabs -->
+        <div class="ranking-tabs">
+            <button class="rank-tab-btn active" data-tab="staff">👩‍💼 อันดับพนักงาน</button>
+            <button class="rank-tab-btn" data-tab="customer">👑 อันดับลูกค้า</button>
+        </div>
+
+        <!-- Staff Ranking -->
+        <div class="rank-tab-content" id="tab-staff">
+            <div class="ranking-list" id="staff-ranking-list">
+                <div class="ranking-loading">กำลังโหลดอันดับ...</div>
+            </div>
+        </div>
+
+        <!-- Customer Ranking -->
+        <div class="rank-tab-content" id="tab-customer" style="display: none;">
+            <div class="ranking-list" id="customer-ranking-list">
+                <div class="ranking-loading">กำลังโหลดอันดับ...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="ranking.js"></script>
+</body>
+</html>

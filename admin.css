@@ -818,3 +818,100 @@
         flex-direction: column;
     }
 }
+
+/* ==================== STAFF MANAGEMENT ==================== */
+.staff-management-panel .input-row {
+    flex-wrap: wrap;
+}
+.staff-avatar-btn {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.staff-avatar-preview {
+    position: relative;
+    display: inline-block;
+    margin: 10px 0;
+}
+.staff-avatar-preview img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 2px solid var(--neon-cyan);
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
+}
+.staff-avatar-preview .btn-remove-img {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+}
+
+.staff-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+}
+.staff-card {
+    background: rgba(20, 20, 40, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+    transition: all 0.2s;
+}
+.staff-card:hover {
+    border-color: rgba(0, 240, 255, 0.2);
+    box-shadow: 0 4px 16px rgba(0, 240, 255, 0.08);
+}
+.staff-card.staff-inactive {
+    opacity: 0.5;
+}
+.staff-card-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(0, 240, 255, 0.3);
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+}
+.staff-card-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.staff-card-name {
+    font-weight: 700;
+    color: var(--text-silver);
+    font-size: 0.95rem;
+}
+.staff-card-nick {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+.staff-status-badge {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-top: 4px;
+}
+.staff-status-badge.staff-active {
+    background: rgba(0, 255, 170, 0.12);
+    color: var(--neon-green);
+    border: 1px solid rgba(0, 255, 170, 0.3);
+}
+.staff-status-badge.staff-inactive {
+    background: rgba(255, 60, 60, 0.12);
+    color: var(--neon-red);
+    border: 1px solid rgba(255, 60, 60, 0.3);
+}
+.staff-card-actions {
+    margin-top: 4px;
+}

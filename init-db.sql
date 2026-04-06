@@ -129,5 +129,5 @@ CREATE TABLE IF NOT EXISTS admin_users (
 -- username: Kissmy456 / password: Kiss@456789
 -- ============================================
 INSERT INTO admin_users (username, password_hash)
-VALUES ('Kissmy456', '$2b$10$CknkjBWTxbRtS3dN0jLiuuqM.Orrl4W0FcwfIosLqhY30/A4IIp4W')
+VALUES ('Kissmy456', '$2b$10$NLGaIVss43MdXEgjmKfN0O0WuaJf4uQWtFtEnvCBz8Y4zbhc4WrvS')
 ON CONFLICT (username) DO NOTHING;

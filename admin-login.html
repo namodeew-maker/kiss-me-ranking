@@ -191,7 +191,9 @@
     </div>
 
     <script>
-        const API = '/api';
+        const API = window.location.hostname === 'namodeew-maker.github.io'
+            ? 'https://kiss-me-ranking.onrender.com/api'
+            : '/api';
 
         // If already logged in, go to admin
         (function checkExisting() {

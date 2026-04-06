@@ -111,6 +111,27 @@
                 </div>
             </section>
 
+            <!-- Staff Management -->
+            <section class="admin-panel staff-management-panel">
+                <h3>👩‍💼 จัดการพนักงาน (น้อง)</h3>
+                <div class="staff-add-form">
+                    <div class="input-row">
+                        <input type="text" id="staff-name-input" placeholder="ชื่อพนักงาน" maxlength="100">
+                        <input type="text" id="staff-nickname-input" placeholder="ชื่อเล่น (ถ้ามี)" maxlength="50">
+                        <label class="btn-action btn-blue staff-avatar-btn" for="staff-avatar-input">📷 เลือกรูป</label>
+                        <input type="file" id="staff-avatar-input" accept="image/*" hidden>
+                        <button class="btn-action btn-green" id="btn-add-staff">+ เพิ่มพนักงาน</button>
+                    </div>
+                    <div class="staff-avatar-preview" id="staff-avatar-preview" hidden>
+                        <img id="staff-preview-img" alt="preview">
+                        <button type="button" class="btn-remove-img" id="btn-remove-staff-img">✕</button>
+                    </div>
+                </div>
+                <div class="staff-grid" id="staff-grid">
+                    <p class="empty-msg">กำลังโหลด...</p>
+                </div>
+            </section>
+
             <!-- Approval Queue -->
             <section class="admin-panel approval-panel">
                 <h3>📋 คิวรออนุมัติ (Approval Queue)</h3>

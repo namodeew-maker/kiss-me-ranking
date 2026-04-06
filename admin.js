@@ -1,4 +1,6 @@
-const API_BASE = '/api';
+const API_BASE = window.location.hostname === 'namodeew-maker.github.io'
+    ? 'https://kiss-me-ranking.onrender.com/api'
+    : '/api';
 
 // --- Auth Guard ---
 const adminToken = sessionStorage.getItem('admin_token');
@@ -545,6 +547,118 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('btn-load-chart').addEventListener('click', loadGuessChart);
     loadGuessChart();
+
+    // --- Staff Management ---
+    async function renderStaffGrid() {
+        const grid = document.getElementById('staff-grid');
+        try {
+            const res = await authFetch(`${API_BASE}/staffs/all`);
+            const staffs = await res.json();
+            if (!staffs.length) {
+                grid.innerHTML = '<p class="empty-msg">ยังไม่มีพนักงาน — เพิ่มด้านบน</p>';
+                return;
+            }
+            grid.innerHTML = staffs.map(s => {
+                const avatarSrc = s.avatar_url
+                    ? (s.avatar_url.startsWith('http') ? s.avatar_url : `/uploads/${encodeURIComponent(s.avatar_url)}`)
+                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(s.nickname || s.name)}&background=1a1a2e&color=00f0ff&size=80`;
+                const statusClass = s.is_active ? 'staff-active' : 'staff-inactive';
+                const statusText = s.is_active ? '✅ ใช้งาน' : '❌ ปิดใช้งาน';
+                return `<div class="staff-card ${statusClass}">
+                    <img class="staff-card-avatar" src="${avatarSrc}" alt="${escapeHtml(s.name)}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=1a1a2e&color=00f0ff&size=80'">
+                    <div class="staff-card-info">
+                        <div class="staff-card-name">${escapeHtml(s.name)}</div>
+                        ${s.nickname ? `<div class="staff-card-nick">${escapeHtml(s.nickname)}</div>` : ''}
+                        <span class="staff-status-badge ${statusClass}">${statusText}</span>
+                    </div>
+                    <div class="staff-card-actions">
+                        ${s.is_active
+                            ? `<button class="btn-small btn-red" data-deactivate-staff="${s.id}">ปิดใช้งาน</button>`
+                            : `<button class="btn-small btn-green" data-activate-staff="${s.id}">เปิดใช้งาน</button>`
+                        }
+                    </div>
+                </div>`;
+            }).join('');
+
+            // Bind deactivate/activate
+            grid.querySelectorAll('[data-deactivate-staff]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const formData = new FormData();
+                    formData.append('is_active', 'false');
+                    await authFetch(`${API_BASE}/staffs/${btn.dataset.deactivateStaff}`, { method: 'PUT', body: formData });
+                    showToast('ปิดใช้งานพนักงานแล้ว', 'info');
+                    renderStaffGrid();
+                });
+            });
+            grid.querySelectorAll('[data-activate-staff]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const formData = new FormData();
+                    formData.append('is_active', 'true');
+                    await authFetch(`${API_BASE}/staffs/${btn.dataset.activateStaff}`, { method: 'PUT', body: formData });
+                    showToast('เปิดใช้งานพนักงานแล้ว', 'success');
+                    renderStaffGrid();
+                });
+            });
+        } catch (err) {
+            grid.innerHTML = '<p class="empty-msg">ไม่สามารถโหลดรายชื่อพนักงานได้</p>';
+        }
+    }
+
+    // Staff avatar preview
+    const staffAvatarInput = document.getElementById('staff-avatar-input');
+    const staffPreview = document.getElementById('staff-avatar-preview');
+    const staffPreviewImg = document.getElementById('staff-preview-img');
+    if (staffAvatarInput) {
+        staffAvatarInput.addEventListener('change', () => {
+            if (staffAvatarInput.files.length > 0) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    staffPreviewImg.src = e.target.result;
+                    staffPreview.hidden = false;
+                };
+                reader.readAsDataURL(staffAvatarInput.files[0]);
+            }
+        });
+    }
+    const btnRemoveStaffImg = document.getElementById('btn-remove-staff-img');
+    if (btnRemoveStaffImg) {
+        btnRemoveStaffImg.addEventListener('click', () => {
+            staffAvatarInput.value = '';
+            staffPreview.hidden = true;
+        });
+    }
+
+    // Add staff
+    document.getElementById('btn-add-staff').addEventListener('click', async () => {
+        const nameInput = document.getElementById('staff-name-input');
+        const nickInput = document.getElementById('staff-nickname-input');
+        const name = nameInput.value.trim();
+        if (!name) { showToast('กรุณากรอกชื่อพนักงาน', 'error'); return; }
+
+        const formData = new FormData();
+        formData.append('name', name);
+        if (nickInput.value.trim()) formData.append('nickname', nickInput.value.trim());
+        if (staffAvatarInput.files.length > 0) formData.append('avatar', staffAvatarInput.files[0]);
+
+        try {
+            const res = await authFetch(`${API_BASE}/staffs`, { method: 'POST', body: formData });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                showToast(`เพิ่มพนักงาน "${name}" สำเร็จ`, 'success');
+                nameInput.value = '';
+                nickInput.value = '';
+                staffAvatarInput.value = '';
+                staffPreview.hidden = true;
+                renderStaffGrid();
+            } else {
+                showToast(data.error || 'ไม่สามารถเพิ่มพนักงานได้', 'error');
+            }
+        } catch (err) {
+            showToast('เกิดข้อผิดพลาดในการเพิ่มพนักงาน', 'error');
+        }
+    });
+
+    renderStaffGrid();
 
     // --- Logout ---
     document.getElementById('btn-logout').addEventListener('click', async () => {

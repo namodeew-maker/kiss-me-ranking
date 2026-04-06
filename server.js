@@ -233,6 +233,133 @@ app.get('/api/staffs', async (req, res) => {
     }
 });
 
+// GET /api/staffs/all — list ALL staff (admin)
+app.get('/api/staffs/all', requireAuth, async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT id, name, nickname, avatar_url, is_active, created_at FROM staffs ORDER BY created_at DESC'
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Staffs all fetch error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดรายชื่อพนักงานได้' });
+    }
+});
+
+// POST /api/staffs — add new staff (admin, with photo upload)
+app.post('/api/staffs', requireAuth, upload.single('avatar'), async (req, res) => {
+    const { name, nickname } = req.body;
+    if (!name || !name.trim()) {
+        return res.status(400).json({ error: 'กรุณากรอกชื่อพนักงาน' });
+    }
+    try {
+        let avatarUrl = null;
+        if (req.file) {
+            avatarUrl = await resolveSlipUrl(req.file);
+        }
+        const result = await pool.query(
+            `INSERT INTO staffs (name, nickname, avatar_url, is_active)
+             VALUES ($1, $2, $3, TRUE)
+             RETURNING *`,
+            [name.trim(), nickname ? nickname.trim() : null, avatarUrl]
+        );
+        res.json({ success: true, staff: result.rows[0] });
+    } catch (err) {
+        console.error('Staff create error:', err);
+        res.status(500).json({ error: 'ไม่สามารถเพิ่มพนักงานได้' });
+    }
+});
+
+// PUT /api/staffs/:id — update staff (admin)
+app.put('/api/staffs/:id', requireAuth, upload.single('avatar'), async (req, res) => {
+    const staffId = parseInt(req.params.id, 10);
+    if (isNaN(staffId)) return res.status(400).json({ error: 'Invalid ID' });
+    const { name, nickname, is_active } = req.body;
+    try {
+        let avatarUrl = undefined;
+        if (req.file) {
+            avatarUrl = await resolveSlipUrl(req.file);
+        }
+        const setClauses = [];
+        const values = [];
+        let idx = 1;
+        if (name !== undefined) { setClauses.push(`name = $${idx++}`); values.push(name.trim()); }
+        if (nickname !== undefined) { setClauses.push(`nickname = $${idx++}`); values.push(nickname.trim()); }
+        if (is_active !== undefined) { setClauses.push(`is_active = $${idx++}`); values.push(is_active === 'true' || is_active === true); }
+        if (avatarUrl !== undefined) { setClauses.push(`avatar_url = $${idx++}`); values.push(avatarUrl); }
+        if (setClauses.length === 0) return res.status(400).json({ error: 'ไม่มีข้อมูลที่ต้องอัปเดต' });
+        values.push(staffId);
+        const result = await pool.query(
+            `UPDATE staffs SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING *`,
+            values
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'ไม่พบพนักงาน' });
+        res.json({ success: true, staff: result.rows[0] });
+    } catch (err) {
+        console.error('Staff update error:', err);
+        res.status(500).json({ error: 'ไม่สามารถอัปเดตข้อมูลพนักงานได้' });
+    }
+});
+
+// DELETE /api/staffs/:id — soft-delete (deactivate) staff (admin)
+app.delete('/api/staffs/:id', requireAuth, async (req, res) => {
+    const staffId = parseInt(req.params.id, 10);
+    if (isNaN(staffId)) return res.status(400).json({ error: 'Invalid ID' });
+    try {
+        await pool.query('UPDATE staffs SET is_active = FALSE WHERE id = $1', [staffId]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Staff delete error:', err);
+        res.status(500).json({ error: 'ไม่สามารถลบพนักงานได้' });
+    }
+});
+
+// GET /api/ranking/staff — staff ranking by approved transaction count + avg scores
+app.get('/api/ranking/staff', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT
+                s.id, s.name, s.nickname, s.avatar_url,
+                COUNT(t.id)::int AS total_votes,
+                COALESCE(ROUND(AVG(r.looks_score), 1), 0) AS avg_looks,
+                COALESCE(ROUND(AVG(r.service_score), 1), 0) AS avg_service,
+                COALESCE(ROUND(AVG(r.value_score), 1), 0) AS avg_value,
+                COALESCE(ROUND((AVG(r.looks_score) + AVG(r.service_score) + AVG(r.value_score)) / 3, 1), 0) AS avg_overall
+            FROM staffs s
+            LEFT JOIN transactions t ON t.staff_id = s.id AND t.status = 'approved'
+            LEFT JOIN ratings r ON r.transaction_id = t.id
+            WHERE s.is_active = TRUE
+            GROUP BY s.id, s.name, s.nickname, s.avatar_url
+            ORDER BY total_votes DESC, avg_overall DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Staff ranking error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดอันดับพนักงานได้' });
+    }
+});
+
+// GET /api/ranking/customers — customer ranking by lifetime approved + points
+app.get('/api/ranking/customers', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT
+                u.id, u.display_name, u.picture_url, u.platform,
+                COUNT(t.id)::int AS total_approved,
+                COALESCE((SELECT SUM(p.points)::int FROM points p WHERE p.global_user_id = u.global_user_id), 0) AS total_points
+            FROM users u
+            LEFT JOIN transactions t ON t.user_id = u.id AND t.status = 'approved'
+            GROUP BY u.id, u.display_name, u.picture_url, u.platform, u.global_user_id
+            HAVING COUNT(t.id) > 0
+            ORDER BY COUNT(t.id) DESC, COALESCE((SELECT SUM(p.points)::int FROM points p WHERE p.global_user_id = u.global_user_id), 0) DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Customer ranking error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดอันดับลูกค้าได้' });
+    }
+});
+
 // ============ CUSTOMER AUTH (Multi-Platform Login) ============
 
 // POST /api/auth/login — customer login / register from any platform
@@ -370,7 +497,7 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
     try {
         // Find user
         const userResult = await pool.query(
-            'SELECT id, display_name, picture_url, progress_count FROM users WHERE platform = $1 AND platform_id = $2',
+            'SELECT id, display_name, picture_url, progress_count, global_user_id FROM users WHERE platform = $1 AND platform_id = $2',
             [platform, platform_id]
         );
         if (userResult.rows.length === 0) {
@@ -411,15 +538,34 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
             [user.id]
         );
 
+        // Total lifetime approved transactions (for rank)
+        const lifetimeResult = await pool.query(
+            `SELECT COUNT(*)::int AS total_approved FROM transactions WHERE user_id = $1 AND status = 'approved'`,
+            [user.id]
+        );
+
+        // Total points (if global_user_id exists)
+        let totalPoints = 0;
+        if (user.global_user_id) {
+            const pointsResult = await pool.query(
+                `SELECT COALESCE(SUM(points), 0)::int AS total_points FROM points WHERE global_user_id = $1`,
+                [user.global_user_id]
+            );
+            totalPoints = pointsResult.rows[0].total_points;
+        }
+
         res.json({
             user: {
                 id: user.id,
                 display_name: user.display_name,
                 picture_url: user.picture_url,
-                progress_count: user.progress_count
+                progress_count: user.progress_count,
+                global_user_id: user.global_user_id
             },
             transactions: txResult.rows,
-            guesses: guessResult.rows
+            guesses: guessResult.rows,
+            lifetime_approved: lifetimeResult.rows[0].total_approved,
+            total_points: totalPoints
         });
     } catch (err) {
         console.error('User history fetch error:', err);

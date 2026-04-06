@@ -1,0 +1,213 @@
+/* ==================== RANKING PAGE ==================== */
+.ranking-page {
+    max-width: 700px;
+}
+
+/* Back button (reuse from profile) */
+.back-btn {
+    color: var(--neon-cyan);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    border-radius: 8px;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.back-btn:hover {
+    background: rgba(0, 240, 255, 0.1);
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+}
+
+/* ==================== TABS ==================== */
+.ranking-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.rank-tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--text-muted);
+    font-family: 'Kanit', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 12px 24px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: -1px;
+}
+.rank-tab-btn:hover {
+    color: var(--text-silver);
+}
+.rank-tab-btn.active {
+    color: var(--neon-cyan);
+    border-bottom-color: var(--neon-cyan);
+}
+
+/* ==================== RANKING LIST ==================== */
+.ranking-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.ranking-loading {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 40px 20px;
+    font-size: 0.9rem;
+}
+.ranking-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    background: rgba(20, 20, 40, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    animation: fadeInUp 0.4s ease-out both;
+    transition: all 0.2s;
+}
+.ranking-item:hover {
+    background: rgba(20, 20, 40, 0.8);
+    border-color: rgba(255, 255, 255, 0.12);
+    transform: translateX(4px);
+}
+
+/* Top 3 special styles */
+.ranking-item.rank-top-1 {
+    border-color: rgba(255, 215, 0, 0.35);
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.08), rgba(20, 20, 40, 0.7));
+    box-shadow: 0 4px 20px rgba(255, 215, 0, 0.1);
+}
+.ranking-item.rank-top-2 {
+    border-color: rgba(192, 192, 192, 0.3);
+    background: linear-gradient(135deg, rgba(192, 192, 192, 0.06), rgba(20, 20, 40, 0.7));
+}
+.ranking-item.rank-top-3 {
+    border-color: rgba(205, 127, 50, 0.3);
+    background: linear-gradient(135deg, rgba(205, 127, 50, 0.06), rgba(20, 20, 40, 0.7));
+}
+
+/* Position / Medal */
+.ranking-position {
+    font-size: 1.4rem;
+    min-width: 40px;
+    text-align: center;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    color: var(--text-muted);
+}
+.rank-top-1 .ranking-position { font-size: 1.8rem; }
+.rank-top-2 .ranking-position { font-size: 1.6rem; }
+.rank-top-3 .ranking-position { font-size: 1.5rem; }
+
+/* Avatar */
+.ranking-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+.rank-top-1 .ranking-avatar {
+    border-color: rgba(255, 215, 0, 0.5);
+    box-shadow: 0 0 16px rgba(255, 215, 0, 0.3);
+    width: 64px;
+    height: 64px;
+}
+.rank-top-2 .ranking-avatar {
+    border-color: rgba(192, 192, 192, 0.4);
+    box-shadow: 0 0 12px rgba(192, 192, 192, 0.2);
+}
+.rank-top-3 .ranking-avatar {
+    border-color: rgba(205, 127, 50, 0.4);
+    box-shadow: 0 0 12px rgba(205, 127, 50, 0.2);
+}
+
+/* Info */
+.ranking-info {
+    flex: 1;
+    min-width: 0;
+}
+.ranking-name {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--text-silver);
+    margin-bottom: 2px;
+}
+.ranking-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+.ranking-tier {
+    font-size: 0.78rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.ranking-stats-row {
+    display: flex;
+    gap: 12px;
+}
+.ranking-stat {
+    font-size: 0.73rem;
+    color: var(--text-muted);
+}
+
+/* Score circle */
+.ranking-score-circle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 2px solid var(--score-color, var(--neon-cyan));
+    background: rgba(0, 240, 255, 0.06);
+    flex-shrink: 0;
+}
+.ranking-score-num {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: var(--score-color, var(--neon-cyan));
+    line-height: 1;
+}
+.ranking-score-label {
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    margin-top: 1px;
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 520px) {
+    .ranking-item {
+        padding: 12px 14px;
+        gap: 10px;
+    }
+    .ranking-avatar {
+        width: 44px;
+        height: 44px;
+    }
+    .rank-top-1 .ranking-avatar {
+        width: 52px;
+        height: 52px;
+    }
+    .ranking-score-circle {
+        width: 44px;
+        height: 44px;
+    }
+    .ranking-score-num {
+        font-size: 0.9rem;
+    }
+    .rank-tab-btn {
+        padding: 10px 16px;
+        font-size: 0.9rem;
+    }
+}

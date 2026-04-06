@@ -383,6 +383,41 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Load Staff Cards ---
+    (async () => {
+        const staffGrid = document.getElementById('staff-pick-grid');
+        const staffInput = document.getElementById('staff-select');
+        if (!staffGrid || !staffInput) return;
+        try {
+            const res = await fetch(`${API_BASE}/staffs`);
+            const staffs = await res.json();
+            if (!staffs.length) {
+                staffGrid.innerHTML = '<p class="staff-pick-loading">ยังไม่มีพนักงานในระบบ</p>';
+                return;
+            }
+            staffGrid.innerHTML = staffs.map(s => {
+                const avatarSrc = s.avatar_url
+                    ? (s.avatar_url.startsWith('http') ? s.avatar_url : `/uploads/${encodeURIComponent(s.avatar_url)}`)
+                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(s.nickname || s.name)}&background=1a1a2e&color=00f0ff&size=80`;
+                return `<div class="staff-pick-card" data-staff-id="${s.id}">
+                    <img class="staff-pick-avatar" src="${avatarSrc}" alt="${s.nickname || s.name}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=1a1a2e&color=00f0ff&size=80'">
+                    <span class="staff-pick-name">${s.nickname || s.name}</span>
+                </div>`;
+            }).join('');
+
+            staffGrid.querySelectorAll('.staff-pick-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    staffGrid.querySelectorAll('.staff-pick-card').forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                    staffInput.value = card.dataset.staffId;
+                    setActiveStep(2);
+                });
+            });
+        } catch (err) {
+            staffGrid.innerHTML = '<p class="staff-pick-loading">ไม่สามารถโหลดรายชื่อพนักงานได้</p>';
+        }
+    })();
+
     // Load sold-out numbers from database + generate lotto grid
     (async () => {
         let soldOutNumbers = [];
@@ -510,16 +545,6 @@ document.addEventListener('DOMContentLoaded', () => {
             fileInput.value = '';
             uploadPreview.hidden = true;
             uploadBox.hidden = false;
-        });
-    }
-
-    // Staff selection — advance step
-    const staffSelectEl = document.getElementById('staff-select');
-    if (staffSelectEl) {
-        staffSelectEl.addEventListener('change', () => {
-            if (staffSelectEl.value) {
-                setActiveStep(2);
-            }
         });
     }
 });
