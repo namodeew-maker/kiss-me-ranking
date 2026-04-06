@@ -378,7 +378,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function getTelegramLoginConfig(force = false) {
         if (telegramLoginConfig && !force) return telegramLoginConfig;
 
-        const res = await fetch(`${API_BASE}/auth/telegram/config`);
+        const res = await fetch(`${API_BASE}/auth/telegram/config`, {
+            cache: 'no-store'
+        });
         const data = await res.json();
         if (!res.ok) {
             throw new Error(data.error || 'ไม่สามารถโหลดการตั้งค่า Telegram Login ได้');

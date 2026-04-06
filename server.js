@@ -535,6 +535,9 @@ function verifyTelegramAuthPayload(payload) {
 // GET /api/auth/telegram/config — public config for Telegram Login Widget
 app.get('/api/auth/telegram/config', (req, res) => {
     const enabled = Boolean(process.env.TELEGRAM_BOT_TOKEN && TELEGRAM_BOT_USERNAME);
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.json({
         enabled,
         botUsername: enabled ? TELEGRAM_BOT_USERNAME : null
