@@ -117,6 +117,22 @@ app.use((req, res, next) => {
     next();
 });
 
+app.use((req, res, next) => {
+    const host = req.get('host') || '';
+    const isRenderHost = host.includes('kiss-me-ranking.onrender.com');
+    const isApiRequest = req.path.startsWith('/api');
+    const isUploadRequest = req.path.startsWith('/uploads');
+    const isLineCallback = req.path.startsWith('/auth/line/callback');
+
+    if (!isRenderHost || req.method !== 'GET' || isApiRequest || isUploadRequest || isLineCallback) {
+        return next();
+    }
+
+    const targetPath = req.path === '/' ? '/index.html' : req.path;
+    const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    return res.redirect(302, `https://namodeew-maker.github.io/kiss-me-ranking${targetPath}${query}`);
+});
+
 app.use(express.static(path.join(__dirname)));
 app.use('/uploads', express.static(uploadsDir));
 
