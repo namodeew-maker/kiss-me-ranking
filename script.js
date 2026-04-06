@@ -373,6 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnLoginTelegram = document.getElementById('btn-login-telegram');
     const telegramWidgetShell = document.getElementById('telegram-widget-shell');
     const telegramWidgetContainer = document.getElementById('telegram-widget-container');
+    const telegramWidgetNote = document.getElementById('telegram-widget-note');
 
     async function getTelegramLoginConfig(force = false) {
         if (telegramLoginConfig && !force) return telegramLoginConfig;
@@ -404,6 +405,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         telegramWidgetContainer.innerHTML = '';
+        if (telegramWidgetNote) {
+            telegramWidgetNote.textContent = 'แตะปุ่ม Telegram ด้านล่างเพื่อยืนยันการเข้าสู่ระบบ';
+        }
         const widgetScript = document.createElement('script');
         widgetScript.async = true;
         widgetScript.src = 'https://telegram.org/js/telegram-widget.js?22';
@@ -418,6 +422,29 @@ document.addEventListener('DOMContentLoaded', () => {
         return config;
     }
 
+    async function prepareTelegramLogin() {
+        if (!btnLoginTelegram) return;
+
+        try {
+            const config = await getTelegramLoginConfig();
+            if (!config.enabled || !config.botUsername) {
+                btnLoginTelegram.style.display = '';
+                if (telegramWidgetShell) telegramWidgetShell.hidden = true;
+                return;
+            }
+
+            await ensureTelegramWidget();
+            btnLoginTelegram.style.display = 'none';
+        } catch (err) {
+            console.error('Telegram pre-init error:', err);
+            btnLoginTelegram.style.display = '';
+            if (telegramWidgetShell) telegramWidgetShell.hidden = true;
+            if (telegramWidgetNote) {
+                telegramWidgetNote.textContent = 'หากปุ่ม Telegram ไม่ขึ้น ให้ตรวจว่าตั้งค่า bot username และ domain ของ widget ถูกต้องแล้ว';
+            }
+        }
+    }
+
     if (btnLoginTelegram) {
         btnLoginTelegram.addEventListener('click', async () => {
             const originalHtml = btnLoginTelegram.innerHTML;
@@ -429,11 +456,16 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (err) {
                 console.error('Telegram widget init error:', err);
                 alert(err.message || 'ไม่สามารถเปิด Telegram Login ได้');
+                if (telegramWidgetNote) {
+                    telegramWidgetNote.textContent = 'หากปุ่ม Telegram ไม่ขึ้น ให้ตรวจว่าตั้งค่า bot username และ domain ของ widget ถูกต้องแล้ว';
+                }
             } finally {
                 btnLoginTelegram.disabled = false;
                 btnLoginTelegram.innerHTML = originalHtml;
             }
         });
+
+        prepareTelegramLogin();
     }
 
     /** Telegram Widget callback — attached to window for the widget's data-onauth */
