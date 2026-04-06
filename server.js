@@ -314,6 +314,44 @@ app.delete('/api/staffs/:id', requireAuth, async (req, res) => {
     }
 });
 
+// DELETE /api/staffs/:id/permanent — hard delete staff (admin)
+app.delete('/api/staffs/:id/permanent', requireAuth, async (req, res) => {
+    const staffId = parseInt(req.params.id, 10);
+    if (isNaN(staffId)) return res.status(400).json({ error: 'Invalid ID' });
+    try {
+        // Remove all transactions and ratings for this staff (optional: or set staff_id to NULL)
+        await pool.query('DELETE FROM ratings WHERE transaction_id IN (SELECT id FROM transactions WHERE staff_id = $1)', [staffId]);
+        await pool.query('DELETE FROM transactions WHERE staff_id = $1', [staffId]);
+        await pool.query('DELETE FROM staffs WHERE id = $1', [staffId]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Staff hard delete error:', err);
+        res.status(500).json({ error: 'ไม่สามารถลบพนักงานถาวรได้' });
+    }
+});
+
+// POST /api/staffs/reset-ranking — reset all staff ranking (admin, with date)
+app.post('/api/staffs/reset-ranking', requireAuth, async (req, res) => {
+    const { date } = req.body;
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ error: 'กรุณาระบุวันที่ (YYYY-MM-DD)' });
+    }
+    try {
+        // Archive old transactions/rankings by setting a reset_at date (if schema supports), or delete/clear
+        // Here: delete all transactions and ratings before or on the reset date
+        const tx = await pool.query('SELECT id FROM transactions WHERE created_at <= $1', [date + ' 23:59:59']);
+        const txIds = tx.rows.map(r => r.id);
+        if (txIds.length > 0) {
+            await pool.query('DELETE FROM ratings WHERE transaction_id = ANY($1)', [txIds]);
+            await pool.query('DELETE FROM transactions WHERE id = ANY($1)', [txIds]);
+        }
+        res.json({ success: true, deleted: txIds.length });
+    } catch (err) {
+        console.error('Reset staff ranking error:', err);
+        res.status(500).json({ error: 'ไม่สามารถรีอันดับได้' });
+    }
+});
+
 // GET /api/ranking/staff — staff ranking by approved transaction count + avg scores
 app.get('/api/ranking/staff', async (req, res) => {
     try {
