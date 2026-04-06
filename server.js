@@ -128,6 +128,11 @@ async function ensureDatabaseStructure() {
             )
         `);
         await pool.query('ALTER TABLE transactions ADD COLUMN IF NOT EXISTS service_date DATE');
+        await pool.query('ALTER TABLE sold_out ADD COLUMN IF NOT EXISTS round_label VARCHAR(20)');
+        await pool.query(
+            "UPDATE sold_out SET round_label = $1 WHERE round_label IS NULL OR round_label = ''",
+            [getCurrentRoundLabel()]
+        );
     } catch (err) {
         console.error('Database bootstrap error:', err);
         throw err;
