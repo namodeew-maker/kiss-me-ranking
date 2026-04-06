@@ -1055,6 +1055,47 @@
     border-color: rgba(0, 240, 255, 0.18);
 }
 
+.user-detail-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10020;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 28px 16px;
+    background: rgba(4, 6, 18, 0.82);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+}
+
+.user-detail-modal[hidden] {
+    display: none;
+}
+
+.user-detail-modal-dialog {
+    width: min(1120px, 100%);
+    max-height: calc(100vh - 56px);
+    overflow: auto;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.user-detail-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.user-detail-modal-header h3 {
+    margin-bottom: 0;
+}
+
+.user-detail-modal-close {
+    position: static;
+    flex-shrink: 0;
+}
+
 .user-toolbar {
     display: flex;
     flex-direction: column;
@@ -1263,6 +1304,14 @@
 }
 
 @media (max-width: 768px) {
+    .user-detail-modal {
+        padding: 12px;
+    }
+
+    .user-detail-modal-dialog {
+        max-height: calc(100vh - 24px);
+    }
+
     .user-detail-header {
         align-items: flex-start;
         flex-direction: column;

@@ -1,12 +1,18 @@
 const API_BASE = window.location.hostname === 'namodeew-maker.github.io'
     ? 'https://kiss-me-ranking.onrender.com/api'
     : '/api';
+const API_ROOT = API_BASE.replace(/\/api$/, '');
 
 // ==================== GLOBAL STATE ====================
 let currentUser = null; // { id, platform, platform_id, display_name, picture_url, progress_count }
 let currentVisitedStaffIds = new Set();
 let telegramWidgetLoadedFor = null;
 let telegramLoginConfig = null;
+
+function resolveAssetUrl(value) {
+    if (!value) return '';
+    return value.startsWith('http') ? value : `${API_ROOT}/uploads/${encodeURIComponent(value)}`;
+}
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -683,7 +689,7 @@ document.addEventListener('DOMContentLoaded', () => {
             staffGrid.innerHTML = staffs.map(s => {
                 const displayName = s.nickname || s.name || '—';
                 const avatarSrc = s.avatar_url
-                    ? (s.avatar_url.startsWith('http') ? s.avatar_url : `/uploads/${encodeURIComponent(s.avatar_url)}`)
+                    ? resolveAssetUrl(s.avatar_url)
                     : `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=80`;
                 const avatarNode = s.avatar_url
                     ? `<button type="button" class="staff-pick-avatar-btn" data-fullimg="${avatarSrc}" data-staff-name="${escapeHtml(displayName)}" aria-label="ดูรูป ${escapeHtml(displayName)} เต็ม">

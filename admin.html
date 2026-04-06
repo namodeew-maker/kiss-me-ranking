@@ -198,55 +198,6 @@
                     <p class="empty-msg" id="no-users">กำลังโหลดข้อมูลผู้ใช้...</p>
                 </section>
 
-                <section class="admin-panel user-detail-panel">
-                    <h3>🧾 รายละเอียด User</h3>
-                    <div id="user-detail-empty" class="empty-msg">เลือกผู้ใช้จากตารางด้านบนเพื่อดูรายละเอียดและแก้ไขข้อมูล</div>
-                    <div id="user-detail-content" class="user-detail-content hidden">
-                        <div class="user-detail-header">
-                            <img id="user-detail-avatar" class="user-detail-avatar" alt="User avatar">
-                            <div class="user-detail-identity">
-                                <div class="user-detail-name" id="user-detail-name">-</div>
-                                <div class="user-detail-meta" id="user-detail-meta">-</div>
-                                <div class="user-detail-tags" id="user-detail-tags"></div>
-                            </div>
-                        </div>
-
-                        <div class="user-detail-stats" id="user-detail-stats"></div>
-
-                        <div class="user-detail-form">
-                            <div class="input-row user-detail-form-row">
-                                <input type="text" id="user-edit-display-name" placeholder="ชื่อที่แสดง">
-                                <input type="url" id="user-edit-picture-url" placeholder="ลิงก์รูปโปรไฟล์ (ถ้ามี)">
-                            </div>
-                            <div class="input-row user-detail-action-row">
-                                <button class="btn-action btn-green" id="btn-save-user">บันทึกข้อมูล</button>
-                                <button class="btn-action btn-red" id="btn-delete-user">ลบ User ถาวร</button>
-                            </div>
-                        </div>
-
-                        <div class="user-detail-columns">
-                            <div class="user-detail-card">
-                                <h4>บัญชีที่เชื่อม</h4>
-                                <div id="user-linked-accounts" class="user-linked-accounts"></div>
-                            </div>
-                            <div class="user-detail-card">
-                                <h4>OA Bindings</h4>
-                                <div id="user-oa-bindings" class="user-linked-accounts"></div>
-                            </div>
-                        </div>
-
-                        <div class="user-detail-columns">
-                            <div class="user-detail-card">
-                                <h4>ประวัติใช้งานล่าสุด</h4>
-                                <div id="user-recent-transactions" class="user-activity-list"></div>
-                            </div>
-                            <div class="user-detail-card">
-                                <h4>แต้มล่าสุด</h4>
-                                <div id="user-recent-points" class="user-activity-list"></div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
             </div>
 
             <!-- ======================== TAB 2: เพิ่มรายชื่อ ======================== -->
@@ -413,6 +364,61 @@
         <div class="img-modal-content">
             <button class="img-modal-close" id="img-modal-close">&times;</button>
             <img id="img-modal-img" src="" alt="หลักฐานสลิป">
+        </div>
+    </div>
+
+    <div class="user-detail-modal" id="user-detail-modal" hidden>
+        <div class="user-detail-modal-dialog admin-panel user-detail-panel">
+            <div class="user-detail-modal-header">
+                <h3>🧾 รายละเอียด User</h3>
+                <button type="button" class="img-modal-close user-detail-modal-close" id="user-detail-modal-close">&times;</button>
+            </div>
+            <div id="user-detail-empty" class="empty-msg">เลือกผู้ใช้จากตารางด้านบนเพื่อดูรายละเอียดและแก้ไขข้อมูล</div>
+            <div id="user-detail-content" class="user-detail-content hidden">
+                <div class="user-detail-header">
+                    <img id="user-detail-avatar" class="user-detail-avatar" alt="User avatar">
+                    <div class="user-detail-identity">
+                        <div class="user-detail-name" id="user-detail-name">-</div>
+                        <div class="user-detail-meta" id="user-detail-meta">-</div>
+                        <div class="user-detail-tags" id="user-detail-tags"></div>
+                    </div>
+                </div>
+
+                <div class="user-detail-stats" id="user-detail-stats"></div>
+
+                <div class="user-detail-form">
+                    <div class="input-row user-detail-form-row">
+                        <input type="text" id="user-edit-display-name" placeholder="ชื่อที่แสดง">
+                        <input type="url" id="user-edit-picture-url" placeholder="ลิงก์รูปโปรไฟล์ (ถ้ามี)">
+                    </div>
+                    <div class="input-row user-detail-action-row">
+                        <button class="btn-action btn-green" id="btn-save-user">บันทึกข้อมูล</button>
+                        <button class="btn-action btn-red" id="btn-delete-user">ลบ User ถาวร</button>
+                    </div>
+                </div>
+
+                <div class="user-detail-columns">
+                    <div class="user-detail-card">
+                        <h4>บัญชีที่เชื่อม</h4>
+                        <div id="user-linked-accounts" class="user-linked-accounts"></div>
+                    </div>
+                    <div class="user-detail-card">
+                        <h4>OA Bindings</h4>
+                        <div id="user-oa-bindings" class="user-linked-accounts"></div>
+                    </div>
+                </div>
+
+                <div class="user-detail-columns">
+                    <div class="user-detail-card">
+                        <h4>ประวัติใช้งานล่าสุด</h4>
+                        <div id="user-recent-transactions" class="user-activity-list"></div>
+                    </div>
+                    <div class="user-detail-card">
+                        <h4>แต้มล่าสุด</h4>
+                        <div id="user-recent-points" class="user-activity-list"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

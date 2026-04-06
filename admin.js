@@ -1,6 +1,7 @@
 const API_BASE = window.location.hostname === 'namodeew-maker.github.io'
     ? 'https://kiss-me-ranking.onrender.com/api'
     : '/api';
+const API_ROOT = API_BASE.replace(/\/api$/, '');
 
 // --- Auth Guard ---
 const adminToken = sessionStorage.getItem('admin_token');
@@ -136,6 +137,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=1a1a2e&color=ff3c3c&size=96`;
     }
 
+    function resolveAssetUrl(value) {
+        if (!value) return '';
+        return value.startsWith('http') ? value : `${API_ROOT}/uploads/${encodeURIComponent(value)}`;
+    }
+
     const userSearchInput = document.getElementById('user-search-input');
     const userPlatformFilter = document.getElementById('user-platform-filter');
     const userBody = document.getElementById('users-body');
@@ -153,7 +159,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userRecentPoints = document.getElementById('user-recent-points');
     const userEditDisplayName = document.getElementById('user-edit-display-name');
     const userEditPictureUrl = document.getElementById('user-edit-picture-url');
+    const userDetailModal = document.getElementById('user-detail-modal');
+    const userDetailModalClose = document.getElementById('user-detail-modal-close');
     let selectedUserId = null;
+
+    function openUserDetailModal() {
+        if (!userDetailModal) return;
+        userDetailModal.hidden = false;
+        document.body.style.overflow = 'hidden';
+    }
 
     function clearUserDetail() {
         selectedUserId = null;
@@ -161,6 +175,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (userDetailContent) userDetailContent.classList.add('hidden');
         if (userEditDisplayName) userEditDisplayName.value = '';
         if (userEditPictureUrl) userEditPictureUrl.value = '';
+        if (userDetailModal) userDetailModal.hidden = true;
+        document.body.style.overflow = '';
+    }
+
+    if (userDetailModalClose) {
+        userDetailModalClose.addEventListener('click', clearUserDetail);
+    }
+
+    if (userDetailModal) {
+        userDetailModal.addEventListener('click', (event) => {
+            if (event.target === userDetailModal) clearUserDetail();
+        });
     }
 
     async function renderUsers() {
@@ -238,6 +264,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!res.ok) throw new Error(data.error || 'detail-failed');
 
             selectedUserId = Number(id);
+            openUserDetailModal();
             userDetailEmpty.classList.add('hidden');
             userDetailContent.classList.remove('hidden');
 
@@ -860,7 +887,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             grid.innerHTML = staffs.map(s => {
                 const displayName = s.nickname || s.name || '—';
                 const avatarSrc = s.avatar_url
-                    ? (s.avatar_url.startsWith('http') ? s.avatar_url : `/uploads/${encodeURIComponent(s.avatar_url)}`)
+                    ? resolveAssetUrl(s.avatar_url)
                     : `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=80`;
                 const statusClass = s.is_active ? 'staff-active' : 'staff-inactive';
                 const statusText = s.is_active ? '✅ ใช้งาน' : '❌ ปิดใช้งาน';
