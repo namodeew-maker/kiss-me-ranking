@@ -950,14 +950,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             const summaryEl = document.getElementById('chart-summary');
 
             if (!data.length) {
-                noDataMsg.style.display = '';
-                summaryEl.style.display = 'none';
+                noDataMsg.classList.remove('hidden');
+                summaryEl.classList.add('hidden');
                 if (guessChart) { guessChart.destroy(); guessChart = null; }
                 return;
             }
 
-            noDataMsg.style.display = 'none';
-            summaryEl.style.display = '';
+            noDataMsg.classList.add('hidden');
+            summaryEl.classList.remove('hidden');
 
             const fmtDate = (d) => {
                 const dt = new Date(d + 'T00:00:00');

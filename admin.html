@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260408b">
-    <link rel="stylesheet" href="admin.css?v=20260408c">
+    <link rel="stylesheet" href="styles.css?v=20260408e">
+    <link rel="stylesheet" href="admin.css?v=20260408e">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -17,10 +17,10 @@
         <header class="admin-header">
             <div>
                 <h1>💋 Kiss Me Ranking — Auditor Panel</h1>
-                <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0;">ผู้ตรวจสอบสิทธิ์ (Auditor) &bull; <strong style="color: var(--gold);">คะแนนโหวตจะไม่แสดงในหน้านี้</strong></p>
+                <p class="admin-header-copy">ผู้ตรวจสอบสิทธิ์ (Auditor) &bull; <strong class="admin-header-emphasis">คะแนนโหวตจะไม่แสดงในหน้านี้</strong></p>
             </div>
             <a href="index.html" class="btn-back">← กลับหน้าหลัก</a>
-            <button class="btn-back" id="btn-logout" style="margin-left: 10px; background: rgba(255,68,68,0.15); border-color: rgba(255,68,68,0.3); color: #ff6666; cursor: pointer;">🚪 ออกจากระบบ</button>
+            <button class="btn-back admin-logout-btn" id="btn-logout">🚪 ออกจากระบบ</button>
         </header>
 
         <!-- Tab Navigation -->
@@ -39,21 +39,21 @@
 
                 <!-- Round Info -->
                 <section class="admin-panel round-info-panel" id="round-info-panel">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div class="round-info-header">
                         <div>
-                            <h3 style="margin: 0; border: none; padding: 0;">📅 รอบปัจจุบัน</h3>
-                            <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0;" id="admin-round-info">กำลังโหลด...</p>
+                            <h3 class="round-info-title">📅 รอบปัจจุบัน</h3>
+                            <p class="round-info-subtitle" id="admin-round-info">กำลังโหลด...</p>
                         </div>
-                        <div style="text-align: right;">
-                            <span style="font-size: 0.8rem; color: var(--text-muted);">ออกรางวัล:</span>
-                            <span style="font-family: 'Orbitron', sans-serif; color: var(--gold); font-weight: 700;" id="admin-draw-date">-</span>
+                        <div class="round-info-date-wrap">
+                            <span class="round-info-date-label">ออกรางวัล:</span>
+                            <span class="round-info-date" id="admin-draw-date">-</span>
                         </div>
                     </div>
                 </section>
 
                 <!-- Auditor Workflow Reminder -->
-                <section class="admin-panel" style="border-color: rgba(0,240,255,0.15);">
-                    <h3 style="color: var(--neon-cyan);">📋 ขั้นตอนการตรวจสอบ (Workflow)</h3>
+                <section class="admin-panel admin-panel-audit">
+                    <h3 class="admin-panel-title-cyan">📋 ขั้นตอนการตรวจสอบ (Workflow)</h3>
                     <div class="audit-workflow">
                         <div class="audit-wf-step">
                             <span class="audit-wf-num">1</span>
@@ -364,7 +364,7 @@
                         </div>
                         <button class="btn-action btn-blue" id="btn-load-chart">แสดงกราฟ</button>
                     </div>
-                    <div class="chart-summary" id="chart-summary" style="display:none;">
+                    <div class="chart-summary hidden" id="chart-summary">
                         <span>📅 ช่วง: <strong id="chart-range-text"></strong></span>
                         <span>👥 ผู้ทายทั้งหมด: <strong id="chart-total-count">0</strong> คน</span>
                         <span>🔢 จำนวนเลขที่ถูกทาย: <strong id="chart-unique-numbers">0</strong> เลข</span>
@@ -372,7 +372,7 @@
                     <div class="chart-wrapper">
                         <canvas id="guesses-chart"></canvas>
                     </div>
-                    <p class="empty-msg" id="no-chart-data" style="display:none;">ไม่มีข้อมูลในช่วงวันที่เลือก</p>
+                    <p class="empty-msg hidden" id="no-chart-data">ไม่มีข้อมูลในช่วงวันที่เลือก</p>
                 </section>
 
                 <!-- Draw Result -->
@@ -464,6 +464,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260408c"></script>
+    <script src="admin.js?v=20260408e"></script>
 </body>
 </html>

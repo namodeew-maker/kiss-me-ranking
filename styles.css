@@ -14,6 +14,10 @@
     display: none;
 }
 
+.hidden {
+    display: none !important;
+}
+
 .terms-container {
     max-width: 800px;
     width: 100%;
@@ -569,6 +573,10 @@
     font-weight: 600;
 }
 
+.draw-date-tag-compact {
+    font-size: 0.7rem;
+}
+
 .draw-date-tag.past {
     background: rgba(255, 255, 255, 0.05);
     color: var(--text-muted);
@@ -927,9 +935,18 @@ header h1 {
     line-height: 1.4;
 }
 
+.info-badge-secret {
+    border-color: rgba(0, 240, 255, 0.2);
+    color: var(--neon-cyan);
+}
+
 .badge-glow {
     font-size: 1.5rem;
     animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.badge-glow-cyan {
+    filter: hue-rotate(180deg);
 }
 
 /* Lotto Section */
@@ -1240,6 +1257,19 @@ header h1 {
     transition: 0.3s;
 }
 
+.btn-status-link-secondary {
+    cursor: pointer;
+    border-color: var(--neon-cyan);
+    color: var(--neon-cyan);
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.1), rgba(0, 240, 255, 0.03));
+}
+
+.btn-status-link-secondary:hover {
+    background: var(--neon-cyan);
+    color: #000;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.25);
+}
+
 .btn-status-link:hover {
     background: var(--neon-red);
     color: white;
@@ -1544,6 +1574,7 @@ header h1 {
 }
 
 .progress-fill {
+    width: 0%;
     height: 100%;
     background: linear-gradient(90deg, var(--neon-red), #ff6644, var(--neon-green));
     border-radius: 10px;
@@ -2032,6 +2063,14 @@ header h1 {
 .info-cards-row .info-badge {
     margin-top: 0;
     padding: 18px;
+}
+
+.footer-links-centered {
+    margin-top: 25px;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
 }
 
 /* ==================== RESPONSIVE: Kiss Me Layout ==================== */

@@ -15,6 +15,67 @@
     letter-spacing: 2px;
 }
 
+.admin-header-copy {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 4px 0 0;
+}
+
+.admin-header-emphasis {
+    color: var(--gold);
+}
+
+.admin-logout-btn {
+    margin-left: 10px;
+    background: rgba(255, 68, 68, 0.15);
+    border-color: rgba(255, 68, 68, 0.3);
+    color: #ff6666;
+    cursor: pointer;
+}
+
+.round-info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.round-info-title {
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+
+.round-info-subtitle {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 4px 0 0;
+}
+
+.round-info-date-wrap {
+    text-align: right;
+}
+
+.round-info-date-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.round-info-date {
+    font-family: 'Orbitron', sans-serif;
+    color: var(--gold);
+    font-weight: 700;
+}
+
+.admin-panel-audit {
+    border-color: rgba(0, 240, 255, 0.15);
+}
+
+.admin-panel-title-cyan {
+    color: var(--neon-cyan);
+}
+
 /* ==================== ADMIN TABS ==================== */
 .admin-tabs {
     display: flex;

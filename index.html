@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kiss Me Ranking — Gamified Loyalty</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260408b">
+    <link rel="stylesheet" href="styles.css?v=20260408e">
     <!-- LINE LIFF SDK -->
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
@@ -237,7 +237,7 @@
     </div>
 
     <!-- ==================== LOGIN OPTIONS (shown after terms, before main) ==================== -->
-    <div class="login-options-overlay" id="login-options" style="display: none;">
+    <div class="login-options-overlay hidden" id="login-options">
         <div class="login-options-container glass-panel">
             <div class="login-options-header">
                 <div class="login-options-icon">🔐</div>
@@ -265,7 +265,7 @@
     </div>
 
     <!-- ==================== MAIN CONTENT (hidden until logged in) ==================== -->
-    <div class="container" id="main-content" style="display: none;">
+    <div class="container hidden" id="main-content">
         <header>
             <div class="logo-area">
                 <div class="logo-icon">💋</div>
@@ -284,7 +284,7 @@
                 <a href="ranking.html" class="header-link">🏆 อันดับ</a>
                 <a href="status.html" class="header-link">📊 สถานะ</a>
                 <a href="admin-login.html" class="admin-link">🔒 Admin</a>
-                <button class="header-link logout-btn" id="btn-logout" title="ออกจากระบบ" style="display:none;">🚪 ออก</button>
+                <button class="header-link logout-btn hidden" id="btn-logout" title="ออกจากระบบ">🚪 ออก</button>
             </div>
         </header>
 
@@ -313,7 +313,7 @@
                 </div>
             </div>
             <div class="progress-track">
-                <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+                <div class="progress-fill" id="progress-fill"></div>
             </div>
             <div class="progress-dots">
                 <div class="progress-dot" data-index="1"><span>1</span></div>
@@ -404,9 +404,9 @@
                     </tbody>
                 </table>
                 <div class="schedule-legend">
-                    <span class="sleg-item"><span class="draw-date-tag past" style="font-size:0.7rem;">ผ่านแล้ว</span></span>
-                    <span class="sleg-item"><span class="draw-date-tag upcoming" style="font-size:0.7rem;">งวดถัดไป</span></span>
-                    <span class="sleg-item"><span class="draw-date-tag future" style="font-size:0.7rem;">ยังไม่ถึง</span></span>
+                    <span class="sleg-item"><span class="draw-date-tag draw-date-tag-compact past">ผ่านแล้ว</span></span>
+                    <span class="sleg-item"><span class="draw-date-tag draw-date-tag-compact upcoming">งวดถัดไป</span></span>
+                    <span class="sleg-item"><span class="draw-date-tag draw-date-tag-compact future">ยังไม่ถึง</span></span>
                 </div>
                 <p class="schedule-note">📌 อ้างอิงจากสำนักงานสลากกินแบ่งรัฐบาล — ออกรางวัลทุกวันที่ <strong>1</strong> และ <strong>16</strong> ของทุกเดือน (24 งวด/ปี)</p>
             </div>
@@ -547,15 +547,15 @@
                 <span class="badge-glow">🏆</span>
                 <span>ทายถูก → Cashback 100% สูงสุด 50,000 ฿ &bull; ทายผิด → รับ GV 500 ฿</span>
             </div>
-            <div class="info-badge glass-panel" style="border-color: rgba(0, 240, 255, 0.2); color: var(--neon-cyan);">
-                <span class="badge-glow" style="filter: hue-rotate(180deg);">🔒</span>
+            <div class="info-badge glass-panel info-badge-secret">
+                <span class="badge-glow badge-glow-cyan">🔒</span>
                 <span>คะแนนโหวตเป็นความลับ — Admin มองไม่เห็น</span>
             </div>
         </div>
 
         <!-- Footer Links -->
-        <footer class="footer-links" style="margin-top: 25px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-            <button class="btn-status-link" id="btn-view-terms" style="cursor: pointer; border: 1px solid var(--neon-cyan); color: var(--neon-cyan); background: linear-gradient(135deg, rgba(0,240,255,0.1), rgba(0,240,255,0.03));">📜 ดูเงื่อนไขและกติกา</button>
+        <footer class="footer-links footer-links-centered">
+            <button class="btn-status-link btn-status-link-secondary" id="btn-view-terms">📜 ดูเงื่อนไขและกติกา</button>
         </footer>
     </div>
 
@@ -566,6 +566,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=20260408b"></script>
+    <script src="script.js?v=20260408e"></script>
 </body>
 </html>

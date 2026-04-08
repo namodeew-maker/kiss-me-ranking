@@ -9,6 +9,12 @@ let currentVisitedStaffIds = new Set();
 let telegramWidgetLoadedFor = null;
 let telegramLoginConfig = null;
 
+function setElementVisible(element, isVisible, displayValue = '') {
+    if (!element) return;
+    element.style.display = isVisible ? displayValue : 'none';
+    element.classList.toggle('hidden', !isVisible);
+}
+
 function resolveAssetUrl(value) {
     if (!value) return '';
     const normalized = String(value).trim();
@@ -123,8 +129,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnViewTerms) {
         btnViewTerms.addEventListener('click', () => {
             termsOverlay.classList.remove('hidden');
-            mainContent.style.display = 'none';
-            loginOptions.style.display = 'none';
+            setElementVisible(mainContent, false);
+            setElementVisible(loginOptions, false);
             termsAgree.checked = true;
             btnAccept.disabled = false;
             btnAccept.classList.add('enabled');
@@ -214,15 +220,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function showLoginOrMain() {
         const logoutBtn = document.getElementById('btn-logout');
         if (currentUser) {
-            loginOptions.style.display = 'none';
-            mainContent.style.display = '';
-            if (logoutBtn) logoutBtn.style.display = '';
+            setElementVisible(loginOptions, false);
+            setElementVisible(mainContent, true);
+            setElementVisible(logoutBtn, true, '');
             updateProfileUI();
             refreshUserRuntimeState();
         } else {
-            loginOptions.style.display = '';
-            mainContent.style.display = 'none';
-            if (logoutBtn) logoutBtn.style.display = 'none';
+            setElementVisible(loginOptions, true, 'flex');
+            setElementVisible(mainContent, false);
+            setElementVisible(logoutBtn, false);
         }
     }
 
@@ -242,8 +248,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /** After successful login — hide login, show main */
     function onLoginSuccess() {
-        loginOptions.style.display = 'none';
-        mainContent.style.display = '';
+        setElementVisible(loginOptions, false);
+        setElementVisible(mainContent, true);
         updateProfileUI();
         refreshUserRuntimeState();
     }
