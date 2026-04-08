@@ -1415,6 +1415,8 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
     const search = String(req.query.search || '').trim();
     const platform = String(req.query.platform || 'all').trim().toLowerCase();
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const offset = (page - 1) * limit;
     const like = `%${search}%`;
 
     try {
@@ -1462,14 +1464,25 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                 SELECT *
                 FROM user_rows
                 ORDER BY COALESCE(last_activity_at, created_at) DESC, created_at DESC
-                LIMIT $4`,
-                [search, like, platform, limit]
+                LIMIT $4 OFFSET $5`,
+                [search, like, platform, limit, offset]
             )
         ]);
 
+        const totalItems = summaryResult.rows[0]?.total_accounts || 0;
+        const totalPages = totalItems > 0 ? Math.ceil(totalItems / limit) : 1;
+
         res.json({
             summary: summaryResult.rows[0],
-            users: usersResult.rows
+            users: usersResult.rows,
+            pagination: {
+                page,
+                limit,
+                total_items: totalItems,
+                total_pages: totalPages,
+                has_prev: page > 1,
+                has_next: page < totalPages
+            }
         });
     } catch (err) {
         console.error('Admin users list error:', err);

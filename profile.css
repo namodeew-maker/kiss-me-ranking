@@ -4,6 +4,16 @@
     max-width: 700px;
 }
 
+.profile-hidden {
+    display: none;
+}
+
+.profile-header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
 /* Back button */
 .back-btn {
     color: var(--neon-cyan);
@@ -61,6 +71,17 @@
     text-align: center;
     padding: 50px 30px;
 }
+
+.profile-not-logged-in-icon {
+    font-size: 3rem;
+    margin-bottom: 15px;
+}
+
+.profile-not-logged-in-copy {
+    color: var(--text-muted);
+    margin: 10px 0 20px;
+}
+
 .profile-not-logged-in h3 {
     color: var(--text-silver);
     font-size: 1.1rem;
@@ -195,6 +216,7 @@
     margin-bottom: 10px;
 }
 .profile-progress-card .progress-fill {
+    width: 0%;
     height: 100%;
     background: linear-gradient(90deg, var(--neon-red), #ff6644, var(--neon-green));
     border-radius: 10px;
@@ -339,6 +361,21 @@
 .slip-thumb-link {
     display: block;
 }
+
+.slip-thumb-btn {
+    display: block;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.slip-thumb-btn:focus-visible {
+    outline: 2px solid rgba(0, 240, 255, 0.4);
+    outline-offset: 4px;
+    border-radius: 8px;
+}
+
 .slip-thumb {
     width: 44px;
     height: 44px;

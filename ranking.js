@@ -1,6 +1,8 @@
 const API_BASE = window.location.hostname === 'namodeew-maker.github.io'
     ? 'https://kiss-me-ranking.onrender.com/api'
     : '/api';
+const API_ROOT = API_BASE.replace(/\/api$/, '');
+const LATIN_NUMBER_FORMATTER = new Intl.NumberFormat('en-US');
 
 // ==================== RANK TIERS (same as profile.js) ====================
 const RANK_TIERS = [
@@ -30,20 +32,81 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function resolveAssetUrl(value) {
+    if (!value) return '';
+    const normalized = String(value).trim();
+    if (!normalized) return '';
+
+    if (/^https?:\/\//i.test(normalized)) {
+        try {
+            const url = new URL(normalized);
+            const uploadIndex = url.pathname.indexOf('/uploads/');
+            if (uploadIndex >= 0) {
+                return `${API_ROOT}${url.pathname.slice(uploadIndex)}`;
+            }
+        } catch {
+            return normalized;
+        }
+        return normalized;
+    }
+
+    if (normalized.startsWith('/uploads/')) {
+        return `${API_ROOT}${normalized}`;
+    }
+
+    if (normalized.startsWith('uploads/')) {
+        return `${API_ROOT}/${normalized}`;
+    }
+
+    const embeddedUploadIndex = normalized.indexOf('/uploads/');
+    if (embeddedUploadIndex >= 0) {
+        return `${API_ROOT}${normalized.slice(embeddedUploadIndex)}`;
+    }
+
+    return `${API_ROOT}/uploads/${encodeURIComponent(normalized)}`;
+}
+
+const rankingImgModal = document.getElementById('ranking-img-modal');
+const rankingImgModalImg = document.getElementById('ranking-img-modal-img');
+const rankingImgModalClose = document.getElementById('ranking-img-modal-close');
+
+function openRankingImageModal(src, alt = 'รูปพนักงาน') {
+    if (!rankingImgModal || !rankingImgModalImg) return;
+    rankingImgModalImg.src = src;
+    rankingImgModalImg.alt = alt;
+    rankingImgModal.hidden = false;
+}
+
+if (rankingImgModalClose) {
+    rankingImgModalClose.addEventListener('click', () => {
+        rankingImgModal.hidden = true;
+    });
+}
+
+if (rankingImgModal) {
+    rankingImgModal.addEventListener('click', (event) => {
+        if (event.target === rankingImgModal) {
+            rankingImgModal.hidden = true;
+        }
+    });
+}
+
 function getAvatarSrc(entry, fallbackName) {
     if (entry && entry.avatar_url) {
-        return entry.avatar_url.startsWith('http')
-            ? entry.avatar_url
-            : `/uploads/${encodeURIComponent(entry.avatar_url)}`;
+        return resolveAssetUrl(entry.avatar_url);
     }
     if (entry && entry.picture_url) {
-        return entry.picture_url;
+        return resolveAssetUrl(entry.picture_url);
     }
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName || 'U')}&background=1a1a2e&color=00f0ff&size=160`;
 }
 
 function formatRank(rank) {
     return String(rank).padStart(2, '0');
+}
+
+function formatMetricNumber(value) {
+    return LATIN_NUMBER_FORMATTER.format(Number(value || 0));
 }
 
 function renderLeaderboardBoard(list, options) {
@@ -59,11 +122,18 @@ function renderLeaderboardBoard(list, options) {
     const podiumSlots = topThree.map((entry, index) => {
         const rank = index + 1;
         const avatarSrc = options.getAvatar(entry);
+        const displayName = options.getDisplayName(entry);
+        const avatarNode = avatarSrc
+            ? `<button type="button" class="podium-avatar-btn" data-fullimg="${avatarSrc}" data-avatar-name="${escapeHtml(displayName)}" aria-label="ดูรูป ${escapeHtml(displayName)} เต็ม">
+                <img class="podium-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}"
+                     onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=160'">
+               </button>`
+            : `<img class="podium-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}"
+                 onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=160'">`;
         return `<div class="podium-slot ${rank === 1 ? 'is-first' : ''}">
             <div class="podium-slot-rank">${formatRank(rank)}</div>
-            <img class="podium-avatar" src="${avatarSrc}" alt="${escapeHtml(options.getDisplayName(entry))}"
-                 onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(options.getDisplayName(entry))}&background=1a1a2e&color=00f0ff&size=160'">
-            <div class="podium-name">${escapeHtml(options.getDisplayName(entry))}</div>
+            ${avatarNode}
+            <div class="podium-name">${escapeHtml(displayName)}</div>
             <div class="podium-meta">${escapeHtml(options.getSubtitle(entry))}</div>
             <div class="podium-points">${escapeHtml(options.getMetric(entry))}</div>
         </div>`;
@@ -71,15 +141,37 @@ function renderLeaderboardBoard(list, options) {
 
     const rows = list.map((entry, index) => {
         const rank = index + 1;
-        return `<div class="leaderboard-row ${rank === 1 ? 'is-top-1' : ''}" style="animation-delay:${index * 0.04}s">
+        const displayName = options.getDisplayName(entry);
+        const avatarSrc = options.getAvatar(entry);
+        const rowAvatar = avatarSrc
+            ? `<button type="button" class="leaderboard-row-avatar-btn" data-fullimg="${avatarSrc}" data-avatar-name="${escapeHtml(displayName)}" aria-label="ดูรูป ${escapeHtml(displayName)} เต็ม">
+                <img class="leaderboard-row-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}"
+                     onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=96'">
+               </button>`
+            : `<img class="leaderboard-row-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}"
+                 onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=96'">`;
+        return `<div class="leaderboard-row ${rank === 1 ? 'is-top-1' : ''}">
             <div class="leaderboard-row-rank">${formatRank(rank)}</div>
-            <div>
-                <div class="leaderboard-row-name">${escapeHtml(options.getDisplayName(entry))}</div>
+            <div class="leaderboard-row-main">
+                ${rowAvatar}
+                <div>
+                <div class="leaderboard-row-name">${escapeHtml(displayName)}</div>
                 <div class="leaderboard-row-sub">${escapeHtml(options.getSubtitle(entry))}</div>
+                </div>
             </div>
             <div class="leaderboard-row-points">${escapeHtml(options.getMetric(entry))}</div>
         </div>`;
     }).join('');
+
+    const bestDisplayName = options.getDisplayName(best);
+    const bestAvatarSrc = options.getAvatar(best);
+    const bestAvatar = bestAvatarSrc
+        ? `<button type="button" class="best-player-avatar-btn" data-fullimg="${bestAvatarSrc}" data-avatar-name="${escapeHtml(bestDisplayName)}" aria-label="ดูรูป ${escapeHtml(bestDisplayName)} เต็ม">
+            <img class="best-player-avatar" src="${bestAvatarSrc}" alt="${escapeHtml(bestDisplayName)}"
+                 onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(bestDisplayName)}&background=1a1a2e&color=00f0ff&size=160'">
+           </button>`
+        : `<img class="best-player-avatar" src="${bestAvatarSrc}" alt="${escapeHtml(bestDisplayName)}"
+             onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(bestDisplayName)}&background=1a1a2e&color=00f0ff&size=160'">`;
 
     return `<section class="leaderboard-card leaderboard-podium">
         <div class="leaderboard-card-header">
@@ -111,7 +203,7 @@ function renderLeaderboardBoard(list, options) {
             <div class="leaderboard-table-head">
                 <div>Rank</div>
                 <div>Name</div>
-                <div style="text-align:right;">${escapeHtml(options.metricHeader)}</div>
+                <div class="leaderboard-table-head-metric">${escapeHtml(options.metricHeader)}</div>
             </div>
             ${rows}
         </div>
@@ -126,19 +218,33 @@ function renderLeaderboardBoard(list, options) {
                 </div>
             </div>
             <div class="best-player-top">
-                <div class="best-player-rank">1</div>
-                <div class="best-player-label">Best<br>Player</div>
+                <div class="best-player-rank-block">
+                    <div class="best-player-rank">1</div>
+                    <div class="best-player-label">Best<br>Player</div>
+                </div>
+                <div class="best-player-avatar-wrap">
+                    ${bestAvatar}
+                    <div class="best-player-avatar-caption">อันดับสูงสุดตอนนี้</div>
+                </div>
             </div>
             <div class="best-player-score-wrap">
                 <div class="best-player-score-label">${escapeHtml(options.metricHeader)}</div>
                 <div class="best-player-score">${escapeHtml(options.getMetric(best))}</div>
             </div>
-            <div class="best-player-name">${escapeHtml(options.getDisplayName(best))}</div>
+            <div class="best-player-name">${escapeHtml(bestDisplayName)}</div>
             <div class="best-player-meta">
                 ${options.getBestMeta(best).map(meta => `<div class="best-player-chip"><span>${escapeHtml(meta.label)}</span><strong>${escapeHtml(meta.value)}</strong></div>`).join('')}
             </div>
         </div>
     </section>`;
+}
+
+function bindRankingImagePreview(container) {
+    container.querySelectorAll('[data-fullimg]').forEach((button) => {
+        button.addEventListener('click', () => {
+            openRankingImageModal(button.dataset.fullimg, button.dataset.avatarName || 'รูปพนักงาน');
+        });
+    });
 }
 
 // ==================== PARTICLES ====================
@@ -181,20 +287,21 @@ async function loadStaffRanking() {
         }
         list.innerHTML = renderLeaderboardBoard(staffs, {
             boardLabel: 'Staff Leaderboard',
-            metricHeader: 'Points',
+            metricHeader: 'Votes',
             getAvatar: (staff) => getAvatarSrc(staff, staff.nickname || staff.name),
             getDisplayName: (staff) => staff.nickname || staff.name || '—',
             getSubtitle: (staff) => {
                 const realName = staff.name && staff.name !== staff.nickname ? `ชื่อจริง ${staff.name}` : 'พนักงานยอดนิยม';
                 return `${realName} • เรต ${Number(staff.avg_overall || 0).toFixed(1)}/10`;
             },
-            getMetric: (staff) => String(staff.total_votes || 0),
+            getMetric: (staff) => formatMetricNumber(staff.total_votes || 0),
             getBestMeta: (staff) => [
-                { label: 'Votes', value: String(staff.total_votes || 0) },
+                { label: 'Votes', value: formatMetricNumber(staff.total_votes || 0) },
                 { label: 'Avg Score', value: `${Number(staff.avg_overall || 0).toFixed(1)}/10` },
                 { label: 'Service', value: `${Number(staff.avg_service || 0).toFixed(1)}/10` }
             ]
         });
+        bindRankingImagePreview(list);
     } catch (err) {
         list.innerHTML = '<div class="ranking-loading">ไม่สามารถโหลดอันดับได้</div>';
     }
@@ -217,18 +324,19 @@ async function loadCustomerRanking() {
             getDisplayName: (customer) => customer.display_name || '—',
             getSubtitle: (customer) => {
                 const tierInfo = getCustomerRank(customer.total_approved, customer.total_points);
-                return `${tierInfo.icon} ${tierInfo.name} • อนุมัติ ${customer.total_approved || 0} ครั้ง`;
+                return `${tierInfo.icon} ${tierInfo.name} • อนุมัติ ${formatMetricNumber(customer.total_approved || 0)} ครั้ง`;
             },
-            getMetric: (customer) => Number(customer.total_points || 0).toLocaleString('th-TH'),
+            getMetric: (customer) => formatMetricNumber(customer.total_points || 0),
             getBestMeta: (customer) => {
                 const tierInfo = getCustomerRank(customer.total_approved, customer.total_points);
                 return [
-                    { label: 'Approved', value: String(customer.total_approved || 0) },
+                    { label: 'Approved', value: formatMetricNumber(customer.total_approved || 0) },
                     { label: 'Tier', value: tierInfo.name },
-                    { label: 'Points', value: Number(customer.total_points || 0).toLocaleString('th-TH') }
+                    { label: 'Points', value: formatMetricNumber(customer.total_points || 0) }
                 ];
             }
         });
+        bindRankingImagePreview(list);
     } catch (err) {
         list.innerHTML = '<div class="ranking-loading">ไม่สามารถโหลดอันดับได้</div>';
     }

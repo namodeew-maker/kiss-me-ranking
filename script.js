@@ -11,7 +11,36 @@ let telegramLoginConfig = null;
 
 function resolveAssetUrl(value) {
     if (!value) return '';
-    return value.startsWith('http') ? value : `${API_ROOT}/uploads/${encodeURIComponent(value)}`;
+    const normalized = String(value).trim();
+    if (!normalized) return '';
+
+    if (/^https?:\/\//i.test(normalized)) {
+        try {
+            const url = new URL(normalized);
+            const uploadIndex = url.pathname.indexOf('/uploads/');
+            if (uploadIndex >= 0) {
+                return `${API_ROOT}${url.pathname.slice(uploadIndex)}`;
+            }
+        } catch {
+            return normalized;
+        }
+        return normalized;
+    }
+
+    if (normalized.startsWith('/uploads/')) {
+        return `${API_ROOT}${normalized}`;
+    }
+
+    if (normalized.startsWith('uploads/')) {
+        return `${API_ROOT}/${normalized}`;
+    }
+
+    const embeddedUploadIndex = normalized.indexOf('/uploads/');
+    if (embeddedUploadIndex >= 0) {
+        return `${API_ROOT}${normalized.slice(embeddedUploadIndex)}`;
+    }
+
+    return `${API_ROOT}/uploads/${encodeURIComponent(normalized)}`;
 }
 
 document.addEventListener('DOMContentLoaded', () => {

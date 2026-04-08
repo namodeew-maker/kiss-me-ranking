@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function imageCell(imagePath) {
         if (imagePath) {
             // Support both full URL (R2) and local path
-            const src = imagePath.startsWith('http') ? imagePath : `/uploads/${encodeURIComponent(imagePath)}`;
+            const src = resolveAssetUrl(imagePath);
             return `<img src="${src}" class="admin-thumb" data-fullimg="${src}" alt="สลิป">`;
         }
         return '<span class="text-muted">ไม่มีรูป</span>';
@@ -139,13 +139,46 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function resolveAssetUrl(value) {
         if (!value) return '';
-        return value.startsWith('http') ? value : `${API_ROOT}/uploads/${encodeURIComponent(value)}`;
+        const normalized = String(value).trim();
+        if (!normalized) return '';
+
+        if (/^https?:\/\//i.test(normalized)) {
+            try {
+                const url = new URL(normalized);
+                const uploadIndex = url.pathname.indexOf('/uploads/');
+                if (uploadIndex >= 0) {
+                    return `${API_ROOT}${url.pathname.slice(uploadIndex)}`;
+                }
+            } catch {
+                return normalized;
+            }
+            return normalized;
+        }
+
+        if (normalized.startsWith('/uploads/')) {
+            return `${API_ROOT}${normalized}`;
+        }
+
+        if (normalized.startsWith('uploads/')) {
+            return `${API_ROOT}/${normalized}`;
+        }
+
+        const embeddedUploadIndex = normalized.indexOf('/uploads/');
+        if (embeddedUploadIndex >= 0) {
+            return `${API_ROOT}${normalized.slice(embeddedUploadIndex)}`;
+        }
+
+        return `${API_ROOT}/uploads/${encodeURIComponent(normalized)}`;
     }
 
     const userSearchInput = document.getElementById('user-search-input');
     const userPlatformFilter = document.getElementById('user-platform-filter');
     const userBody = document.getElementById('users-body');
     const noUsers = document.getElementById('no-users');
+    const userPagination = document.getElementById('user-pagination');
+    const userPaginationStatus = document.getElementById('user-pagination-status');
+    const userPrevButton = document.getElementById('btn-user-prev');
+    const userNextButton = document.getElementById('btn-user-next');
     const userDetailEmpty = document.getElementById('user-detail-empty');
     const userDetailContent = document.getElementById('user-detail-content');
     const userDetailAvatar = document.getElementById('user-detail-avatar');
@@ -162,6 +195,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userDetailModal = document.getElementById('user-detail-modal');
     const userDetailModalClose = document.getElementById('user-detail-modal-close');
     let selectedUserId = null;
+    let currentUserPage = 1;
+    let currentUserTotalPages = 1;
+    let userSearchDebounceId = null;
 
     function openUserDetailModal() {
         if (!userDetailModal) return;
@@ -189,12 +225,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    async function renderUsers() {
+    function updateUserPagination(pagination = {}) {
+        currentUserPage = pagination.page || currentUserPage || 1;
+        currentUserTotalPages = pagination.total_pages || 1;
+
+        if (userPaginationStatus) {
+            userPaginationStatus.textContent = `หน้า ${currentUserPage} / ${currentUserTotalPages}`;
+        }
+
+        if (userPrevButton) userPrevButton.disabled = !pagination.has_prev;
+        if (userNextButton) userNextButton.disabled = !pagination.has_next;
+
+        if (userPagination) {
+            userPagination.hidden = Number(pagination.total_items || 0) <= 0;
+        }
+    }
+
+    async function renderUsers(page = currentUserPage) {
         if (!userBody || !noUsers) return;
+        currentUserPage = page;
 
         const params = new URLSearchParams({
             search: userSearchInput?.value?.trim() || '',
-            platform: userPlatformFilter?.value || 'all'
+            platform: userPlatformFilter?.value || 'all',
+            page: String(currentUserPage),
+            limit: '12'
         });
 
         try {
@@ -206,18 +261,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('users-line-accounts').textContent = data.summary.line_accounts || 0;
             document.getElementById('users-telegram-accounts').textContent = data.summary.telegram_accounts || 0;
             document.getElementById('users-active-accounts').textContent = data.summary.active_accounts || 0;
+            updateUserPagination(data.pagination);
 
             if (!data.users.length) {
+                if ((data.pagination?.total_items || 0) > 0 && currentUserPage > (data.pagination?.total_pages || 1)) {
+                    return renderUsers(data.pagination.total_pages || 1);
+                }
                 userBody.innerHTML = '';
                 noUsers.textContent = 'ไม่พบข้อมูลผู้ใช้ตามเงื่อนไขที่เลือก';
                 noUsers.classList.remove('hidden');
+                if (userPagination) userPagination.hidden = true;
                 return;
             }
 
             noUsers.classList.add('hidden');
             userBody.innerHTML = data.users.map((user, index) => `
-                <tr>
-                    <td>${index + 1}</td>
+                <tr class="${String(selectedUserId) === String(user.id) ? 'user-row-active' : ''}">
+                    <td>${((currentUserPage - 1) * (data.pagination?.limit || 12)) + index + 1}</td>
                     <td>
                         <div class="user-cell">
                             <img class="user-cell-avatar" src="${userAvatarSrc(user)}" alt="${escapeHtml(user.display_name || 'User')}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user.display_name || user.platform_id || 'User')}&background=1a1a2e&color=ff3c3c&size=96'">
@@ -244,6 +304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             userBody.innerHTML = '';
             noUsers.textContent = 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้';
             noUsers.classList.remove('hidden');
+            if (userPagination) userPagination.hidden = true;
         }
     }
 
@@ -565,16 +626,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    document.getElementById('btn-user-search')?.addEventListener('click', renderUsers);
+    document.getElementById('btn-user-search')?.addEventListener('click', () => renderUsers(1));
     document.getElementById('btn-user-refresh')?.addEventListener('click', () => {
         if (userSearchInput) userSearchInput.value = '';
         if (userPlatformFilter) userPlatformFilter.value = 'all';
-        renderUsers();
+        renderUsers(1);
     });
     userSearchInput?.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') renderUsers();
+        if (event.key === 'Enter') renderUsers(1);
     });
-    userPlatformFilter?.addEventListener('change', renderUsers);
+    userSearchInput?.addEventListener('input', () => {
+        window.clearTimeout(userSearchDebounceId);
+        userSearchDebounceId = window.setTimeout(() => renderUsers(1), 350);
+    });
+    userPlatformFilter?.addEventListener('change', () => renderUsers(1));
+    userPrevButton?.addEventListener('click', () => {
+        if (currentUserPage > 1) renderUsers(currentUserPage - 1);
+    });
+    userNextButton?.addEventListener('click', () => {
+        if (currentUserPage < currentUserTotalPages) renderUsers(currentUserPage + 1);
+    });
     document.getElementById('btn-save-user')?.addEventListener('click', async () => {
         if (!selectedUserId) {
             showToast('กรุณาเลือกผู้ใช้ก่อน', 'error');
@@ -592,7 +663,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'save-failed');
             showToast('อัปเดตข้อมูลผู้ใช้แล้ว', 'success');
-            renderUsers();
+            renderUsers(currentUserPage);
             loadUserDetail(selectedUserId);
         } catch (err) {
             showToast(err.message || 'ไม่สามารถบันทึกข้อมูลผู้ใช้ได้', 'error');
@@ -611,7 +682,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!res.ok) throw new Error(data.error || 'delete-failed');
             showToast(`ลบผู้ใช้ ${data.deleted_display_name || ''} แล้ว`, 'success');
             clearUserDetail();
-            renderUsers();
+            renderUsers(currentUserPage);
             renderHistory();
             renderApproval();
             renderCashbackSummary();
@@ -892,7 +963,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const statusClass = s.is_active ? 'staff-active' : 'staff-inactive';
                 const statusText = s.is_active ? '✅ ใช้งาน' : '❌ ปิดใช้งาน';
                 return `<div class="staff-card ${statusClass}">
-                    <img class="staff-card-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=80'">
+                    <button type="button" class="staff-card-avatar-btn" data-staff-preview="${avatarSrc}" data-staff-name="${escapeHtml(displayName)}" ${s.avatar_url ? '' : 'disabled'}>
+                        <img class="staff-card-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=80'">
+                    </button>
                     <div class="staff-card-info">
                         <div class="staff-card-name">${escapeHtml(displayName)}</div>
                         <span class="staff-status-badge ${statusClass}">${statusText}</span>
@@ -939,6 +1012,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } catch (err) {
                         showToast('ไม่สามารถลบพนักงานได้', 'error');
                     }
+                });
+                grid.querySelectorAll('[data-staff-preview]').forEach(btn => {
+                    if (btn.disabled) return;
+                    btn.addEventListener('click', () => openImageModal(btn.dataset.staffPreview));
                 });
             });
         } catch (err) {

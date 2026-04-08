@@ -24,7 +24,7 @@
                     <p class="subtitle">Kiss Me Ranking</p>
                 </div>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;">
+            <div class="profile-header-actions">
                 <a href="index.html" class="header-link">🏠 หน้าหลัก</a>
                 <button class="header-link logout-btn" id="btn-logout" title="ออกจากระบบ">🚪 ออก</button>
             </div>
@@ -37,15 +37,15 @@
         </div>
 
         <!-- Not Logged In -->
-        <div class="profile-not-logged-in glass-panel" id="profile-not-logged-in" style="display: none;">
-            <div style="font-size: 3rem; margin-bottom: 15px;">🔐</div>
+        <div class="profile-not-logged-in glass-panel profile-hidden" id="profile-not-logged-in">
+            <div class="profile-not-logged-in-icon">🔐</div>
             <h3>กรุณาเข้าสู่ระบบก่อน</h3>
-            <p style="color: var(--text-muted); margin: 10px 0 20px;">ไม่พบข้อมูลผู้ใช้ กรุณากลับไปล็อกอินที่หน้าหลัก</p>
+            <p class="profile-not-logged-in-copy">ไม่พบข้อมูลผู้ใช้ กรุณากลับไปล็อกอินที่หน้าหลัก</p>
             <a href="index.html" class="btn-primary">🔐 ไปหน้าล็อกอิน</a>
         </div>
 
         <!-- Profile Content -->
-        <div id="profile-content" style="display: none;">
+        <div id="profile-content" class="profile-hidden">
 
             <!-- User Card -->
             <div class="user-card glass-panel">
@@ -86,7 +86,7 @@
                     <span class="progress-count" id="profile-progress-count">0 / 5</span>
                 </div>
                 <div class="progress-track">
-                    <div class="progress-fill" id="profile-progress-fill" style="width: 0%;"></div>
+                    <div class="progress-fill" id="profile-progress-fill"></div>
                 </div>
                 <div class="progress-dots">
                     <div class="progress-dot" id="pdot-1"><span>1</span></div>
@@ -121,7 +121,7 @@
             </div>
 
             <!-- Tab: Lottery -->
-            <div class="tab-content" id="tab-lottery" style="display: none;">
+            <div class="tab-content profile-hidden" id="tab-lottery">
                 <div class="profile-list glass-panel" id="lotto-list">
                     <div class="list-empty">กำลังโหลด...</div>
                 </div>
@@ -130,6 +130,13 @@
         </div>
         <!-- /profile-content -->
 
+    </div>
+
+    <div class="img-modal-overlay" id="profile-img-modal" hidden>
+        <div class="img-modal-content">
+            <button class="img-modal-close" id="profile-img-modal-close">&times;</button>
+            <img id="profile-img-modal-img" src="" alt="รูปหลักฐานการรีวิว">
+        </div>
     </div>
 
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>

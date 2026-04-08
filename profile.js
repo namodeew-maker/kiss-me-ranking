@@ -1,6 +1,7 @@
 const API_BASE = window.location.hostname === 'namodeew-maker.github.io'
     ? 'https://kiss-me-ranking.onrender.com/api'
     : '/api';
+const API_ROOT = API_BASE.replace(/\/api$/, '');
 const LIFF_ID = '2009696727-evibES3H';
 
 let currentUser = null;
@@ -19,8 +20,67 @@ function thaiDate(isoStr) {
     });
 }
 
+function resolveAssetUrl(value) {
+    if (!value) return '';
+    const normalized = String(value).trim();
+    if (!normalized) return '';
+
+    if (/^https?:\/\//i.test(normalized)) {
+        try {
+            const url = new URL(normalized);
+            const uploadIndex = url.pathname.indexOf('/uploads/');
+            if (uploadIndex >= 0) {
+                return `${API_ROOT}${url.pathname.slice(uploadIndex)}`;
+            }
+        } catch {
+            return normalized;
+        }
+        return normalized;
+    }
+
+    if (normalized.startsWith('/uploads/')) {
+        return `${API_ROOT}${normalized}`;
+    }
+
+    if (normalized.startsWith('uploads/')) {
+        return `${API_ROOT}/${normalized}`;
+    }
+
+    const embeddedUploadIndex = normalized.indexOf('/uploads/');
+    if (embeddedUploadIndex >= 0) {
+        return `${API_ROOT}${normalized.slice(embeddedUploadIndex)}`;
+    }
+
+    return `${API_ROOT}/uploads/${encodeURIComponent(normalized)}`;
+}
+
 function showEl(id) { const el = document.getElementById(id); if (el) el.style.display = ''; }
 function hideEl(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+
+const profileImgModal = document.getElementById('profile-img-modal');
+const profileImgModalImg = document.getElementById('profile-img-modal-img');
+const profileImgModalClose = document.getElementById('profile-img-modal-close');
+
+function openProfileImageModal(src, alt = 'รูปหลักฐานการรีวิว') {
+    if (!profileImgModal || !profileImgModalImg) return;
+    profileImgModalImg.src = src;
+    profileImgModalImg.alt = alt;
+    profileImgModal.hidden = false;
+}
+
+if (profileImgModalClose) {
+    profileImgModalClose.addEventListener('click', () => {
+        profileImgModal.hidden = true;
+    });
+}
+
+if (profileImgModal) {
+    profileImgModal.addEventListener('click', (event) => {
+        if (event.target === profileImgModal) {
+            profileImgModal.hidden = true;
+        }
+    });
+}
 
 // ==================== LOGOUT ====================
 const logoutBtn = document.getElementById('btn-logout');
@@ -207,10 +267,11 @@ function renderTransactions(transactions) {
         const badgeText = tx.status === 'approved' ? '✅ อนุมัติ' : tx.status === 'rejected' ? '❌ ปฏิเสธ' : '⏳ รอตรวจ';
         const rejectNote = tx.reject_reason
             ? `<div class="item-reject-note">เหตุผล: ${escapeHtml(tx.reject_reason)}</div>` : '';
+        const slipSrc = tx.slip_image_url ? resolveAssetUrl(tx.slip_image_url) : '';
         const slipLink = tx.slip_image_url
-            ? `<a href="${escapeHtml(tx.slip_image_url)}" target="_blank" class="slip-thumb-link">
-                <img src="${escapeHtml(tx.slip_image_url)}" class="slip-thumb" alt="slip" onerror="this.parentElement.style.display='none'">
-               </a>` : '';
+            ? `<button type="button" class="slip-thumb-btn slip-thumb-link" data-slip-fullimg="${escapeHtml(slipSrc)}" aria-label="ดูรูปหลักฐานของรายการ ${idx + 1}">
+                <img src="${escapeHtml(slipSrc)}" class="slip-thumb" alt="slip" onerror="this.parentElement.style.display='none'">
+               </button>` : '';
         return `<div class="list-item" style="animation-delay: ${idx * 0.05}s">
             <div class="item-main">
                 <div class="item-info">
@@ -228,6 +289,12 @@ function renderTransactions(transactions) {
             </div>
         </div>`;
     }).join('');
+
+    list.querySelectorAll('[data-slip-fullimg]').forEach((button) => {
+        button.addEventListener('click', () => {
+            openProfileImageModal(button.dataset.slipFullimg);
+        });
+    });
 }
 
 function renderLottery(guesses) {

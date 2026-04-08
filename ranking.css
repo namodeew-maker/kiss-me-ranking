@@ -70,7 +70,10 @@
 /* ==================== LEADERBOARD SHELL ==================== */
 .leaderboard-shell {
     display: grid;
-    grid-template-columns: 1.05fr 1.15fr 0.8fr;
+    grid-template-columns: minmax(320px, 0.95fr) minmax(320px, 1.05fr);
+    grid-template-areas:
+        'podium best'
+        'table table';
     gap: 20px;
     align-items: stretch;
 }
@@ -159,6 +162,7 @@
 
 /* ==================== PODIUM ==================== */
 .leaderboard-podium {
+    grid-area: podium;
     min-height: 100%;
 }
 
@@ -263,8 +267,29 @@
     font-weight: 700;
 }
 
+.podium-avatar-btn {
+    display: inline-flex;
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.podium-avatar-btn:focus-visible {
+    outline: 2px solid rgba(0, 240, 255, 0.45);
+    outline-offset: 6px;
+}
+
+.podium-avatar-btn:hover .podium-avatar,
+.podium-avatar-btn:focus-visible .podium-avatar {
+    transform: scale(1.03);
+    border-color: rgba(0, 240, 255, 0.55);
+}
+
 /* ==================== TABLE ==================== */
 .leaderboard-table-card {
+    grid-area: table;
     min-height: 100%;
 }
 
@@ -293,6 +318,10 @@
     text-transform: uppercase;
 }
 
+.leaderboard-table-head-metric {
+    text-align: right;
+}
+
 .leaderboard-row {
     padding: 12px 14px;
     border-radius: 14px;
@@ -303,6 +332,48 @@
 
 .leaderboard-row.is-top-1 {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.28), rgba(255, 212, 102, 0.18));
+}
+
+.leaderboard-row-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.leaderboard-row-avatar,
+.best-player-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255, 252, 228, 0.38);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
+    flex-shrink: 0;
+}
+
+.leaderboard-row-avatar-btn,
+.best-player-avatar-btn {
+    display: inline-flex;
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.leaderboard-row-avatar-btn:hover .leaderboard-row-avatar,
+.leaderboard-row-avatar-btn:focus-visible .leaderboard-row-avatar,
+.best-player-avatar-btn:hover .best-player-avatar,
+.best-player-avatar-btn:focus-visible .best-player-avatar {
+    transform: scale(1.04);
+    border-color: rgba(0, 240, 255, 0.55);
+}
+
+.leaderboard-row-avatar-btn:focus-visible,
+.best-player-avatar-btn:focus-visible {
+    outline: 2px solid rgba(0, 240, 255, 0.42);
+    outline-offset: 5px;
 }
 
 .leaderboard-row-rank {
@@ -339,10 +410,16 @@
 
 /* ==================== BEST PLAYER ==================== */
 .leaderboard-best-card {
+    grid-area: best;
     min-height: 100%;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    background:
+        radial-gradient(circle at top right, rgba(0, 240, 255, 0.16), transparent 28%),
+        radial-gradient(circle at top left, rgba(255, 248, 214, 0.22), transparent 30%),
+        linear-gradient(160deg, rgba(255, 228, 150, 0.28) 0%, rgba(171, 103, 16, 0.22) 52%, rgba(31, 25, 58, 0.84) 100%),
+        rgba(24, 18, 42, 0.88);
 }
 
 .best-player-inner {
@@ -350,19 +427,27 @@
     z-index: 1;
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 16px;
     height: 100%;
 }
 
 .best-player-top {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.best-player-rank-block {
+    display: flex;
+    align-items: center;
     gap: 14px;
+    flex: 1;
 }
 
 .best-player-rank {
-    width: 92px;
-    height: 92px;
+    width: 84px;
+    height: 84px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -370,7 +455,7 @@
     color: #8a5200;
     border-radius: 20px;
     font-family: 'Orbitron', sans-serif;
-    font-size: 3rem;
+    font-size: 2.6rem;
     font-weight: 900;
     box-shadow: inset 0 -10px 24px rgba(255, 184, 41, 0.22);
 }
@@ -378,16 +463,37 @@
 .best-player-label {
     color: #fff6de;
     font-family: 'Orbitron', sans-serif;
-    font-size: 1.55rem;
+    font-size: 1.35rem;
     line-height: 1.05;
     text-transform: uppercase;
 }
 
+.best-player-avatar-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.best-player-avatar {
+    width: 92px;
+    height: 92px;
+    border-width: 3px;
+}
+
+.best-player-avatar-caption {
+    color: rgba(255, 244, 220, 0.72);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-align: center;
+}
+
 .best-player-score-wrap {
-    padding: 16px;
+    padding: 14px 16px;
     border-radius: 18px;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
+    border: 1px solid rgba(255, 255, 255, 0.16);
     text-align: center;
 }
 
@@ -399,10 +505,10 @@
 }
 
 .best-player-score {
-    margin-top: 6px;
+    margin-top: 4px;
     color: #fff6d0;
     font-family: 'Orbitron', sans-serif;
-    font-size: 2.25rem;
+    font-size: 2rem;
     font-weight: 900;
 }
 
@@ -410,12 +516,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 62px;
-    padding: 14px 16px;
+    min-height: 54px;
+    padding: 12px 14px;
     border-radius: 16px;
-    background: rgba(145, 82, 6, 0.34);
+    background: linear-gradient(135deg, rgba(145, 82, 6, 0.34), rgba(0, 240, 255, 0.08));
     color: #fff7dd;
-    font-size: 1.15rem;
+    font-size: 1.05rem;
     font-weight: 700;
     text-align: center;
     word-break: break-word;
@@ -423,6 +529,7 @@
 
 .best-player-meta {
     display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
 }
 
@@ -438,68 +545,160 @@
     font-size: 0.86rem;
 }
 
+.best-player-chip:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+}
+
 .best-player-chip strong {
     color: #fff2b2;
     font-family: 'Orbitron', sans-serif;
 }
 
 /* ==================== RESPONSIVE ==================== */
-@media (max-width: 980px) {
+@media (max-width: 1080px) {
     .leaderboard-shell {
         grid-template-columns: 1fr;
+        grid-template-areas:
+            'podium'
+            'best'
+            'table';
     }
 
-    .leaderboard-best-card {
-        order: -1;
+    .best-player-meta {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 640px) {
+    .ranking-page header {
+        margin-bottom: 16px;
+    }
+
+    .ranking-page .logo-area {
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .ranking-page .logo-area h1 {
+        font-size: 1.95rem;
+        line-height: 1.05;
+    }
+
+    .ranking-page .subtitle {
+        font-size: 0.82rem;
+        letter-spacing: 0.14em;
+    }
+
     .ranking-tabs {
         flex-direction: column;
+        margin-bottom: 16px;
+        padding: 4px;
+        border-radius: 16px;
     }
 
     .rank-tab-btn {
-        padding: 12px 16px;
-        font-size: 0.95rem;
+        padding: 11px 14px;
+        font-size: 0.92rem;
+        text-align: left;
     }
 
     .leaderboard-card {
-        padding: 18px;
-        border-radius: 20px;
+        padding: 16px;
+        border-radius: 18px;
+    }
+
+    .leaderboard-card-header {
+        margin-bottom: 14px;
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .leaderboard-card-title {
+        font-size: 1rem;
+        letter-spacing: 0.06em;
+    }
+
+    .leaderboard-card-subtitle,
+    .leaderboard-mini-label {
+        font-size: 0.66rem;
     }
 
     .leaderboard-podium-grid {
         grid-template-columns: 1fr;
+        gap: 10px;
     }
 
     .leaderboard-trophy-row {
         grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-bottom: 12px;
+    }
+
+    .trophy-pill {
+        font-size: 0.68rem;
+        padding: 6px 8px;
     }
 
     .podium-slot,
     .podium-slot.is-first {
         min-height: unset;
+        padding: 12px 12px 14px;
+        border-radius: 16px;
+    }
+
+    .podium-slot-rank {
+        font-size: 1.3rem;
+    }
+
+    .podium-avatar {
+        width: 68px;
+        height: 68px;
+    }
+
+    .podium-slot.is-first .podium-avatar {
+        width: 80px;
+        height: 80px;
+    }
+
+    .podium-name {
+        font-size: 0.95rem;
+    }
+
+    .podium-meta {
+        font-size: 0.72rem;
     }
 
     .leaderboard-table-head,
     .leaderboard-row {
-        grid-template-columns: 66px 1fr 84px;
-        gap: 10px;
+        grid-template-columns: 54px 1fr 72px;
+        gap: 8px;
     }
 
     .leaderboard-table-head {
-        padding: 0 8px 6px;
-        font-size: 0.68rem;
+        padding: 0 4px 4px;
+        font-size: 0.6rem;
     }
 
     .leaderboard-row {
-        padding: 11px 10px;
+        padding: 10px 9px;
+        border-radius: 12px;
     }
 
     .leaderboard-row-rank,
     .leaderboard-row-points {
-        font-size: 0.88rem;
+        font-size: 0.78rem;
+    }
+
+    .leaderboard-row-avatar {
+        width: 40px;
+        height: 40px;
+    }
+
+    .leaderboard-row-name {
+        font-size: 0.84rem;
+    }
+
+    .leaderboard-row-sub {
+        font-size: 0.66rem;
     }
 
     .best-player-top {
@@ -507,17 +706,52 @@
         align-items: flex-start;
     }
 
+    .best-player-rank-block {
+        width: 100%;
+    }
+
+    .best-player-avatar-wrap {
+        width: 100%;
+        align-items: flex-start;
+    }
+
+    .best-player-meta {
+        grid-template-columns: 1fr;
+    }
+
     .best-player-rank {
-        width: 78px;
-        height: 78px;
-        font-size: 2.4rem;
+        width: 70px;
+        height: 70px;
+        font-size: 2.1rem;
     }
 
     .best-player-label {
-        font-size: 1.3rem;
+        font-size: 1.05rem;
+    }
+
+    .best-player-avatar {
+        width: 78px;
+        height: 78px;
+    }
+
+    .best-player-score-wrap {
+        padding: 12px 14px;
+        border-radius: 14px;
     }
 
     .best-player-score {
-        font-size: 1.85rem;
+        font-size: 1.6rem;
+    }
+
+    .best-player-name {
+        min-height: 48px;
+        padding: 10px 12px;
+        font-size: 0.94rem;
+    }
+
+    .best-player-chip {
+        padding: 9px 10px;
+        border-radius: 12px;
+        font-size: 0.76rem;
     }
 }
