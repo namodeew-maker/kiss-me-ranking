@@ -379,6 +379,17 @@
     margin-top: 15px;
 }
 
+.admin-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.admin-table-wrap-users #users-table,
+.admin-table-wrap-history #history-table {
+    min-width: 1120px;
+}
+
 .admin-table th,
 .admin-table td {
     padding: 12px 15px;
@@ -1258,6 +1269,34 @@
     flex: 1 1 auto;
 }
 
+.user-reward-claim-card {
+    margin-bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.user-reward-claim-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.user-reward-claim-form-row input {
+    flex: 1 1 180px;
+}
+
+.user-reward-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 .point-positive {
     color: #00ff88;
 }
@@ -1605,6 +1644,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
 }
 
 .user-cell-avatar {
@@ -1623,6 +1663,47 @@
 .user-cell-sub {
     font-size: 0.76rem;
     color: var(--text-muted);
+    line-height: 1.45;
+    word-break: break-word;
+    max-width: 220px;
+}
+
+.user-platform-id-cell {
+    max-width: 220px;
+    line-height: 1.45;
+    word-break: break-all;
+}
+
+.user-last-active-cell {
+    white-space: nowrap;
+    font-size: 0.8rem;
+}
+
+.history-customer-cell {
+    min-width: 180px;
+}
+
+.history-customer-name {
+    font-weight: 700;
+    color: var(--text-silver);
+}
+
+.history-customer-meta {
+    margin-top: 4px;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.history-empty-image {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+
+.history-action-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .user-reward-balance-cell {
@@ -1828,5 +1909,10 @@
 
     .user-reward-balance-cell {
         min-width: 132px;
+    }
+
+    .user-reward-claim-form-row input,
+    .user-reward-claim-form-row button {
+        width: 100%;
     }
 }

@@ -6,7 +6,7 @@
     <title>Kiss Me Ranking — โปรไฟล์</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260408b">
-    <link rel="stylesheet" href="profile.css?v=20260408d">
+    <link rel="stylesheet" href="profile.css?v=20260408f">
 </head>
 <body class="futuristic-bg">
     <!-- Animated Background Particles -->
@@ -47,72 +47,91 @@
         <!-- Profile Content -->
         <div id="profile-content" class="profile-hidden">
 
-            <!-- User Card -->
-            <div class="user-card glass-panel">
-                <div class="user-card-left">
-                    <div class="user-avatar-wrap">
-                        <img class="user-avatar" id="user-avatar" src="" alt="avatar">
-                        <div class="platform-badge" id="platform-badge">LINE</div>
-                    </div>
-                    <div class="user-info">
-                        <h2 class="user-display-name" id="user-display-name">Loading...</h2>
-                        <p class="user-platform-id" id="user-platform-id"></p>
-                        <div class="user-id-card">
-                            <div class="user-id-label">User ID สำหรับส่งให้แอดมิน</div>
-                            <div class="user-id-row">
-                                <span class="user-id-value" id="user-id-value">-</span>
-                                <button type="button" class="copy-user-id-btn" id="btn-copy-user-id">คัดลอก</button>
+            <div class="profile-overview-grid">
+                <div class="profile-primary-column">
+                    <!-- User Card -->
+                    <div class="user-card glass-panel">
+                        <div class="user-card-left">
+                            <div class="user-avatar-wrap">
+                                <img class="user-avatar" id="user-avatar" src="" alt="avatar">
+                                <div class="platform-badge" id="platform-badge">LINE</div>
                             </div>
-                            <div class="user-id-help">ใช้ ID นี้ให้แอดมินค้นหาเพื่อตรวจสอบยอดพ้อย, Cashback หรือ Gift Voucher</div>
+                            <div class="user-info">
+                                <h2 class="user-display-name" id="user-display-name">Loading...</h2>
+                                <p class="user-platform-id" id="user-platform-id"></p>
+                                <div class="user-id-card">
+                                    <div class="user-id-label">User ID สำหรับส่งให้แอดมิน</div>
+                                    <div class="user-id-row">
+                                        <span class="user-id-value" id="user-id-value">-</span>
+                                        <button type="button" class="copy-user-id-btn" id="btn-copy-user-id">คัดลอก</button>
+                                    </div>
+                                    <div class="user-id-help">ใช้ ID นี้ให้แอดมินค้นหาเพื่อตรวจสอบยอดพ้อย, Cashback หรือ Gift Voucher</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="user-stats">
+                            <div class="user-stat">
+                                <span class="stat-value" id="stat-total-slips">-</span>
+                                <span class="stat-label">สลิปทั้งหมด</span>
+                            </div>
+                            <div class="user-stat">
+                                <span class="stat-value" id="stat-approved">-</span>
+                                <span class="stat-label">อนุมัติแล้ว</span>
+                            </div>
+                            <div class="user-stat">
+                                <span class="stat-value" id="stat-lotto">-</span>
+                                <span class="stat-label">ครั้งทาย</span>
+                            </div>
+                            <div class="user-stat">
+                                <span class="stat-value" id="stat-points">-</span>
+                                <span class="stat-label">แต้มสะสม</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="profile-history-board glass-panel">
+                        <div class="profile-section-header">
+                            <div>
+                                <h3>📊 ประวัติการใช้บริการ & ผลทายเลข</h3>
+                                <p class="profile-section-copy">รวมการส่งสลิปและการทายเลขล่าสุด เรียงตามเวลาล่าสุดเพื่อเช็กสิทธิ์ได้ในที่เดียว</p>
+                            </div>
+                            <span class="profile-section-meta" id="profile-history-total">0 รายการ</span>
+                        </div>
+                        <div class="profile-list profile-activity-list" id="activity-list">
+                            <div class="list-empty">กำลังโหลด...</div>
                         </div>
                     </div>
                 </div>
-                <div class="user-stats">
-                    <div class="user-stat">
-                        <span class="stat-value" id="stat-total-slips">-</span>
-                        <span class="stat-label">สลิปทั้งหมด</span>
-                    </div>
-                    <div class="user-stat">
-                        <span class="stat-value" id="stat-approved">-</span>
-                        <span class="stat-label">อนุมัติแล้ว</span>
-                    </div>
-                    <div class="user-stat">
-                        <span class="stat-value" id="stat-lotto">-</span>
-                        <span class="stat-label">ครั้งทาย</span>
-                    </div>
-                    <div class="user-stat">
-                        <span class="stat-value" id="stat-points">-</span>
-                        <span class="stat-label">แต้มสะสม</span>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Progress Bar -->
-            <div class="profile-progress-card glass-panel">
-                <div class="progress-header">
-                    <span>🔥 พ้อยทายเลขรอบนี้</span>
-                    <span class="progress-count" id="profile-progress-count">0 แต้ม</span>
-                </div>
-                <div class="progress-track">
-                    <div class="progress-fill" id="profile-progress-fill"></div>
-                </div>
-                <div class="progress-dots">
-                    <div class="progress-dot" id="pdot-1"><span>1</span></div>
-                    <div class="progress-dot" id="pdot-2"><span>2</span></div>
-                    <div class="progress-dot" id="pdot-3"><span>3</span></div>
-                    <div class="progress-dot" id="pdot-4"><span>4</span></div>
-                    <div class="progress-dot" id="pdot-5"><span>5</span></div>
-                </div>
-            </div>
+                <div class="profile-secondary-column">
+                    <!-- Progress Bar -->
+                    <div class="profile-progress-card glass-panel">
+                        <div class="progress-header">
+                            <span>🔥 พ้อยทายเลขรอบนี้</span>
+                            <span class="progress-count" id="profile-progress-count">0 แต้ม</span>
+                        </div>
+                        <div class="progress-track">
+                            <div class="progress-fill" id="profile-progress-fill"></div>
+                        </div>
+                        <div class="progress-dots">
+                            <div class="progress-dot" id="pdot-1"><span>1</span></div>
+                            <div class="progress-dot" id="pdot-2"><span>2</span></div>
+                            <div class="progress-dot" id="pdot-3"><span>3</span></div>
+                            <div class="progress-dot" id="pdot-4"><span>4</span></div>
+                            <div class="progress-dot" id="pdot-5"><span>5</span></div>
+                        </div>
+                    </div>
 
-            <!-- Rank Card -->
-            <div class="rank-card glass-panel" id="rank-card">
-                <div class="list-empty">กำลังโหลดแรงค์...</div>
-            </div>
+                    <!-- Rank Card -->
+                    <div class="rank-card glass-panel" id="rank-card">
+                        <div class="list-empty">กำลังโหลดแรงค์...</div>
+                    </div>
 
-            <!-- Reward Summary -->
-            <div class="reward-summary glass-panel" id="reward-summary">
-                <div class="list-empty">กำลังโหลดรางวัล...</div>
+                    <!-- Reward Summary -->
+                    <div class="reward-summary glass-panel" id="reward-summary">
+                        <div class="list-empty">กำลังโหลดรางวัล...</div>
+                    </div>
+                </div>
             </div>
 
             <!-- Tabs -->
@@ -148,6 +167,6 @@
     </div>
 
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-    <script src="profile.js?v=20260408e"></script>
+    <script src="profile.js?v=20260408g"></script>
 </body>
 </html>

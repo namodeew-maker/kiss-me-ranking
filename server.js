@@ -958,12 +958,16 @@ app.post('/api/admin/rewards/claims', requireAuth, async (req, res) => {
     const lotteryGuessId = parseInt(req.body?.lottery_guess_id, 10);
     const amount = Number(req.body?.amount || 0);
     const note = String(req.body?.note || '').trim();
+    const redeemedAtInput = String(req.body?.redeemed_at || '').trim();
 
     if (isNaN(lotteryGuessId)) {
         return res.status(400).json({ error: 'ไม่พบรายการรางวัลที่ต้องการบันทึก' });
     }
     if (!Number.isFinite(amount) || amount <= 0) {
         return res.status(400).json({ error: 'กรุณาระบุยอดที่ใช้สิทธิ์ให้มากกว่า 0' });
+    }
+    if (redeemedAtInput && !/^\d{4}-\d{2}-\d{2}$/.test(redeemedAtInput)) {
+        return res.status(400).json({ error: 'รูปแบบวันที่ใช้สิทธิ์ไม่ถูกต้อง' });
     }
 
     const client = await pool.connect();
@@ -1007,10 +1011,18 @@ app.post('/api/admin/rewards/claims', requireAuth, async (req, res) => {
         }
 
         const insertResult = await client.query(
-            `INSERT INTO lottery_reward_claims (lottery_guess_id, user_id, reward_type, amount, note, redeemed_by)
-             VALUES ($1, $2, $3, $4, $5, $6)
+            `INSERT INTO lottery_reward_claims (lottery_guess_id, user_id, reward_type, amount, note, redeemed_by, redeemed_at)
+             VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::timestamp, NOW()))
              RETURNING id, redeemed_at`,
-            [lotteryGuessId, guess.user_id, rewardType, amount, note || null, req.adminUserId]
+            [
+                lotteryGuessId,
+                guess.user_id,
+                rewardType,
+                amount,
+                note || null,
+                req.adminUserId,
+                redeemedAtInput ? `${redeemedAtInput} 12:00:00` : null
+            ]
         );
 
         await client.query('COMMIT');
@@ -2063,27 +2075,54 @@ function drawDateLabelToRoundLabel(label) {
 app.get('/api/history', async (req, res) => {
     try {
         const result = await pool.query(
-            `SELECT
-                t.id,
-                t.created_at,
-                t.service_date,
-                t.status AS approved,
-                t.slip_image_url,
-                t.round_label,
-                t.reject_reason,
-                u.display_name AS customer_name,
-                u.platform,
-                u.platform_id,
-                s.name AS staff_name,
-                s.nickname AS staff_nickname,
-                lg.guess_number,
-                lg.result AS lottery_result,
-                lg.reward_amount
-             FROM transactions t
-             JOIN users u ON u.id = t.user_id
-             JOIN staffs s ON s.id = t.staff_id
-             LEFT JOIN lottery_guesses lg ON lg.user_id = t.user_id AND lg.round_label = t.round_label
-             ORDER BY t.created_at DESC`
+            `SELECT *
+             FROM (
+                SELECT
+                    'transaction'::text AS history_type,
+                    t.id,
+                    t.user_id,
+                    t.created_at,
+                    t.service_date,
+                    t.status AS approved,
+                    t.slip_image_url,
+                    t.round_label,
+                    t.reject_reason,
+                    u.display_name AS customer_name,
+                    u.platform,
+                    u.platform_id,
+                    s.name AS staff_name,
+                    s.nickname AS staff_nickname,
+                    NULL::text AS guess_number,
+                    NULL::text AS lottery_result,
+                    NULL::numeric(10,2) AS reward_amount
+                FROM transactions t
+                JOIN users u ON u.id = t.user_id
+                JOIN staffs s ON s.id = t.staff_id
+
+                UNION ALL
+
+                SELECT
+                    'guess'::text AS history_type,
+                    lg.id,
+                    lg.user_id,
+                    lg.created_at,
+                    NULL::date AS service_date,
+                    'approved'::text AS approved,
+                    NULL::text AS slip_image_url,
+                    lg.round_label,
+                    NULL::text AS reject_reason,
+                    u.display_name AS customer_name,
+                    u.platform,
+                    u.platform_id,
+                    NULL::text AS staff_name,
+                    NULL::text AS staff_nickname,
+                    lg.guess_number,
+                    lg.result AS lottery_result,
+                    lg.reward_amount
+                FROM lottery_guesses lg
+                JOIN users u ON u.id = lg.user_id
+             ) history_rows
+             ORDER BY created_at DESC, id DESC`
         );
         res.json(result.rows);
     } catch (err) {

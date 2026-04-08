@@ -1,7 +1,7 @@
 /* ==================== PROFILE PAGE ==================== */
 
 .profile-page {
-    max-width: 700px;
+    max-width: 1120px;
 }
 
 .profile-hidden {
@@ -12,6 +12,21 @@
     display: flex;
     gap: 8px;
     align-items: center;
+    flex-wrap: wrap;
+}
+
+.profile-overview-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+    gap: 18px;
+    align-items: start;
+}
+
+.profile-primary-column,
+.profile-secondary-column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 /* Back button */
@@ -110,7 +125,6 @@
     justify-content: space-between;
     align-items: center;
     padding: 24px;
-    margin-bottom: 16px;
     flex-wrap: wrap;
     gap: 20px;
 }
@@ -118,6 +132,8 @@
     display: flex;
     align-items: center;
     gap: 16px;
+    min-width: 0;
+    flex: 1 1 420px;
 }
 .user-avatar-wrap {
     position: relative;
@@ -213,16 +229,20 @@
     color: var(--text-muted);
 }
 .user-stats {
-    display: flex;
-    gap: 24px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(100px, 1fr));
+    gap: 14px;
+    min-width: min(100%, 280px);
 }
 .user-stat {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 2px;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .stat-value {
     font-family: 'Orbitron', sans-serif;
@@ -240,7 +260,6 @@
 /* ==================== PROGRESS CARD ==================== */
 .profile-progress-card {
     padding: 18px 22px;
-    margin-bottom: 16px;
 }
 .profile-progress-card .progress-header {
     display: flex;
@@ -512,7 +531,6 @@
 /* ==================== RANK CARD ==================== */
 .rank-card {
     padding: 22px 24px;
-    margin-bottom: 16px;
 }
 .rank-display {
     display: flex;
@@ -636,7 +654,71 @@
 /* ==================== REWARD SUMMARY ==================== */
 .reward-summary {
     padding: 22px 24px;
-    margin-bottom: 16px;
+}
+
+.profile-history-board {
+    padding: 20px 22px;
+}
+
+.profile-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+
+.profile-section-header h3 {
+    margin: 0;
+    color: var(--text-silver);
+    font-size: 1rem;
+}
+
+.profile-section-copy {
+    margin: 6px 0 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.profile-section-meta {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(0, 240, 255, 0.08);
+    border: 1px solid rgba(0, 240, 255, 0.18);
+    color: var(--neon-cyan);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.78rem;
+}
+
+.profile-activity-list {
+    padding: 0;
+}
+
+.activity-type-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-silver);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.activity-type-pill-transaction {
+    color: #ffb3b3;
+    border-color: rgba(255, 60, 60, 0.18);
+    background: rgba(255, 60, 60, 0.08);
+}
+
+.activity-type-pill-guess {
+    color: var(--neon-cyan);
+    border-color: rgba(0, 240, 255, 0.18);
+    background: rgba(0, 240, 255, 0.08);
 }
 .reward-summary-header {
     font-family: 'Kanit', sans-serif;
@@ -723,7 +805,15 @@
 }
 
 @media (max-width: 520px) {
+    .profile-overview-grid {
+        grid-template-columns: 1fr;
+    }
     .user-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .user-card-left {
+        width: 100%;
         flex-direction: column;
         align-items: flex-start;
     }
@@ -736,9 +826,12 @@
     }
     .user-stats {
         width: 100%;
-        justify-content: space-around;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         padding-top: 12px;
         border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .profile-section-header {
+        flex-direction: column;
     }
     .tab-btn {
         padding: 10px 14px;

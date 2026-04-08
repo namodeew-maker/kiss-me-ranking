@@ -6,7 +6,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260408e">
-    <link rel="stylesheet" href="admin.css?v=20260408g">
+    <link rel="stylesheet" href="admin.css?v=20260408i">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -290,23 +290,25 @@
                         </div>
                     </div>
 
-                    <table class="admin-table" id="users-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>ผู้ใช้</th>
-                                <th>แพลตฟอร์ม</th>
-                                <th>ID</th>
-                                <th>พ้อยรอบนี้</th>
-                                <th>แต้มสะสม</th>
-                                <th>Cashback / GV</th>
-                                <th>รายการทั้งหมด</th>
-                                <th>ใช้งานล่าสุด</th>
-                                <th>จัดการ</th>
-                            </tr>
-                        </thead>
-                        <tbody id="users-body"></tbody>
-                    </table>
+                    <div class="admin-table-wrap admin-table-wrap-users">
+                        <table class="admin-table" id="users-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>ผู้ใช้</th>
+                                    <th>แพลตฟอร์ม</th>
+                                    <th>ID</th>
+                                    <th>พ้อยรอบนี้</th>
+                                    <th>แต้มสะสม</th>
+                                    <th>Cashback / GV</th>
+                                    <th>รายการทั้งหมด</th>
+                                    <th>ใช้งานล่าสุด</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-body"></tbody>
+                        </table>
+                    </div>
                     <div class="user-pagination" id="user-pagination">
                         <button type="button" class="btn-small" id="btn-user-prev">ก่อนหน้า</button>
                         <span class="user-pagination-status" id="user-pagination-status">หน้า 1 / 1</span>
@@ -383,26 +385,28 @@
                 <!-- Submission History (Transactions + Lottery Results) -->
                 <section class="admin-panel">
                     <h3>📊 ประวัติการใช้บริการ & ผลทายเลข</h3>
-                    <table class="admin-table" id="history-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>วันที่ใช้บริการ</th>
-                                <th>วันที่</th>
-                                <th>ชื่อลูกค้า</th>
-                                <th>ชื่อพนักงาน</th>
-                                <th>รูปสลิป</th>
-                                <th>สถานะ</th>
-                                <th>เลขที่ทาย</th>
-                                <th>ผลรางวัล</th>
-                                <th>Cashback / GV</th>
-                                <th>จัดการ</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-body">
-                            <!-- Rows will be inserted by JS -->
-                        </tbody>
-                    </table>
+                    <div class="admin-table-wrap admin-table-wrap-history">
+                        <table class="admin-table" id="history-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>วันที่ใช้บริการ</th>
+                                    <th>วันที่</th>
+                                    <th>ชื่อลูกค้า</th>
+                                    <th>ชื่อพนักงาน</th>
+                                    <th>รูปสลิป</th>
+                                    <th>สถานะ</th>
+                                    <th>เลขที่ทาย</th>
+                                    <th>ผลรางวัล</th>
+                                    <th>Cashback / GV</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-body">
+                                <!-- Rows will be inserted by JS -->
+                            </tbody>
+                        </table>
+                    </div>
                     <p class="empty-msg" id="no-history">ยังไม่มีประวัติ</p>
                 </section>
 
@@ -554,6 +558,23 @@
                     <div class="user-detail-card">
                         <h4>สิทธิ์ Cashback / GV</h4>
                         <div id="user-reward-summary" class="user-reward-summary"></div>
+                        <div class="user-reward-claim-card">
+                            <div class="user-reward-claim-header">
+                                <strong>บันทึกการใช้สิทธิ์ของ user นี้</strong>
+                                <p class="panel-caption">เลือกสิทธิ์จากรายการด้านล่างเพื่อตรวจสอบยอดคงเหลือ ระบุวันที่ใช้ และกรอกยอดที่จะใช้ก่อนบันทึกตัดยอด</p>
+                            </div>
+                            <div id="user-reward-claim-target" class="reward-claim-target">ยังไม่ได้เลือกรายการสิทธิ์</div>
+                            <div class="input-row reward-claim-form-row user-reward-claim-form-row">
+                                <input type="date" id="user-reward-claim-date">
+                                <input type="number" id="user-reward-claim-amount" min="0" step="0.01" placeholder="ยอดที่จะใช้">
+                                <button class="btn-small" id="btn-user-claim-remaining" type="button">ใส่ยอดคงเหลือ</button>
+                            </div>
+                            <textarea id="user-reward-claim-note" class="reward-claim-note" rows="3" placeholder="โน้ต เช่น ใช้กับบิลวันที่..., นัดรับ GV แล้ว, ใช้สิทธิ์ครั้งที่ 2"></textarea>
+                            <div class="reward-claim-actions">
+                                <button class="btn-action btn-green" id="btn-save-user-reward-claim" type="button">บันทึกการใช้สิทธิ์</button>
+                                <button class="btn-action" id="btn-clear-user-reward-claim" type="button">ล้างการเลือก</button>
+                            </div>
+                        </div>
                         <div id="user-reward-items" class="user-activity-list"></div>
                     </div>
                     <div class="user-detail-card">
@@ -565,6 +586,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260408j"></script>
+    <script src="admin.js?v=20260408l"></script>
 </body>
 </html>

@@ -291,6 +291,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userRewardSummary = document.getElementById('user-reward-summary');
     const userRewardItems = document.getElementById('user-reward-items');
     const userRewardClaims = document.getElementById('user-reward-claims');
+    const userRewardClaimTarget = document.getElementById('user-reward-claim-target');
+    const userRewardClaimDate = document.getElementById('user-reward-claim-date');
+    const userRewardClaimAmount = document.getElementById('user-reward-claim-amount');
+    const userRewardClaimNote = document.getElementById('user-reward-claim-note');
+    const btnUserClaimRemaining = document.getElementById('btn-user-claim-remaining');
+    const btnSaveUserRewardClaim = document.getElementById('btn-save-user-reward-claim');
+    const btnClearUserRewardClaim = document.getElementById('btn-clear-user-reward-claim');
     const userEditDisplayName = document.getElementById('user-edit-display-name');
     const userEditPictureUrl = document.getElementById('user-edit-picture-url');
     const userDetailModal = document.getElementById('user-detail-modal');
@@ -314,9 +321,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     let selectedRewardRow = null;
     let rewardLedgerState = { summary: {}, rewards: [], recentClaims: [] };
     let selectedUserPointBalance = 0;
+    let selectedUserRewardRow = null;
     let currentUserPage = 1;
     let currentUserTotalPages = 1;
     let userSearchDebounceId = null;
+
+    function getTodayDateInputValue() {
+        const now = new Date();
+        const offsetTime = now.getTime() - (now.getTimezoneOffset() * 60000);
+        return new Date(offsetTime).toISOString().slice(0, 10);
+    }
 
     function openUserDetailModal() {
         if (!userDetailModal) return;
@@ -333,10 +347,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (userRewardSummary) userRewardSummary.innerHTML = '';
         if (userRewardItems) userRewardItems.innerHTML = '';
         if (userRewardClaims) userRewardClaims.innerHTML = '';
+        if (userRewardClaimTarget) userRewardClaimTarget.innerHTML = 'ยังไม่ได้เลือกรายการสิทธิ์';
+        if (userRewardClaimDate) userRewardClaimDate.value = getTodayDateInputValue();
+        if (userRewardClaimAmount) userRewardClaimAmount.value = '';
+        if (userRewardClaimNote) userRewardClaimNote.value = '';
         if (userPointsSummary) userPointsSummary.innerHTML = '';
         if (userPointHistory) userPointHistory.innerHTML = '';
         if (userAdminSearchKeys) userAdminSearchKeys.innerHTML = '';
         selectedUserPointBalance = 0;
+        selectedUserRewardRow = null;
         if (userDetailModal) userDetailModal.hidden = true;
         document.body.style.overflow = '';
     }
@@ -414,7 +433,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                     </td>
                     <td>${formatPlatformBadge(user.platform)}</td>
-                    <td>${escapeHtml(user.platform_id || '—')}</td>
+                    <td class="user-platform-id-cell">${escapeHtml(user.platform_id || '—')}</td>
                     <td>
                         <div class="user-reward-balance-cell">
                             <div><strong>${Number(user.current_round_points || 0).toLocaleString('th-TH')}</strong> แต้ม</div>
@@ -424,7 +443,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td>${(user.total_points || 0).toLocaleString('th-TH')}</td>
                     <td>${renderUserRewardBalanceCell(user)}</td>
                     <td>${user.transaction_count || 0}</td>
-                    <td>${formatDateTime(user.last_activity_at || user.created_at)}</td>
+                    <td class="user-last-active-cell">${formatDateTime(user.last_activity_at || user.created_at)}</td>
                     <td><button class="btn-small" data-view-user="${user.id}">ดูรายละเอียด</button></td>
                 </tr>
             `).join('');
@@ -491,6 +510,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
     }
 
+    function updateUserRewardClaimSelection(row) {
+        selectedUserRewardRow = row || null;
+        if (!userRewardClaimTarget || !userRewardClaimDate || !userRewardClaimAmount || !userRewardClaimNote) return;
+
+        if (!row) {
+            userRewardClaimTarget.innerHTML = 'ยังไม่ได้เลือกรายการสิทธิ์';
+            userRewardClaimDate.value = getTodayDateInputValue();
+            userRewardClaimAmount.value = '';
+            userRewardClaimNote.value = '';
+            userRewardClaimDate.disabled = true;
+            userRewardClaimAmount.disabled = true;
+            userRewardClaimNote.disabled = true;
+            if (btnSaveUserRewardClaim) btnSaveUserRewardClaim.disabled = true;
+            if (btnUserClaimRemaining) btnUserClaimRemaining.disabled = true;
+            return;
+        }
+
+        userRewardClaimTarget.innerHTML = `
+            <div><strong>${escapeHtml(rewardOwnerLabel(row))}</strong> • ${rewardTypeBadge(row.reward_type)}</div>
+            <div class="reward-round-meta">งวด ${escapeHtml(row.round_label || '—')} • ใช้ไปแล้ว ${Number(row.claim_count || 0)} ครั้ง</div>
+            <div class="reward-round-meta">ใช้ได้อีก ${formatCurrency(row.remaining_amount || 0)}${row.reward_type === 'cashback' ? ` • สุทธิ ${formatCurrency(row.remaining_net_amount || 0)}` : ''}</div>
+        `;
+        userRewardClaimDate.value = getTodayDateInputValue();
+        userRewardClaimAmount.value = '';
+        userRewardClaimNote.value = '';
+        const disabled = Number(row.remaining_amount || 0) <= 0;
+        userRewardClaimDate.disabled = disabled;
+        userRewardClaimAmount.disabled = disabled;
+        userRewardClaimNote.disabled = disabled;
+        if (btnSaveUserRewardClaim) btnSaveUserRewardClaim.disabled = disabled;
+        if (btnUserClaimRemaining) btnUserClaimRemaining.disabled = disabled;
+    }
+
     function renderUserRewardSections(data) {
         if (userRewardSummary) {
             const summary = data.rewardSummary || {};
@@ -512,10 +564,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="user-activity-title">${rewardTypeBadge(row.reward_type)} งวด ${escapeHtml(row.round_label || '—')}</div>
                 <div class="user-activity-meta">ได้รับ ${formatCurrency(row.total_amount)} • ใช้แล้ว ${formatCurrency(row.redeemed_amount)} • คงเหลือ ${formatCurrency(row.remaining_amount)} • ${Number(row.claim_count || 0)} ครั้ง</div>
                 ${row.reward_type === 'cashback' ? `<div class="user-activity-meta">ยอดสุทธิคงเหลือ ${formatCurrency(row.remaining_net_amount || 0)}</div>` : ''}
+                <div class="user-reward-actions">
+                    <button type="button" class="btn-small" data-select-user-reward="${row.lottery_guess_id}" ${Number(row.remaining_amount || 0) <= 0 ? 'disabled' : ''}>${Number(row.remaining_amount || 0) > 0 ? 'เลือกใช้สิทธิ์นี้' : 'ใช้ครบแล้ว'}</button>
+                </div>
             </div>
         `);
 
         renderUserActivityList(userRewardClaims, data.recentRewardClaims || [], (claim) => formatRewardClaimItem(claim, true));
+
+        userRewardItems?.querySelectorAll('[data-select-user-reward]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const row = (data.rewardRows || []).find((item) => Number(item.lottery_guess_id) === Number(btn.dataset.selectUserReward));
+                updateUserRewardClaimSelection(row || null);
+            });
+        });
+
+        if (selectedUserRewardRow) {
+            const refreshedRow = (data.rewardRows || []).find((row) => Number(row.lottery_guess_id) === Number(selectedUserRewardRow.lottery_guess_id));
+            updateUserRewardClaimSelection(refreshedRow || null);
+        } else {
+            updateUserRewardClaimSelection(null);
+        }
     }
 
     function formatPointEntry(point) {
@@ -794,20 +863,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             noMsg.classList.add('hidden');
             tbody.innerHTML = history.map((h, i) => {
-                // Transaction status
-                let statusClass, statusText;
-                if (h.approved === 'rejected') {
+                let statusClass = 'badge-active';
+                let statusText = 'อนุมัติแล้ว';
+                if (h.history_type === 'guess') {
+                    statusClass = 'badge-pending';
+                    statusText = 'บันทึกการทายเลข';
+                } else if (h.approved === 'rejected') {
                     statusClass = 'badge-revoked';
                     statusText = 'ไม่อนุมัติ';
                 } else if (h.approved === 'pending') {
                     statusClass = 'badge-pending';
                     statusText = 'รออนุมัติ';
-                } else {
-                    statusClass = 'badge-active';
-                    statusText = 'อนุมัติแล้ว';
                 }
 
-                // Lottery result
                 let lotteryNum = '—';
                 let resultBadge = '';
                 let cashbackCell = '—';
@@ -834,21 +902,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const serviceDate = formatServiceDate(h.service_date);
                 const customerName = h.customer_name || h.name || '—';
                 const staffName = h.staff_name || '—';
+                const customerMeta = [h.platform, h.platform_id].filter(Boolean).join(' • ');
+                const imageHtml = h.history_type === 'transaction'
+                    ? imageCell(h.image_path || h.slip_image_url)
+                    : '<span class="history-empty-image">ไม่มีสลิป</span>';
+                const actionHtml = h.history_type === 'transaction'
+                    ? `<button class="btn-small" data-delete-history="${h.id}">ลบ</button>`
+                    : `<button class="btn-small" data-view-user="${h.user_id}">ดู user</button>`;
 
                 return `<tr>
                     <td>${i + 1}</td>
                     <td>${serviceDate}</td>
                     <td>${dateStr}</td>
-                    <td>${escapeHtml(customerName)}</td>
+                    <td class="history-customer-cell">
+                        <div class="history-customer-name">${escapeHtml(customerName)}</div>
+                        <div class="history-customer-meta">${escapeHtml(customerMeta || '—')}</div>
+                    </td>
                     <td>${escapeHtml(staffName)}</td>
-                    <td>${imageCell(h.image_path || h.slip_image_url)}</td>
+                    <td>${imageHtml}</td>
                     <td><span class="badge ${statusClass}">${statusText}</span></td>
                     <td class="lottery-num-cell">${lotteryNum}</td>
                     <td>${resultBadge || '—'}</td>
                     <td>${cashbackCell}</td>
-                    <td>
-                        <button class="btn-small" data-delete-history="${h.id}">ลบ</button>
-                    </td>
+                    <td><div class="history-action-group">${actionHtml}</div></td>
                 </tr>`;
             }).join('');
 
@@ -862,6 +938,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     renderCashbackSummary();
                     updateStats();
                 });
+            });
+
+            tbody.querySelectorAll('[data-view-user]').forEach(btn => {
+                btn.addEventListener('click', () => loadUserDetail(btn.dataset.viewUser));
             });
         } catch (err) {
             tbody.innerHTML = '';
@@ -1065,6 +1145,52 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         } catch (err) {
             showToast(err.message || 'ไม่สามารถบันทึกการใช้สิทธิ์ได้', 'error');
+        }
+    });
+    btnUserClaimRemaining?.addEventListener('click', () => {
+        if (!selectedUserRewardRow || !userRewardClaimAmount) return;
+        userRewardClaimAmount.value = Number(selectedUserRewardRow.remaining_amount || 0).toFixed(2);
+    });
+    btnClearUserRewardClaim?.addEventListener('click', () => {
+        updateUserRewardClaimSelection(null);
+    });
+    btnSaveUserRewardClaim?.addEventListener('click', async () => {
+        if (!selectedUserRewardRow) {
+            showToast('กรุณาเลือกรายการสิทธิ์ของ user ก่อน', 'error');
+            return;
+        }
+
+        const redeemedAt = String(userRewardClaimDate?.value || '').trim();
+        if (!redeemedAt) {
+            showToast('กรุณาระบุวันที่ใช้สิทธิ์', 'error');
+            return;
+        }
+
+        const amount = Number(userRewardClaimAmount?.value || 0);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            showToast('กรุณากรอกยอดที่ใช้สิทธิ์ให้ถูกต้อง', 'error');
+            return;
+        }
+
+        try {
+            const res = await authFetch(`${API_BASE}/admin/rewards/claims`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    lottery_guess_id: selectedUserRewardRow.lottery_guess_id,
+                    amount,
+                    redeemed_at: redeemedAt,
+                    note: userRewardClaimNote?.value || ''
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'save-user-reward-claim-failed');
+
+            showToast('บันทึกการใช้สิทธิ์ของ user แล้ว', 'success');
+            await renderCashbackSummary();
+            if (selectedUserId) await loadUserDetail(selectedUserId);
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถบันทึกการใช้สิทธิ์ของ user ได้', 'error');
         }
     });
     userSearchInput?.addEventListener('keydown', (event) => {

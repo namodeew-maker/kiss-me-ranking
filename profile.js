@@ -391,6 +391,121 @@ function renderLottery(guesses) {
     }).join('');
 }
 
+function formatServiceDate(value) {
+    if (!value) return '—';
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString('th-TH');
+}
+
+function buildCombinedActivities(transactions, guesses) {
+    const transactionItems = (transactions || []).map((tx) => ({
+        type: 'transaction',
+        created_at: tx.created_at,
+        round_label: tx.round_label,
+        status: tx.status,
+        service_date: tx.service_date,
+        staff_name: tx.staff_name,
+        staff_nickname: tx.staff_nickname,
+        slip_image_url: tx.slip_image_url,
+        reject_reason: tx.reject_reason
+    }));
+
+    const guessItems = (guesses || []).map((guess) => ({
+        type: 'guess',
+        created_at: guess.created_at,
+        round_label: guess.round_label,
+        guess_number: guess.guess_number,
+        result: guess.result,
+        reward_amount: guess.reward_amount
+    }));
+
+    return [...transactionItems, ...guessItems].sort((left, right) => {
+        return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+    });
+}
+
+function renderActivityFeed(activities) {
+    const list = document.getElementById('activity-list');
+    const total = document.getElementById('profile-history-total');
+    if (!list) return;
+
+    if (total) {
+        total.textContent = `${Number(activities?.length || 0).toLocaleString('th-TH')} รายการ`;
+    }
+
+    if (!activities || activities.length === 0) {
+        list.innerHTML = '<div class="list-empty">ยังไม่มีประวัติการใช้บริการหรือผลทายเลข</div>';
+        return;
+    }
+
+    list.innerHTML = activities.map((item, idx) => {
+        if (item.type === 'transaction') {
+            const staffLabel = item.staff_nickname
+                ? `${item.staff_nickname} <span class="staff-fullname">(${escapeHtml(item.staff_name)})</span>`
+                : escapeHtml(item.staff_name || '—');
+            const badgeClass = item.status === 'approved' ? 'approved' : item.status === 'rejected' ? 'rejected' : 'pending';
+            const badgeText = item.status === 'approved' ? '✅ อนุมัติ' : item.status === 'rejected' ? '❌ ปฏิเสธ' : '⏳ รอตรวจ';
+            const slipSrc = item.slip_image_url ? resolveAssetUrl(item.slip_image_url) : '';
+            const slipLink = item.slip_image_url
+                ? `<button type="button" class="slip-thumb-btn slip-thumb-link" data-slip-fullimg="${escapeHtml(slipSrc)}" aria-label="ดูรูปหลักฐานของรายการกิจกรรม ${idx + 1}">
+                    <img src="${escapeHtml(slipSrc)}" class="slip-thumb" alt="slip" onerror="this.parentElement.style.display='none'">
+                   </button>` : '';
+            return `<div class="list-item" style="animation-delay: ${idx * 0.04}s">
+                <div class="item-main">
+                    <div class="item-info">
+                        <div class="item-number">#${idx + 1}</div>
+                        <div class="item-detail">
+                            <div class="item-primary"><span class="activity-type-pill activity-type-pill-transaction">🧾 ส่งสลิป</span> ${staffLabel}</div>
+                            <div class="item-secondary">${escapeHtml(item.round_label || '—')} &bull; ส่งเมื่อ ${thaiDate(item.created_at)} &bull; ใช้บริการ ${formatServiceDate(item.service_date)}</div>
+                            ${item.reject_reason ? `<div class="item-reject-note">เหตุผล: ${escapeHtml(item.reject_reason)}</div>` : ''}
+                        </div>
+                    </div>
+                    <div class="item-right">
+                        ${slipLink}
+                        <span class="item-badge ${badgeClass}">${badgeText}</span>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        let badgeClass = 'waiting';
+        let badgeText = '⏳ รอผลออก';
+        let rewardText = '';
+        if (item.result === 'won') {
+            badgeClass = 'won';
+            badgeText = '🎉 ถูกรางวัล';
+            if (item.reward_amount > 0) {
+                rewardText = `<div class="reward-amount">รับ ${parseFloat(item.reward_amount).toLocaleString('th-TH', { minimumFractionDigits: 0 })} ฿</div>`;
+            }
+        } else if (item.result === 'lost') {
+            badgeClass = 'lost';
+            badgeText = '😔 ไม่ถูก';
+            rewardText = '<div class="reward-gv">รับ GV 500 ฿</div>';
+        }
+
+        return `<div class="list-item lotto-item" style="animation-delay: ${idx * 0.04}s">
+            <div class="item-main">
+                <div class="item-info">
+                    <div class="lotto-number-display">${escapeHtml(item.guess_number || '--')}</div>
+                    <div class="item-detail">
+                        <div class="item-primary"><span class="activity-type-pill activity-type-pill-guess">🎰 ทายเลข</span> เลขที่ทาย ${escapeHtml(item.guess_number || '--')}</div>
+                        <div class="item-secondary">${escapeHtml(item.round_label || '—')} &bull; ${thaiDate(item.created_at)}</div>
+                        ${rewardText}
+                    </div>
+                </div>
+                <span class="item-badge ${badgeClass}">${badgeText}</span>
+            </div>
+        </div>`;
+    }).join('');
+
+    list.querySelectorAll('[data-slip-fullimg]').forEach((button) => {
+        button.addEventListener('click', () => {
+            openProfileImageModal(button.dataset.slipFullimg);
+        });
+    });
+}
+
 // ==================== TABS ====================
 function initTabs() {
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -424,6 +539,7 @@ async function loadProfileData(platformId, platform) {
         renderProgress(data.current_round_points ?? 0);
         renderRankCard(data.lifetime_approved || 0, data.total_points || 0);
         renderRewardSummary(data.guesses);
+        renderActivityFeed(buildCombinedActivities(data.transactions, data.guesses));
         renderTransactions(data.transactions);
         renderLottery(data.guesses);
 
