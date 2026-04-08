@@ -1086,10 +1086,16 @@
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
     gap: 16px;
+    align-items: start;
 }
 
 .reward-ledger-table-wrap {
     min-width: 0;
+    overflow-x: auto;
+}
+
+#reward-ledger-table {
+    min-width: 760px;
 }
 
 .reward-ledger-row-active {
@@ -1154,6 +1160,9 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    min-width: 0;
+    position: sticky;
+    top: 16px;
 }
 
 .reward-claim-card h4,
@@ -1266,6 +1275,16 @@
 
 .reward-claims-history-card {
     margin-top: 18px;
+}
+
+@media (max-width: 1200px) {
+    .reward-ledger-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .reward-claim-card {
+        position: static;
+    }
 }
 
 /* Responsive */

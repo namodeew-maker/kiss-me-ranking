@@ -9,6 +9,8 @@ let currentVisitedStaffIds = new Set();
 let telegramWidgetLoadedFor = null;
 let telegramLoginConfig = null;
 let mainUserIdCopyResetTimer = null;
+let currentProgressData = null;
+let currentLottoSelection = '';
 
 function setElementVisible(element, isVisible, displayValue = '') {
     if (!element) return;
@@ -327,36 +329,54 @@ document.addEventListener('DOMContentLoaded', () => {
         mainUserIdHelp.textContent = `${platformLabel} นี้ใช้เป็นรหัสอ้างอิงสำหรับส่งให้แอดมิน เมื่อจะให้เช็กยอดคะแนน หักสิทธิ์ หรือดูสิทธิ์รางวัล`;
     }
 
-    function renderProgressState(progressCount) {
-        const normalizedCount = Math.max(0, Math.min(Number(progressCount) || 0, 5));
+    function updateLottoConfirmButton() {
+        const btnLottoConfirm = document.getElementById('btn-lotto-confirm');
+        if (!btnLottoConfirm) return;
+
+        const canGuess = Boolean(currentProgressData?.can_guess_lottery);
+        btnLottoConfirm.disabled = !canGuess || !currentLottoSelection;
+    }
+
+    function renderProgressState(pointBalance, guessCredits) {
+        const normalizedPoints = Math.max(0, Number(pointBalance) || 0);
+        const availableGuessCredits = Math.max(0, Number(guessCredits) || 0);
+        const progressStep = availableGuessCredits > 0 ? 5 : Math.min(normalizedPoints, 5);
         const progressCountEl = document.getElementById('progress-count');
         const progressFillEl = document.getElementById('progress-fill');
         const lockProgressEl = document.getElementById('lock-progress-text');
         const progressHintEl = document.getElementById('progress-hint');
 
-        if (progressCountEl) progressCountEl.textContent = `${normalizedCount} / 5`;
-        if (progressFillEl) progressFillEl.style.width = `${(normalizedCount / 5) * 100}%`;
-        if (lockProgressEl) lockProgressEl.textContent = `${normalizedCount}/5`;
+        if (progressCountEl) progressCountEl.textContent = `${normalizedPoints.toLocaleString('th-TH')} แต้ม`;
+        if (progressFillEl) progressFillEl.style.width = `${(progressStep / 5) * 100}%`;
+        if (lockProgressEl) lockProgressEl.textContent = `${normalizedPoints.toLocaleString('th-TH')} แต้ม`;
 
         if (progressHintEl) {
-            const isUnlocked = normalizedCount >= 5;
-            progressHintEl.textContent = isUnlocked
-                ? 'ปลดล็อกสิทธิ์ทายเลขแล้ว เลือกเลขได้เลย'
-                : 'สะสมให้ครบ 5 คน (พนักงานไม่ซ้ำ) เพื่อปลดล็อกทายเลข!';
-            progressHintEl.classList.toggle('unlocked', isUnlocked);
+            if (!currentProgressData?.is_round_open) {
+                progressHintEl.textContent = normalizedPoints > 0
+                    ? 'รอบนี้ปิดรับแล้ว พ้อยที่ยังไม่ใช้จะรีเซ็ตเมื่อข้ามรอบ'
+                    : 'รอรอบถัดไปเพื่อเริ่มสะสมพ้อยและทายเลข';
+                progressHintEl.classList.remove('unlocked');
+            } else if (availableGuessCredits > 0) {
+                progressHintEl.textContent = `ทายได้ ${availableGuessCredits.toLocaleString('th-TH')} เลขในรอบนี้ ใช้เลขละ 5 พ้อย`;
+                progressHintEl.classList.add('unlocked');
+            } else {
+                const pointsNeeded = Math.max(0, Number(currentProgressData?.points_needed_for_next_guess) || 5);
+                progressHintEl.textContent = `อีก ${pointsNeeded} พ้อยจะทายได้ 1 เลข`;
+                progressHintEl.classList.remove('unlocked');
+            }
         }
 
         document.querySelectorAll('#progress-section .progress-dot').forEach((dot, index) => {
             const dotIndex = index + 1;
-            dot.classList.toggle('filled', dotIndex <= normalizedCount);
-            dot.classList.toggle('current', normalizedCount < 5 && dotIndex === normalizedCount + 1);
+            dot.classList.toggle('filled', dotIndex <= progressStep);
+            dot.classList.toggle('current', progressStep < 5 && dotIndex === progressStep + 1);
         });
     }
 
-    function renderTotalPoints(totalPoints) {
+    function renderTotalPoints(guessCredits) {
         const pointsEl = document.getElementById('total-points-value');
         if (pointsEl) {
-            pointsEl.textContent = Number(totalPoints || 0).toLocaleString('th-TH');
+            pointsEl.textContent = Number(guessCredits || 0).toLocaleString('th-TH');
         }
     }
 
@@ -391,18 +411,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!overlay) return;
 
-        if (progressData?.already_guessed) {
+        if (!progressData?.is_round_open) {
             overlay.classList.remove('hidden');
-            if (overlayText) overlayText.textContent = 'ใช้สิทธิ์ทายเลขรอบนี้แล้ว';
-            if (lockProgressEl) {
-                lockProgressEl.textContent = progressData.lottery_guess?.guess_number
-                    ? `เลขที่ทาย: ${progressData.lottery_guess.guess_number}`
-                    : 'ทายเลขรอบนี้แล้ว';
-            }
+            if (overlayText) overlayText.textContent = 'รอบนี้ปิดรับทายเลขแล้ว';
+            if (lockProgressEl) lockProgressEl.textContent = `${Number(progressData?.guess_point_balance || 0).toLocaleString('th-TH')} แต้ม`;
             return;
         }
 
-        if (overlayText) overlayText.innerHTML = 'สะสมให้ครบ <strong>5/5</strong> เพื่อปลดล็อก';
+        if (overlayText) {
+            if (progressData?.can_guess_lottery) {
+                overlayText.textContent = 'มีพ้อยพอสำหรับทายเลขแล้ว';
+            } else {
+                const pointsNeeded = Math.max(0, Number(progressData?.points_needed_for_next_guess) || 5);
+                overlayText.innerHTML = `สะสมอีก <strong>${pointsNeeded}</strong> พ้อย เพื่อปลดล็อก`;
+            }
+        }
+        if (lockProgressEl) lockProgressEl.textContent = `${Number(progressData?.guess_point_balance || 0).toLocaleString('th-TH')} แต้ม`;
         overlay.classList.toggle('hidden', Boolean(progressData?.can_guess_lottery));
     }
 
@@ -412,30 +436,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const platform = currentUser.platform || 'line';
 
         try {
-            const [progressRes, unifiedRes] = await Promise.all([
-                fetch(`${API_BASE}/users/${encodeURIComponent(currentUser.platform_id)}/progress?platform=${encodeURIComponent(platform)}`),
-                fetch(`${API_BASE}/unified/profile?by=${encodeURIComponent(platform)}&id=${encodeURIComponent(currentUser.platform_id)}`)
-            ]);
-
+            const progressRes = await fetch(`${API_BASE}/users/${encodeURIComponent(currentUser.platform_id)}/progress?platform=${encodeURIComponent(platform)}`);
             const progressData = progressRes.ok ? await progressRes.json() : null;
-            const unifiedData = unifiedRes.ok ? await unifiedRes.json() : null;
-            const progressCount = Number(
-                progressData?.progress_count ?? unifiedData?.current_round_progress ?? unifiedData?.progress_count ?? currentUser.progress_count ?? 0
-            );
+            const pointBalance = Number(progressData?.guess_point_balance || 0);
+            const guessCredits = Number(progressData?.guess_credits_remaining || 0);
 
-            renderProgressState(progressCount);
-            renderTotalPoints(unifiedData?.total_points || 0);
+            currentProgressData = progressData;
+            renderProgressState(pointBalance, guessCredits);
+            renderTotalPoints(guessCredits);
             applyVisitedStaffState(progressData?.visited_staff_ids || []);
             syncLottoState(progressData);
+            updateLottoConfirmButton();
 
-            currentUser.progress_count = progressCount;
+            currentUser.progress_count = Number(progressData?.progress_count || 0);
             sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
             renderMainUserIdCard();
         } catch (error) {
             console.error('Runtime state refresh error:', error);
-            renderProgressState(currentUser?.progress_count || 0);
+            currentProgressData = null;
+            renderProgressState(0, 0);
             renderTotalPoints(0);
             syncLottoState(null);
+            updateLottoConfirmButton();
             renderMainUserIdCard();
         }
     }
@@ -725,6 +747,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==================== MAIN LOGIC ====================
     const lottoGrid = document.getElementById('lotto-grid');
     const selectedNumber = document.getElementById('selected-number');
+    const btnLottoConfirm = document.getElementById('btn-lotto-confirm');
+
+    function setSelectedLottoNumber(number) {
+        currentLottoSelection = String(number || '');
+        if (selectedNumber) {
+            selectedNumber.textContent = currentLottoSelection || '--';
+        }
+        updateLottoConfirmButton();
+    }
 
     // --- Background Particles ---
     const particlesContainer = document.getElementById('particles');
@@ -861,6 +892,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const numDiv = document.createElement('div');
             numDiv.className = 'lotto-num';
             const formattedNum = i.toString().padStart(2, '0');
+            numDiv.dataset.number = formattedNum;
             numDiv.textContent = formattedNum;
 
             if (soldOutNumbers.includes(i)) {
@@ -873,7 +905,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const prev = document.querySelector('.lotto-num.selected');
                     if (prev) prev.classList.remove('selected');
                     numDiv.classList.add('selected');
-                    selectedNumber.textContent = formattedNum;
+                    setSelectedLottoNumber(formattedNum);
                     setActiveStep(3);
                 }
             });
@@ -881,6 +913,45 @@ document.addEventListener('DOMContentLoaded', () => {
             lottoGrid.appendChild(numDiv);
         }
     })();
+
+    if (btnLottoConfirm) {
+        btnLottoConfirm.addEventListener('click', async () => {
+            if (!currentUser?.platform_id) {
+                alert('กรุณาเข้าสู่ระบบก่อนครับ!');
+                return;
+            }
+            if (!currentLottoSelection) {
+                alert('กรุณาเลือกเลขก่อนครับ!');
+                return;
+            }
+
+            btnLottoConfirm.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE}/lottery/guess`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        platform: currentUser.platform,
+                        platform_id: currentUser.platform_id,
+                        guess_number: currentLottoSelection
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.error || 'ไม่สามารถทายเลขได้');
+                }
+
+                alert(data.message || `ทายเลข ${currentLottoSelection} สำเร็จ`);
+                setSelectedLottoNumber('');
+                document.querySelector('.lotto-num.selected')?.classList.remove('selected');
+                await refreshUserRuntimeState();
+            } catch (error) {
+                console.error('Lottery submit error:', error);
+                alert(error.message || 'ไม่สามารถทายเลขได้');
+                updateLottoConfirmButton();
+            }
+        });
+    }
 
     // Handle Form submission - send to database
     const form = document.getElementById('submission-form');

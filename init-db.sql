@@ -98,9 +98,10 @@ CREATE TABLE IF NOT EXISTS lottery_guesses (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- ป้องกันทายซ้ำในรอบเดียวกัน (1 คน ต่อ 1 สิทธิ์ต่อรอบ)
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_lottery_round
-    ON lottery_guesses (user_id, round_label);
+-- ป้องกันทายเลขเดิมซ้ำในรอบเดียวกัน แต่ยังเปิดให้ 1 คนทายได้หลายเลขต่อรอบ
+DROP INDEX IF EXISTS uq_user_lottery_round;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_lottery_round_number
+    ON lottery_guesses (user_id, round_label, guess_number);
 
 -- ============================================
 -- 5.1 ตาราง lottery_reward_claims — บันทึกการใช้สิทธิ์รางวัล

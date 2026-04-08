@@ -288,11 +288,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userRecentPoints = document.getElementById('user-recent-points');
     const userPointsSummary = document.getElementById('user-points-summary');
     const userPointHistory = document.getElementById('user-point-history');
-    const userPointRedeemAmount = document.getElementById('user-point-redeem-amount');
-    const userPointRedeemNote = document.getElementById('user-point-redeem-note');
-    const btnFillRedeemablePoints = document.getElementById('btn-fill-redeemable-points');
-    const btnRedeemUserPoints = document.getElementById('btn-redeem-user-points');
-    const btnClearUserPoints = document.getElementById('btn-clear-user-points');
     const userRewardSummary = document.getElementById('user-reward-summary');
     const userRewardItems = document.getElementById('user-reward-items');
     const userRewardClaims = document.getElementById('user-reward-claims');
@@ -341,8 +336,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (userPointsSummary) userPointsSummary.innerHTML = '';
         if (userPointHistory) userPointHistory.innerHTML = '';
         if (userAdminSearchKeys) userAdminSearchKeys.innerHTML = '';
-        if (userPointRedeemAmount) userPointRedeemAmount.value = '';
-        if (userPointRedeemNote) userPointRedeemNote.value = '';
         selectedUserPointBalance = 0;
         if (userDetailModal) userDetailModal.hidden = true;
         document.body.style.overflow = '';
@@ -422,7 +415,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </td>
                     <td>${formatPlatformBadge(user.platform)}</td>
                     <td>${escapeHtml(user.platform_id || '—')}</td>
-                    <td>${user.current_round_progress ?? 0}/5</td>
+                    <td>
+                        <div class="user-reward-balance-cell">
+                            <div><strong>${Number(user.current_round_points || 0).toLocaleString('th-TH')}</strong> แต้ม</div>
+                            <div><strong>${Math.max(0, Math.floor(Number(user.current_round_points || 0) / 5)).toLocaleString('th-TH')}</strong> สิทธิ์ทาย</div>
+                        </div>
+                    </td>
                     <td>${(user.total_points || 0).toLocaleString('th-TH')}</td>
                     <td>${renderUserRewardBalanceCell(user)}</td>
                     <td>${user.transaction_count || 0}</td>
@@ -541,11 +539,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function renderUserPointsSection(data) {
-        selectedUserPointBalance = Number(data.stats?.redeemable_points || data.stats?.total_points || 0);
+        selectedUserPointBalance = Number(data.stats?.current_round_points || 0);
+        const currentRoundGuessCredits = Number(data.stats?.current_round_guess_credits || 0);
 
         if (userPointsSummary) {
             userPointsSummary.innerHTML = [
-                { value: `${selectedUserPointBalance.toLocaleString('th-TH')} แต้ม`, label: 'พ้อยที่ใช้ได้' },
+                { value: `${selectedUserPointBalance.toLocaleString('th-TH')} แต้ม`, label: 'พ้อยรอบนี้' },
+                { value: `${currentRoundGuessCredits.toLocaleString('th-TH')} เลข`, label: 'ทายได้ตอนนี้' },
                 { value: `${Number(data.recentPoints?.length || 0)} รายการ`, label: 'ประวัติพ้อยล่าสุด' }
             ].map((item) => `
                 <div class="user-reward-chip">
@@ -576,7 +576,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         rewardClaimTarget.innerHTML = `
             <div><strong>${escapeHtml(rewardOwnerLabel(row))}</strong> • ${rewardTypeBadge(row.reward_type)}</div>
             <div class="reward-round-meta">งวด ${escapeHtml(row.round_label || '—')} • ใช้ไปแล้ว ${Number(row.claim_count || 0)} ครั้ง</div>
-            <div class="reward-round-meta">คงเหลือ ${formatCurrency(row.remaining_amount || 0)}${row.reward_type === 'cashback' ? ` • สุทธิ ${formatCurrency(row.remaining_net_amount || 0)}` : ''}</div>
+            <div class="reward-round-meta">กำลังตัดจาก ${row.reward_type === 'cashback' ? 'Cashback' : 'Gift Voucher'} คงเหลือ ${formatCurrency(row.remaining_amount || 0)}${row.reward_type === 'cashback' ? ` • สุทธิ ${formatCurrency(row.remaining_net_amount || 0)}` : ''}</div>
         `;
         rewardClaimAmount.value = '';
         rewardClaimNote.value = '';
@@ -700,7 +700,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             userEditPictureUrl.value = data.user.picture_url || '';
 
             userDetailTags.innerHTML = [
-                `<span class="user-tag">สิทธิ์รอบนี้ ${data.user.current_round_progress || 0}/5</span>`,
+                `<span class="user-tag">พ้อยรอบนี้ ${Number(data.stats?.current_round_points || 0).toLocaleString('th-TH')}</span>`,
+                `<span class="user-tag">ทายได้ ${Number(data.stats?.current_round_guess_credits || 0).toLocaleString('th-TH')} เลข</span>`,
                 `<span class="user-tag">เชื่อม ${data.user.linked_account_count || 1} บัญชี</span>`,
                 data.user.global_user_id ? `<span class="user-tag">Global ${escapeHtml(String(data.user.global_user_id))}</span>` : ''
             ].filter(Boolean).join('');
@@ -711,6 +712,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 { label: 'รอตรวจ', value: data.stats.pending_count || 0 },
                 { label: 'ไม่อนุมัติ', value: data.stats.rejected_count || 0 },
                 { label: 'ทายเลข', value: data.stats.lottery_guess_count || 0 },
+                { label: 'พ้อยรอบนี้', value: data.stats.current_round_points || 0 },
                 { label: 'แต้มสะสม', value: data.stats.total_points || 0 }
             ].map((item) => `
                 <div class="user-detail-stat">
@@ -909,7 +911,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btn.addEventListener('click', async () => {
                     try {
                         await authFetch(`${API_BASE}/history/${btn.dataset.approve}/approve`, { method: 'PUT' });
-                        showToast('อนุมัติสำเร็จ: ลูกค้าได้คะแนนสะสม 1 สิทธิ์', 'success');
+                        showToast('อนุมัติสำเร็จ: ลูกค้าได้ 1 พ้อยสำหรับทายเลข', 'success');
                     } catch (err) {
                         showToast('เกิดข้อผิดพลาดในการอนุมัติ', 'error');
                     }
@@ -1022,48 +1024,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (userSearchInput) userSearchInput.value = '';
         if (userPlatformFilter) userPlatformFilter.value = 'all';
         renderUsers(1);
-    });
-    btnFillRedeemablePoints?.addEventListener('click', () => {
-        if (!userPointRedeemAmount) return;
-        userPointRedeemAmount.value = String(selectedUserPointBalance || 0);
-    });
-    btnClearUserPoints?.addEventListener('click', () => {
-        if (userPointRedeemAmount) userPointRedeemAmount.value = '';
-        if (userPointRedeemNote) userPointRedeemNote.value = '';
-    });
-    btnRedeemUserPoints?.addEventListener('click', async () => {
-        if (!selectedUserId) {
-            showToast('กรุณาเลือกผู้ใช้ก่อน', 'error');
-            return;
-        }
-
-        const redeemPoints = parseInt(userPointRedeemAmount?.value || '0', 10);
-        if (!Number.isInteger(redeemPoints) || redeemPoints <= 0) {
-            showToast('กรุณากรอกจำนวนพ้อยที่ต้องการใช้', 'error');
-            return;
-        }
-
-        try {
-            const res = await authFetch(`${API_BASE}/admin/points/redeem`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: selectedUserId,
-                    points: redeemPoints,
-                    note: userPointRedeemNote?.value || ''
-                })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'points-redeem-failed');
-
-            showToast(`หักพ้อย ${redeemPoints.toLocaleString('th-TH')} แต้มแล้ว`, 'success');
-            if (userPointRedeemAmount) userPointRedeemAmount.value = '';
-            if (userPointRedeemNote) userPointRedeemNote.value = '';
-            renderUsers(currentUserPage);
-            loadUserDetail(selectedUserId);
-        } catch (err) {
-            showToast(err.message || 'ไม่สามารถหักพ้อยได้', 'error');
-        }
     });
     btnClaimRemaining?.addEventListener('click', () => {
         if (!selectedRewardRow || !rewardClaimAmount) return;

@@ -295,15 +295,17 @@ function renderUserCard(user, stats) {
     document.getElementById('stat-points').textContent = Number(stats.totalPoints || 0).toLocaleString('th-TH');
 }
 
-function renderProgress(count) {
+function renderProgress(pointBalance) {
     const fill = document.getElementById('profile-progress-fill');
     const label = document.getElementById('profile-progress-count');
-    const pct = Math.min(count / 5 * 100, 100);
+    const normalizedPoints = Math.max(0, Number(pointBalance) || 0);
+    const progressStep = normalizedPoints >= 5 ? 5 : normalizedPoints;
+    const pct = Math.min(progressStep / 5 * 100, 100);
     fill.style.width = pct + '%';
-    label.textContent = `${Math.min(count, 5)} / 5`;
+    label.textContent = `${normalizedPoints.toLocaleString('th-TH')} แต้ม`;
     for (let i = 1; i <= 5; i++) {
         const dot = document.getElementById(`pdot-${i}`);
-        if (dot) dot.classList.toggle('filled', i <= count);
+        if (dot) dot.classList.toggle('filled', i <= progressStep);
     }
 }
 
@@ -419,7 +421,7 @@ async function loadProfileData(platformId, platform) {
         };
 
         renderUserCard({ ...data.user, platform, platform_id: platformId }, stats);
-        renderProgress(data.current_round_progress ?? (data.user.progress_count || 0));
+        renderProgress(data.current_round_points ?? 0);
         renderRankCard(data.lifetime_approved || 0, data.total_points || 0);
         renderRewardSummary(data.guesses);
         renderTransactions(data.transactions);

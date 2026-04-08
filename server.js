@@ -390,6 +390,8 @@ async function ensureDatabaseStructure() {
         await pool.query('CREATE INDEX IF NOT EXISTS idx_reward_claims_user ON lottery_reward_claims (user_id, redeemed_at DESC)');
         await pool.query('ALTER TABLE transactions ADD COLUMN IF NOT EXISTS service_date DATE');
         await pool.query('ALTER TABLE sold_out ADD COLUMN IF NOT EXISTS round_label VARCHAR(20)');
+        await pool.query('DROP INDEX IF EXISTS uq_user_lottery_round');
+        await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_user_lottery_round_number ON lottery_guesses (user_id, round_label, guess_number)');
         await pool.query(
             "UPDATE sold_out SET round_label = $1 WHERE round_label IS NULL OR round_label = ''",
             [getCurrentRoundLabel()]
@@ -440,6 +442,60 @@ function isRoundOpen() {
     return (day >= 1 && day <= 14) || (day >= 16 && day <= 29);
 }
 
+function parseRoundLabel(roundLabel) {
+    const match = String(roundLabel || '').match(/^(\d{4})-(\d{2})-([AB])$/);
+    if (!match) return null;
+    return {
+        year: Number(match[1]),
+        month: Number(match[2]),
+        slot: match[3]
+    };
+}
+
+function getRoundWindowFromLabel(roundLabel) {
+    const parsed = parseRoundLabel(roundLabel);
+    if (!parsed) return null;
+
+    if (parsed.slot === 'A') {
+        return {
+            label: roundLabel,
+            startAt: new Date(parsed.year, parsed.month - 1, 1, 0, 0, 0, 0),
+            endAt: new Date(parsed.year, parsed.month - 1, 15, 0, 0, 0, 0)
+        };
+    }
+
+    return {
+        label: roundLabel,
+        startAt: new Date(parsed.year, parsed.month - 1, 16, 0, 0, 0, 0),
+        endAt: new Date(parsed.year, parsed.month - 1, 30, 0, 0, 0, 0)
+    };
+}
+
+function getCurrentRoundWindow(dateOverride) {
+    return getRoundWindowFromLabel(getCurrentRoundLabel(dateOverride));
+}
+
+function getRoundScopedPointsClause(roundLabelParamIndex, startAtParamIndex, endAtParamIndex) {
+    return `(
+        COALESCE(metadata->>'round_label', '') = $${roundLabelParamIndex}
+        OR (
+            COALESCE(metadata->>'round_label', '') = ''
+            AND created_at >= $${startAtParamIndex}
+            AND created_at < $${endAtParamIndex}
+        )
+    )`;
+}
+
+function getGuessCreditsFromPoints(pointBalance) {
+    return Math.max(0, Math.floor(Number(pointBalance || 0) / 5));
+}
+
+function getPointsNeededForNextGuess(pointBalance) {
+    const normalized = Math.max(0, Number(pointBalance || 0));
+    const remainder = normalized % 5;
+    return remainder === 0 ? 0 : 5 - remainder;
+}
+
 // ============ AUTH ============
 
 const authTokens = new Map();
@@ -486,6 +542,143 @@ async function getTotalPointsForGlobalUser(client, globalUserId) {
         [globalUserId]
     );
     return Number(result.rows[0]?.total_points || 0);
+}
+
+async function getRoundPointsForGlobalUser(client, globalUserId, roundLabel = getCurrentRoundLabel()) {
+    if (!globalUserId || !(await tableExists(client, 'points'))) return 0;
+
+    const roundWindow = getRoundWindowFromLabel(roundLabel);
+    if (!roundWindow) return 0;
+
+    const result = await client.query(
+        `SELECT COALESCE(SUM(points), 0)::int AS total_points
+         FROM points
+         WHERE global_user_id = $1
+           AND ${getRoundScopedPointsClause(2, 3, 4)}`,
+        [globalUserId, roundLabel, roundWindow.startAt, roundWindow.endAt]
+    );
+    return Number(result.rows[0]?.total_points || 0);
+}
+
+async function getRecentPointsForGlobalUser(client, globalUserId, limit = 10) {
+    if (!globalUserId || !(await tableExists(client, 'points'))) return [];
+
+    const result = await client.query(
+        `SELECT id, activity_type, points, source_platform, source_oa_id, metadata, created_at
+         FROM points
+         WHERE global_user_id = $1
+         ORDER BY created_at DESC
+         LIMIT $2`,
+        [globalUserId, limit]
+    );
+
+    return result.rows;
+}
+
+async function addApprovedTransactionPoint(queryable, transactionRow) {
+    if (!transactionRow?.user_id || !(await tableExists(queryable, 'points'))) return false;
+
+    const userResult = await queryable.query(
+        'SELECT global_user_id, platform, platform_id, display_name FROM users WHERE id = $1',
+        [transactionRow.user_id]
+    );
+    const user = userResult.rows[0];
+    if (!user?.global_user_id) return false;
+
+    const existingResult = await queryable.query(
+        `SELECT id
+         FROM points
+         WHERE global_user_id = $1
+           AND activity_type = 'transaction_approved'
+           AND metadata->>'transaction_id' = $2
+         LIMIT 1`,
+        [user.global_user_id, String(transactionRow.id)]
+    );
+    if (existingResult.rows.length > 0) return false;
+
+    await queryable.query(
+        `INSERT INTO points (global_user_id, activity_type, points, source_platform, source_oa_id, metadata)
+         VALUES ($1, 'transaction_approved', 1, $2, NULL, $3)`,
+        [
+            user.global_user_id,
+            user.platform || 'line',
+            JSON.stringify({
+                transaction_id: String(transactionRow.id),
+                round_label: transactionRow.round_label,
+                staff_id: transactionRow.staff_id,
+                platform_id: user.platform_id,
+                display_name: user.display_name || null,
+                event_type: 'approved_transaction_point'
+            })
+        ]
+    );
+
+    return true;
+}
+
+async function removeApprovedTransactionPoint(queryable, userId, transactionId) {
+    if (!userId || !transactionId || !(await tableExists(queryable, 'points'))) return 0;
+
+    const userResult = await queryable.query('SELECT global_user_id FROM users WHERE id = $1', [userId]);
+    const globalUserId = userResult.rows[0]?.global_user_id;
+    if (!globalUserId) return 0;
+
+    const result = await queryable.query(
+        `DELETE FROM points
+         WHERE global_user_id = $1
+           AND activity_type = 'transaction_approved'
+           AND metadata->>'transaction_id' = $2`,
+        [globalUserId, String(transactionId)]
+    );
+
+    return result.rowCount || 0;
+}
+
+async function removeLotteryGuessSpendPoint(queryable, globalUserId, lotteryGuessId) {
+    if (!globalUserId || !lotteryGuessId || !(await tableExists(queryable, 'points'))) return 0;
+
+    const result = await queryable.query(
+        `DELETE FROM points
+         WHERE global_user_id = $1
+           AND activity_type = 'lottery_guess_spend'
+           AND metadata->>'lottery_guess_id' = $2`,
+        [globalUserId, String(lotteryGuessId)]
+    );
+
+    return result.rowCount || 0;
+}
+
+async function reconcileRoundGuessBalance(queryable, userId, globalUserId, roundLabel = getCurrentRoundLabel()) {
+    if (!userId || !globalUserId) {
+        return { revokedGuessCount: 0, currentPointBalance: 0 };
+    }
+
+    let currentPointBalance = await getRoundPointsForGlobalUser(queryable, globalUserId, roundLabel);
+    let revokedGuessCount = 0;
+
+    while (currentPointBalance < 0) {
+        const latestGuessResult = await queryable.query(
+            `SELECT id
+             FROM lottery_guesses
+             WHERE user_id = $1 AND round_label = $2
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1`,
+            [userId, roundLabel]
+        );
+
+        const latestGuess = latestGuessResult.rows[0];
+        if (!latestGuess) break;
+
+        await queryable.query('DELETE FROM lottery_guesses WHERE id = $1', [latestGuess.id]);
+        await removeLotteryGuessSpendPoint(queryable, globalUserId, latestGuess.id);
+        revokedGuessCount += 1;
+        currentPointBalance = await getRoundPointsForGlobalUser(queryable, globalUserId, roundLabel);
+    }
+
+    return {
+        revokedGuessCount,
+        currentPointBalance
+    };
 }
 
 function formatRewardSnapshotRow(row) {
@@ -864,88 +1057,7 @@ app.delete('/api/admin/rewards/claims/:id', requireAuth, async (req, res) => {
 });
 
 app.post('/api/admin/points/redeem', requireAuth, async (req, res) => {
-    const userId = parseInt(req.body?.user_id, 10);
-    const pointsToRedeem = parseInt(req.body?.points, 10);
-    const note = String(req.body?.note || '').trim();
-
-    if (isNaN(userId)) {
-        return res.status(400).json({ error: 'ไม่พบผู้ใช้ที่ต้องการหักพ้อย' });
-    }
-    if (!Number.isInteger(pointsToRedeem) || pointsToRedeem <= 0) {
-        return res.status(400).json({ error: 'กรุณาระบุจำนวนพ้อยที่ต้องการใช้ให้ถูกต้อง' });
-    }
-
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-
-        const userResult = await client.query(
-            `SELECT id, global_user_id, platform, platform_id, display_name
-             FROM users
-             WHERE id = $1
-             FOR UPDATE`,
-            [userId]
-        );
-        const user = userResult.rows[0];
-        if (!user) {
-            await client.query('ROLLBACK');
-            return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
-        }
-        if (!user.global_user_id) {
-            await client.query('ROLLBACK');
-            return res.status(400).json({ error: 'ผู้ใช้นี้ยังไม่มี global_user_id จึงยังจัดการพ้อยไม่ได้' });
-        }
-
-        await client.query('SELECT id FROM users WHERE global_user_id = $1 FOR UPDATE', [user.global_user_id]);
-        const currentBalance = await getTotalPointsForGlobalUser(client, user.global_user_id);
-        if (pointsToRedeem > currentBalance) {
-            await client.query('ROLLBACK');
-            return res.status(400).json({
-                error: `พ้อยไม่พอใช้ ยอดคงเหลือปัจจุบัน ${currentBalance.toLocaleString('th-TH')} พ้อย`
-            });
-        }
-
-        const pointResult = await client.query(
-            `INSERT INTO points (global_user_id, activity_type, points, source_platform, source_oa_id, metadata)
-             VALUES ($1, 'points_redeem', $2, $3, NULL, $4)
-             RETURNING id, activity_type, points, source_platform, source_oa_id, metadata, created_at`,
-            [
-                user.global_user_id,
-                -pointsToRedeem,
-                user.platform || 'line',
-                JSON.stringify({
-                    note: note || null,
-                    redeemed_by_admin_id: req.adminUserId,
-                    redeemed_by_admin_username: req.adminUser,
-                    platform_id: user.platform_id,
-                    display_name: user.display_name || null,
-                    event_type: 'points_redeem'
-                })
-            ]
-        );
-
-        await client.query('COMMIT');
-
-        const remainingPoints = await getTotalPointsForGlobalUser(pool, user.global_user_id);
-        res.json({
-            success: true,
-            user: {
-                id: user.id,
-                global_user_id: user.global_user_id,
-                platform: user.platform,
-                platform_id: user.platform_id,
-                display_name: user.display_name
-            },
-            redemption: pointResult.rows[0],
-            remaining_points: remainingPoints
-        });
-    } catch (err) {
-        await client.query('ROLLBACK');
-        console.error('Admin points redeem error:', err);
-        res.status(500).json({ error: 'ไม่สามารถบันทึกการใช้พ้อยได้' });
-    } finally {
-        client.release();
-    }
+    res.status(409).json({ error: 'พ้อยถูกใช้สำหรับทายเลขอัตโนมัติเท่านั้น ไม่รองรับการหักพ้อยจากแอดมินแล้ว' });
 });
 
 // POST /api/logout
@@ -1338,16 +1450,6 @@ async function syncUserRoundState(queryable, userId, affectedRoundLabel = getCur
 
     const affectedApprovedCount = affectedRoundResult.rows[0]?.approved_count || 0;
     const currentApprovedCount = currentRoundResult.rows[0]?.approved_count || 0;
-    let revokedGuessCount = 0;
-
-    if (affectedRoundLabel && affectedApprovedCount < 5) {
-        const revokeResult = await queryable.query(
-            `DELETE FROM lottery_guesses
-             WHERE user_id = $1 AND round_label = $2`,
-            [userId, affectedRoundLabel]
-        );
-        revokedGuessCount = revokeResult.rowCount || 0;
-    }
 
     await queryable.query(
         'UPDATE users SET progress_count = $1, updated_at = NOW() WHERE id = $2',
@@ -1357,7 +1459,7 @@ async function syncUserRoundState(queryable, userId, affectedRoundLabel = getCur
     return {
         affectedApprovedCount,
         currentApprovedCount,
-        revokedGuessCount
+        revokedGuessCount: 0
     };
 }
 
@@ -1409,10 +1511,11 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
 
         // Count approved unique staff in this round
         const approvedCount = await getCurrentRoundApprovedCount(user.id, roundLabel);
+        const guessPointBalance = await getRoundPointsForGlobalUser(pool, user.global_user_id, roundLabel);
+        const guessCreditsRemaining = getGuessCreditsFromPoints(guessPointBalance);
 
-        // Check if already guessed lottery this round
         const guessResult = await pool.query(
-            'SELECT * FROM lottery_guesses WHERE user_id = $1 AND round_label = $2',
+            'SELECT * FROM lottery_guesses WHERE user_id = $1 AND round_label = $2 ORDER BY created_at DESC, id DESC',
             [user.id, roundLabel]
         );
 
@@ -1429,9 +1532,15 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
             picture_url: user.picture_url,
             progress_count: approvedCount,
             round_label: roundLabel,
-            can_guess_lottery: approvedCount >= 5,
-            already_guessed: guessResult.rows.length > 0,
+            guess_point_balance: guessPointBalance,
+            guess_point_target: 5,
+            guess_credits_remaining: guessCreditsRemaining,
+            points_needed_for_next_guess: getPointsNeededForNextGuess(guessPointBalance),
+            can_guess_lottery: isRoundOpen() && guessCreditsRemaining > 0,
+            is_round_open: isRoundOpen(),
             lottery_guess: guessResult.rows[0] || null,
+            lottery_guesses: guessResult.rows,
+            guess_count: guessResult.rows.length,
             visited_staff_ids: visitedResult.rows.map(r => r.staff_id)
         });
     } catch (err) {
@@ -1500,12 +1609,10 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
 
         // Total points (if global_user_id exists)
         let totalPoints = 0;
+        let currentRoundPoints = 0;
         if (user.global_user_id) {
-            const pointsResult = await pool.query(
-                `SELECT COALESCE(SUM(points), 0)::int AS total_points FROM points WHERE global_user_id = $1`,
-                [user.global_user_id]
-            );
-            totalPoints = pointsResult.rows[0].total_points;
+            totalPoints = await getTotalPointsForGlobalUser(pool, user.global_user_id);
+            currentRoundPoints = await getRoundPointsForGlobalUser(pool, user.global_user_id, roundLabel);
         }
 
         res.json({
@@ -1521,7 +1628,10 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
             lifetime_approved: lifetimeResult.rows[0].total_approved,
             total_points: totalPoints,
             current_round_label: roundLabel,
-            current_round_progress: currentProgressCount
+            current_round_progress: currentProgressCount,
+            current_round_points: currentRoundPoints,
+            current_round_guess_credits: getGuessCreditsFromPoints(currentRoundPoints),
+            points_needed_for_next_guess: getPointsNeededForNextGuess(currentRoundPoints)
         });
     } catch (err) {
         console.error('User history fetch error:', err);
@@ -1668,18 +1778,22 @@ app.put('/api/history/:id/approve', requireAuth, async (req, res) => {
             [req.adminUserId, txId]
         );
 
+        await addApprovedTransactionPoint(client, tx);
+
         const syncResult = await syncUserRoundState(client, tx.user_id, tx.round_label);
         const approvedCount = syncResult.affectedApprovedCount;
+        const userPointResult = await client.query('SELECT global_user_id FROM users WHERE id = $1', [tx.user_id]);
+        const currentRoundPoints = await getRoundPointsForGlobalUser(client, userPointResult.rows[0]?.global_user_id, tx.round_label);
 
         await client.query('COMMIT');
 
         res.json({
             success: true,
             approved_count: approvedCount,
-            can_guess_lottery: approvedCount >= 5,
-            message: approvedCount >= 5
-                ? 'อนุมัติสำเร็จ — ลูกค้าสะสมครบ 5 คน ปลดล็อกสิทธิ์ทายเลขแล้ว!'
-                : `อนุมัติสำเร็จ — ลูกค้าสะสม ${approvedCount}/5 คน`
+            current_round_points: currentRoundPoints,
+            guess_credits_remaining: getGuessCreditsFromPoints(currentRoundPoints),
+            can_guess_lottery: isRoundOpen() && getGuessCreditsFromPoints(currentRoundPoints) > 0,
+            message: `อนุมัติสำเร็จ — ลูกค้าได้รับ 1 พ้อย ตอนนี้เหลือ ${currentRoundPoints} พ้อยในรอบนี้`
         });
     } catch (err) {
         await client.query('ROLLBACK');
@@ -1734,37 +1848,43 @@ app.post('/api/lottery/guess', async (req, res) => {
     try {
         await client.query('BEGIN');
 
+        if (!isRoundOpen()) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({ error: 'รอบนี้ปิดรับทายเลขแล้ว พ้อยที่ไม่ใช้จะรีเซ็ตเมื่อข้ามรอบ' });
+        }
+
         // Get user
         const userResult = await client.query(
-            'SELECT id FROM users WHERE platform = $1 AND platform_id = $2',
+            'SELECT id, global_user_id, platform, platform_id, display_name FROM users WHERE platform = $1 AND platform_id = $2',
             [plat, platform_id]
         );
         if (userResult.rows.length === 0) {
             await client.query('ROLLBACK');
             return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
         }
-        const userId = userResult.rows[0].id;
+        const user = userResult.rows[0];
+        const userId = user.id;
 
-        // Check they have 5 approved unique staffs
-        const progressResult = await client.query(
-            `SELECT COUNT(DISTINCT staff_id)::int AS approved_count
-             FROM transactions
-             WHERE user_id = $1 AND round_label = $2 AND status = 'approved'`,
-            [userId, roundLabel]
-        );
-        if (progressResult.rows[0].approved_count < 5) {
+        if (!user.global_user_id) {
             await client.query('ROLLBACK');
-            return res.status(403).json({ error: 'ยังสะสมไม่ครบ 5 คน ไม่สามารถทายเลขได้' });
+            return res.status(400).json({ error: 'ผู้ใช้นี้ยังไม่มี global_user_id จึงยังใช้พ้อยทายเลขไม่ได้' });
         }
 
-        // Check not already guessed
+        const availableGuessPoints = await getRoundPointsForGlobalUser(client, user.global_user_id, roundLabel);
+        if (availableGuessPoints < 5) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({
+                error: `พ้อยไม่พอสำหรับทายเลข ต้องใช้ 5 พ้อยต่อ 1 เลข ตอนนี้เหลือ ${Math.max(availableGuessPoints, 0)} พ้อย`
+            });
+        }
+
         const existingGuess = await client.query(
-            'SELECT id FROM lottery_guesses WHERE user_id = $1 AND round_label = $2',
-            [userId, roundLabel]
+            'SELECT id FROM lottery_guesses WHERE user_id = $1 AND round_label = $2 AND guess_number = $3',
+            [userId, roundLabel, guess_number]
         );
         if (existingGuess.rows.length > 0) {
             await client.query('ROLLBACK');
-            return res.status(409).json({ error: 'คุณได้ทายเลขในรอบนี้แล้ว' });
+            return res.status(409).json({ error: 'คุณทายเลขนี้ในรอบนี้แล้ว กรุณาเลือกเลขอื่น' });
         }
 
         // Check if number is sold out
@@ -1785,18 +1905,39 @@ app.post('/api/lottery/guess', async (req, res) => {
             [userId, guess_number, roundLabel]
         );
 
+        await client.query(
+            `INSERT INTO points (global_user_id, activity_type, points, source_platform, source_oa_id, metadata)
+             VALUES ($1, 'lottery_guess_spend', -5, $2, NULL, $3)`,
+            [
+                user.global_user_id,
+                user.platform || 'line',
+                JSON.stringify({
+                    lottery_guess_id: String(guessResult.rows[0].id),
+                    guess_number,
+                    round_label: roundLabel,
+                    platform_id: user.platform_id,
+                    display_name: user.display_name || null,
+                    event_type: 'lottery_guess_spend'
+                })
+            ]
+        );
+
+        const remainingPoints = await getRoundPointsForGlobalUser(client, user.global_user_id, roundLabel);
+
         await client.query('COMMIT');
 
         res.json({
             success: true,
             guess: guessResult.rows[0],
-            message: `ทายเลข ${guess_number} สำเร็จ — รอประกาศผล`
+            remaining_points: remainingPoints,
+            guess_credits_remaining: getGuessCreditsFromPoints(remainingPoints),
+            message: `ทายเลข ${guess_number} สำเร็จ ใช้ไป 5 พ้อย ตอนนี้เหลือ ${remainingPoints} พ้อย`
         });
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Lottery guess error:', err);
         if (err.code === '23505') {
-            return res.status(409).json({ error: 'คุณได้ทายเลขในรอบนี้แล้ว' });
+            return res.status(409).json({ error: 'คุณทายเลขนี้ในรอบนี้แล้ว กรุณาเลือกเลขอื่น' });
         }
         res.status(500).json({ error: 'เกิดข้อผิดพลาด' });
     } finally {
@@ -1960,7 +2101,7 @@ app.delete('/api/history/:id', requireAuth, async (req, res) => {
         await client.query('BEGIN');
 
         const txResult = await client.query(
-            `SELECT id, user_id, round_label
+            `SELECT id, user_id, round_label, staff_id, status
              FROM transactions
              WHERE id = $1
              FOR UPDATE`,
@@ -1973,14 +2114,24 @@ app.delete('/api/history/:id', requireAuth, async (req, res) => {
         }
 
         await client.query('DELETE FROM transactions WHERE id = $1', [txId]);
+        if (tx.status === 'approved') {
+            await removeApprovedTransactionPoint(client, tx.user_id, txId);
+        }
         const syncResult = await syncUserRoundState(client, tx.user_id, tx.round_label);
+        let revokedGuessCount = 0;
+
+        if (tx.status === 'approved' && tx.round_label === getCurrentRoundLabel()) {
+            const userResult = await client.query('SELECT global_user_id FROM users WHERE id = $1', [tx.user_id]);
+            const reconcileResult = await reconcileRoundGuessBalance(client, tx.user_id, userResult.rows[0]?.global_user_id, tx.round_label);
+            revokedGuessCount = reconcileResult.revokedGuessCount;
+        }
 
         await client.query('COMMIT');
         res.json({
             success: true,
             current_round_progress: syncResult.currentApprovedCount,
             affected_round_progress: syncResult.affectedApprovedCount,
-            revoked_lottery_guess: syncResult.revokedGuessCount > 0
+            revoked_lottery_guess: revokedGuessCount > 0
         });
     } catch (err) {
         await client.query('ROLLBACK');
@@ -2164,6 +2315,8 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const offset = (page - 1) * limit;
     const like = `%${search}%`;
+    const currentRoundLabel = getCurrentRoundLabel();
+    const currentRoundWindow = getCurrentRoundWindow();
 
     try {
         const [summaryResult, usersResult] = await Promise.all([
@@ -2203,6 +2356,19 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                             FROM transactions t2
                             WHERE t2.user_id = u.id AND t2.round_label = $6 AND t2.status = 'approved'
                         ), 0) AS current_round_progress,
+                                                COALESCE((
+                                                        SELECT SUM(p.points)::int
+                                                        FROM points p
+                                                        WHERE p.global_user_id = u.global_user_id
+                                                            AND (
+                                                                COALESCE(p.metadata->>'round_label', '') = $6
+                                                                OR (
+                                                                        COALESCE(p.metadata->>'round_label', '') = ''
+                                                                        AND p.created_at >= $7
+                                                                        AND p.created_at < $8
+                                                                )
+                                                            )
+                                                ), 0) AS current_round_points,
                         COUNT(t.id)::int AS transaction_count,
                         COALESCE(SUM(CASE WHEN t.status = 'approved' THEN 1 ELSE 0 END), 0)::int AS approved_count,
                         COALESCE(SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END), 0)::int AS pending_count,
@@ -2234,7 +2400,7 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                 FROM user_rows
                 ORDER BY COALESCE(last_activity_at, created_at) DESC, created_at DESC
                 LIMIT $4 OFFSET $5`,
-                [search, like, platform, limit, offset, getCurrentRoundLabel()]
+                [search, like, platform, limit, offset, currentRoundLabel, currentRoundWindow?.startAt, currentRoundWindow?.endAt]
             )
         ]);
 
@@ -2334,26 +2500,12 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
 
         let totalPoints = 0;
         let recentPoints = [];
+        let currentRoundPoints = 0;
 
         if (user.global_user_id && await tableExists(client, 'points')) {
-            const [pointsSummaryResult, recentPointsResult] = await Promise.all([
-                client.query(
-                    `SELECT COALESCE(SUM(points), 0)::int AS total_points
-                     FROM points
-                     WHERE global_user_id = $1`,
-                    [user.global_user_id]
-                ),
-                client.query(
-                    `SELECT id, activity_type, points, source_platform, source_oa_id, metadata, created_at
-                     FROM points
-                     WHERE global_user_id = $1
-                     ORDER BY created_at DESC
-                     LIMIT 10`,
-                    [user.global_user_id]
-                )
-            ]);
-            totalPoints = pointsSummaryResult.rows[0]?.total_points || 0;
-            recentPoints = recentPointsResult.rows;
+            totalPoints = await getTotalPointsForGlobalUser(client, user.global_user_id);
+            currentRoundPoints = await getRoundPointsForGlobalUser(client, user.global_user_id);
+            recentPoints = await getRecentPointsForGlobalUser(client, user.global_user_id, 10);
         }
 
         res.json({
@@ -2366,7 +2518,9 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
                 ...statsResult.rows[0],
                 lottery_guess_count: lotteryResult.rows[0]?.lottery_guess_count || 0,
                 total_points: totalPoints,
-                redeemable_points: totalPoints,
+                current_round_points: currentRoundPoints,
+                current_round_guess_credits: getGuessCreditsFromPoints(currentRoundPoints),
+                redeemable_points: currentRoundPoints,
                 reward_open_count: rewardSnapshot.summary.open_rewards,
                 reward_claim_count: rewardSnapshot.summary.claim_count,
                 cashback_remaining: rewardSnapshot.summary.cashback_remaining,
@@ -2644,7 +2798,11 @@ app.post('/api/points/activity', async (req, res) => {
                 pointAmount,
                 plat,
                 null,
-                metadata ? JSON.stringify(metadata) : null
+                JSON.stringify({
+                    ...(metadata || {}),
+                    round_label: metadata?.round_label || getCurrentRoundLabel(),
+                    event_type: metadata?.event_type || activityType
+                })
             ]
         );
 
