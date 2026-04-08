@@ -54,8 +54,16 @@ function resolveAssetUrl(value) {
     return `${API_ROOT}/uploads/${encodeURIComponent(normalized)}`;
 }
 
-function showEl(id) { const el = document.getElementById(id); if (el) el.style.display = ''; }
-function hideEl(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+function setElVisible(id, isVisible) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = isVisible ? '' : 'none';
+    el.classList.toggle('profile-hidden', !isVisible);
+    el.classList.toggle('hidden', !isVisible);
+}
+
+function showEl(id) { setElVisible(id, true); }
+function hideEl(id) { setElVisible(id, false); }
 
 const profileImgModal = document.getElementById('profile-img-modal');
 const profileImgModalImg = document.getElementById('profile-img-modal-img');
