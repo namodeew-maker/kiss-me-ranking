@@ -16,7 +16,7 @@
 7. [API Endpoints](#7-api-endpoints)
 8. [Frontend Pages](#8-frontend-pages)
 9. [Business Logic](#9-business-logic)
-10. [Unified Identity (Multi-OA + Telegram)](#10-unified-identity-multi-oa--telegram)
+10. [Identity & Points (LINE Login + Telegram)](#10-identity--points-line-login--telegram)
 11. [วิธีรันโปรเจกต์](#11-วิธีรันโปรเจกต์)
 12. [ไฟล์ตัวอย่าง (examples/)](#12-ไฟล์ตัวอย่าง-examples)
 
@@ -72,42 +72,56 @@
 
 ```
 Kiss Me Ranking/
-├── server.js               ← Backend หลัก (Express.js, ทุก endpoint อยู่ที่นี่)
-├── package.json            ← Dependencies & scripts
-├── .env                    ← Environment variables (ห้าม commit)
-│
-├── init-db.sql             ← Schema ตั้งต้น (users, staffs, transactions, ratings, lottery, admin)
-├── migrate-unified.sql     ← Migration เพิ่ม unified identity (global_user_id, OA, points)
-├── init-db-unified.sql     ← Schema ใหม่แบบ standalone (สำหรับ reference)
-│
-├── index.html              ← หน้าลูกค้า (login → เลือกพนักงาน → ส่งสลิป → ทายเลข)
-├── script.js               ← JS ของ index.html (LIFF, Telegram, form submit, lottery grid)
-├── styles.css              ← CSS หลัก (Neon futuristic theme)
-│
-├── profile.html            ← หน้าโปรไฟล์ลูกค้า (ประวัติ, หลอดสะสม, ผลทาย)
-├── profile.js              ← JS ของ profile.html
-├── profile.css             ← CSS ของ profile.html
-│
-├── admin-login.html        ← หน้า login admin
-├── admin.html              ← หน้า dashboard admin (อนุมัติสลิป, จัดการเลข, ออกรางวัล)
-├── admin.js                ← JS ของ admin.html
-├── admin.css               ← CSS ของ admin.html
-│
-├── status.html             ← หน้าสถานะ transaction
-├── seed-staff.js           ← Script สร้างข้อมูลพนักงานตัวอย่าง
-│
-├── Lotto_Project_Manual.md ← คู่มือโปรเจกต์เดิม
-├── ข้อกฎหมาย.md              ← เงื่อนไขกฎหมาย/ข้อตกลง
-├── PROJECT_DOCS.md         ← เอกสารนี้
-│
-├── uploads/                ← เก็บรูปสลิปแบบ local (fallback ถ้าไม่ใช้ R2)
-│
-└── examples/               ← ตัวอย่างโค้ดสำหรับ integration กับระบบบริษัท
-    ├── line-points-gateway.js    ← Gateway: LINE OAuth + บวกแต้ม + forward
-    ├── company-callback.js       ← Webhook receiver: บริษัทส่ง event กลับ
-    ├── telegram-messaging.js     ← Service: ส่งข้อความ Telegram
-    └── unified-queries.sql       ← ตัวอย่าง SQL query สำหรับ unified identity
+├── .codacy/                        ← ไฟล์/สคริปต์ที่ใช้กับ Codacy CLI ใน repo นี้
+├── .env                            ← Environment variables สำหรับ local
+├── .env.example                    ← ตัวอย่างค่าตั้งต้นของ environment variables
+├── .git/                           ← Git metadata
+├── .github/
+│   └── instructions/
+│       └── codacy.instructions.md  ← กติกาการใช้งาน Codacy MCP / CLI
+├── .gitignore                      ← รายการไฟล์ที่ไม่ให้ commit
+├── .vscode/
+│   ├── settings.json               ← Workspace settings
+│   └── tasks.json                  ← VS Code tasks
+├── admin-login.html                ← หน้า login admin
+├── admin.css                       ← CSS ของ admin dashboard
+├── admin.html                      ← หน้า dashboard admin
+├── admin.js                        ← JS ของ admin dashboard
+├── examples/                       ← ตัวอย่างโค้ด integration / legacy reference
+│   ├── company-callback.js         ← Webhook receiver ฝั่งบริษัท
+│   ├── line-points-gateway.js      ← Gateway: LINE OAuth + points forward
+│   ├── telegram-messaging.js       ← Service ส่งข้อความ Telegram
+│   └── unified-queries.sql         ← ตัวอย่าง SQL สำหรับ identity lookup
+├── index.html                      ← หน้าลูกค้า
+├── init-db-unified.sql             ← Unified schema แบบ standalone
+├── init-db.sql                     ← Schema ตั้งต้นของระบบหลัก
+├── Lotto_Project_Manual.md         ← คู่มือโปรเจกต์เดิม
+├── migrate-unified.sql             ← Migration เพิ่ม global_user_id / points / โครงสร้าง identity เพิ่มเติม
+├── node_modules/                   ← Dependencies ที่ติดตั้งจาก npm
+├── package-lock.json               ← Lockfile ของ npm
+├── package.json                    ← Dependencies และ scripts
+├── profile.css                     ← CSS ของหน้า profile
+├── profile.html                    ← หน้าโปรไฟล์ลูกค้า
+├── profile.js                      ← JS ของหน้า profile
+├── PROJECT_DOCS.md                 ← เอกสารนี้
+├── ranking.css                     ← CSS ของหน้า ranking
+├── ranking.html                    ← หน้า leaderboard / ranking
+├── ranking.js                      ← JS ของหน้า ranking
+├── script.js                       ← JS หลักของ index.html
+├── seed-staff.js                   ← Script สร้างข้อมูลพนักงานตัวอย่าง
+├── server.js                       ← Backend หลัก (Express.js, ทุก endpoint อยู่ที่นี่)
+├── status.html                     ← หน้าสถานะ transaction
+├── styles.css                      ← CSS หลักของหน้าลูกค้า
+├── uploads/                        ← local uploads fallback
+│   ├── 1775058350403-440250.jpg
+│   ├── 1775121303654-908880.png
+│   ├── 1775121321627-511087.jpg
+│   ├── 1775121339964-133120.jpg
+│   └── 1775121359444-559828.png
+└── ข้อกฎหมาย.md                   ← เงื่อนไขกฎหมาย/ข้อตกลง
 ```
+
+> หมายเหตุ: tree ด้านบนอ้างอิงจากไฟล์ที่มีอยู่จริงใน workspace ปัจจุบัน หากติดตั้ง dependency ใหม่หรือมีไฟล์ generated เพิ่มเข้ามา รายการนี้ควรอัปเดตตาม repo อีกครั้ง
 
 ---
 
@@ -171,25 +185,25 @@ TELEGRAM_BOT_TOKEN=
 | **transactions** | บันทึกส่งสลิป | `id`, `user_id`, `staff_id`, `slip_image_url`, `status` (pending/approved/rejected), `round_label`, `reviewed_by`, `reject_reason` |
 | **ratings** | คะแนนลับ 3 ด้าน (**admin มองไม่เห็น**) | `transaction_id`, `looks_score`, `service_score`, `value_score` (1-10 แต่ละด้าน) |
 | **lottery_guesses** | ทายเลข 2 หลัก | `user_id`, `guess_number` (00-99), `round_label`, `result` (pending/won/lost), `reward_amount` |
+| **lottery_reward_claims** | บันทึกการใช้สิทธิ์ Cashback / GV แบบทยอยใช้ | `lottery_guess_id`, `user_id`, `reward_type` (cashback/gv), `amount`, `note`, `redeemed_by`, `redeemed_at` |
 | **sold_out** | เลขที่ถูกจองแล้วต่อรอบ | `number` (0-99), `round_label` |
 | **admin_users** | ผู้ดูแลระบบ | `username`, `password_hash` (bcrypt) |
 
-### 6.2 ตารางจาก migrate-unified.sql (Unified Identity)
+### 6.2 ตารางจาก migrate-unified.sql (Identity & Points)
 
 | ตาราง | หน้าที่ | คอลัมน์สำคัญ |
 |-------|--------|-------------|
-| **oa_accounts** | ข้อมูล LINE Official Account แต่ละตัว | `oa_id`, `oa_name`, `channel_id`, `channel_secret`, `access_token`, `is_active` |
-| **user_oa_mapping** | เชื่อมผู้ใช้กับ OA (oa_user_id ≠ line_login_user_id) | `global_user_id` (FK→users), `oa_id` (FK→oa_accounts), `oa_user_id` |
 | **points** | คะแนนสะสมจากกิจกรรมต่างๆ | `global_user_id`, `activity_type`, `points`, `source_platform`, `source_oa_id`, `metadata` (JSONB) |
+
+> หมายเหตุ: migration และ setup ปัจจุบันโฟกัสที่ LINE Login + Telegram + points ledger โดยใช้ `platform_id` / `User ID` ที่ลูกค้าคัดลอกจากหน้า profile มาให้แอดมินแทน
 
 ### 6.3 Constraints สำคัญ
 
 - `UNIQUE (platform, platform_id)` — ป้องกัน user ซ้ำ
 - `UNIQUE (user_id, staff_id, round_label) WHERE status <> 'rejected'` — ห้ามแจ้งพนักงานซ้ำในรอบเดียว
 - `UNIQUE (user_id, round_label)` บน lottery_guesses — 1 คน 1 สิทธิ์ทายต่อรอบ
+- `lottery_reward_claims.amount > 0` — ทุกการใช้สิทธิ์ต้องเป็นยอดบวก
 - `UNIQUE (number, round_label)` บน sold_out — 1 เลขต่อรอบ
-- `UNIQUE (oa_id, oa_user_id)` — 1 OA user ต่อ OA
-- `UNIQUE (global_user_id, oa_id)` — 1 user ต่อ OA
 
 ### 6.4 Admin User เริ่มต้น
 
@@ -282,25 +296,37 @@ value_score: 7
 | `GET` | `/api/stats` | — | สถิติ Dashboard |
 | `GET` | `/api/stats/guesses-by-number` | — | กราฟกระจาย (`?startDate=&endDate=`) |
 
-### 7.8 Unified Identity & Points
+### 7.8 Reward Ledger (Admin)
+
+| Method | Path | Auth | หน้าที่ |
+|--------|------|------|--------|
+| `GET` | `/api/admin/rewards/ledger` | Bearer | ดูสรุปสิทธิ์ Cashback / GV ที่ยังค้าง, ใช้แล้ว, คงเหลือ |
+| `POST` | `/api/admin/rewards/claims` | Bearer | บันทึกการใช้สิทธิ์ 1 ครั้ง (รองรับทยอยใช้) |
+| `DELETE` | `/api/admin/rewards/claims/:id` | Bearer | ลบรายการบันทึกการใช้สิทธิ์ย้อนหลัง |
+
+### 7.9 Identity & Points
 
 | Method | Path | Auth | หน้าที่ |
 |--------|------|------|--------|
 | `POST` | `/api/points/activity` | — | บวกแต้ม + forward ไปบริษัท |
+| `POST` | `/api/admin/points/redeem` | Bearer | แอดมินหักพ้อย/ใช้พ้อยให้ลูกค้า |
 | `GET` | `/api/points/:global_user_id` | — | ยอดคะแนนสะสม + ประวัติล่าสุด |
 | `GET` | `/api/unified/profile` | — | Unified profile lookup |
-| `POST` | `/api/company/activity` | Webhook Token | บริษัท ส่ง event กลับ → reply ทาง LINE OA หรือ Telegram |
+| `POST` | `/api/company/activity` | Webhook Token | บริษัท ส่ง event กลับ → reply กลับตาม channel ที่ยังเชื่อมอยู่ |
 | `POST` | `/api/telegram/send` | — | ส่งข้อความผ่าน Telegram Bot |
-| `GET` | `/api/oa-accounts` | Bearer | ดู OA ทั้งหมด |
-| `POST` | `/api/oa-accounts` | Bearer | ลงทะเบียน OA ใหม่ |
 
 **Unified profile query params:**
 ```
 /api/unified/profile?by=line&id=U1234
 /api/unified/profile?by=telegram&id=123456
-/api/unified/profile?by=oa&oaId=OA_A&oaUserId=U9999
 /api/unified/profile?by=global&id=uuid-here
 ```
+
+**การใช้งานจริงสำหรับแอดมินตอนนี้:**
+- ลูกค้าเปิดหน้า profile
+- ก็อปปี้ `User ID` ของตัวเอง (`platform_id`)
+- ส่งให้แอดมินเพื่อตรวจสอบยอดพ้อย / Cashback / GV
+- แอดมินค้นหาจากหน้า User Management แล้วเปิด modal เพื่อหักสิทธิ์ให้ลูกค้า
 
 ---
 
@@ -326,7 +352,7 @@ value_score: 7
 
 ### 8.2 profile.html — หน้าโปรไฟล์
 
-แสดง: User card (avatar, ชื่อ, platform badge) → หลอดสะสม (progress 5 จุด) → Tab สลิป / Tab ทายเลข
+แสดง: User card (avatar, ชื่อ, platform badge) → block `User ID สำหรับส่งให้แอดมิน` พร้อมปุ่มคัดลอก → หลอดสะสม (progress 5 จุด) → Tab สลิป / Tab ทายเลข
 
 **เข้าถึง:** ปุ่ม profile บน index.html → `<a href="profile.html">`
 
@@ -334,13 +360,29 @@ value_score: 7
 
 **Login:** username + password → admin token (เก็บใน `localStorage`)
 
-**Dashboard มี 6 Tab:**
-1. อนุมัติสลิป (Pending queue)
-2. ประวัติทั้งหมด (History table)
-3. ทายเลข / ออกรางวัล (Draw management)
-4. สรุป Cashback (Winners & losers summary)
-5. เลขที่จอง (Sold-out grid)
-6. สถิติ / กราฟ (Chart.js — กระจาย by เลข)
+**Dashboard มี 4 Tab หลัก + panel จัดการเพิ่มเติมในหน้า Overview:**
+1. Overview: สถิติรวม, สรุป Cashback / GV, reward ledger, สถานะที่เก็บรูป
+2. Staff: จัดการพนักงาน + รีอันดับ
+3. Approval: คิวรออนุมัติ + ประวัติทั้งหมด
+4. Lottery: sold-out, กราฟ, ประกาศผล
+
+**ใน Overview มี panel “จัดการการใช้สิทธิ์ Cashback / GV” เพิ่มเติม:**
+- สรุปสิทธิ์ที่ยังค้างทั้งหมด
+- ตารางสิทธิ์ต่อ user / ต่อรอบ
+- ฟอร์มบันทึกการใช้สิทธิ์ทีละยอด
+- รายการย้อนหลังว่าใครใช้ไปเท่าไร เมื่อไร และแอดมินคนไหนบันทึก
+
+**ใน User Detail Modal มีส่วน “ใช้พ้อย / แลกพ้อย” เพิ่มเติม:**
+- แสดงพ้อยคงเหลือสุทธิของลูกค้าคนนั้น
+- แอดมินกรอกจำนวนพ้อยที่ลูกค้าต้องการใช้
+- ระบบตรวจสอบว่าพ้อยพอหรือไม่ก่อนหัก
+- เมื่อบันทึกแล้ว ระบบจะหักจากยอดคงเหลือทันทีและเก็บเป็นประวัติพ้อยติดลบ
+
+**Flow ใหม่ของการใช้สิทธิ์:**
+- ลูกค้าดู `User ID` จากหน้าโปรไฟล์ของตัวเอง
+- ส่ง `User ID` ให้แอดมิน
+- แอดมินค้นหา user ด้วย `platform_id`
+- ตรวจสอบยอดคงเหลือและหักสิทธิ์ให้จากหน้า admin โดยตรง
 
 ---
 
@@ -387,12 +429,158 @@ Admin ประกาศเลขที่ถูก → POST /api/draw { winning
 ผิด → reward_amount = 500 ฿ (Gift Voucher)
 ```
 
-### 9.4 Image Storage
+### 9.4 เกณฑ์การจัดแรงค์ (Rank Criteria)
+
+ระบบแรงค์ **ไม่ได้ใช้พ้อยอย่างเดียว** แต่ใช้เงื่อนไข 2 แกนพร้อมกัน คือ:
+
+1. `lifetimeApproved` = จำนวนสลิปที่เคยอนุมัติสะสมทั้งหมด
+2. `totalPoints` = คะแนนสะสมทั้งหมดจากตาราง `points`
+
+ผู้ใช้จะได้แรงค์นั้นก็ต่อเมื่อ **ผ่านทั้ง 2 เงื่อนไขพร้อมกัน**
+
+| Rank | เงื่อนไขสลิปอนุมัติสะสม | เงื่อนไขพ้อยสะสม |
+|------|----------------------|-----------------|
+| Unranked | 0 | 0 |
+| Bronze | 3 | 0 |
+| Silver | 10 | 50 |
+| Gold | 25 | 150 |
+| Platinum | 50 | 400 |
+| Diamond | 100 | 1000 |
+| Master | 200 | 2500 |
+
+**ตัวอย่าง:**
+- ถ้ามีพ้อย `10,000` แต่สลิปอนุมัติสะสมยังไม่ถึง `3` → ยังเป็น `Unranked`
+- ถ้ามีพ้อย `10,000` และสลิปอนุมัติสะสม `3` → ได้ `Bronze`
+- ถ้ามีพ้อย `10,000` และสลิปอนุมัติสะสม `100` → ได้อย่างน้อย `Diamond`
+- ถ้ามีพ้อย `10,000` และสลิปอนุมัติสะสม `200` → ได้ `Master`
+
+Frontend ที่ใช้เกณฑ์นี้อยู่ใน `profile.js` และ `ranking.js` โดยใช้เงื่อนไขเดียวกัน
+
+### 9.5 Flow การใช้พ้อย / แลกพ้อย โดยแอดมิน
+
+ระบบนี้ใช้แนวคิดว่า `points` เป็น ledger เดียวกันทั้งรายการบวกและลบ:
+
+- พ้อยบวก = ได้แต้มจากกิจกรรม
+- พ้อยลบ = แอดมินหักพ้อยให้ลูกค้าเมื่อมีการใช้พ้อย/แลกพ้อย
+
+หลักการทำงาน:
+
+```text
+ลูกค้าแจ้ง User ID ให้แอดมิน
+  ↓
+แอดมินค้นหา User จากตาราง User Management
+  ↓
+เปิด User Detail Modal
+  ↓
+ดูพ้อยคงเหลือที่ใช้ได้
+  ↓
+กรอกจำนวนพ้อยที่ลูกค้าต้องการใช้ + ใส่ note
+  ↓
+ระบบตรวจสอบว่า points ที่จะใช้ <= ยอดคงเหลือ
+  ↓
+ถ้าผ่าน → INSERT points เป็นค่าติดลบ (activity_type = points_redeem)
+  ↓
+ยอดคงเหลือใหม่ = SUM(points ทั้งหมดของ user)
+```
+
+`User ID` ที่ใช้ใน flow นี้คือ `platform_id` ของลูกค้า เช่น LINE user ID หรือ Telegram user ID ไม่ต้องพึ่ง OA mapping
+
+สิ่งที่แอดมินเห็นได้:
+
+- พ้อยคงเหลือสุทธิ
+- ประวัติพ้อยล่าสุดทั้งบวกและลบ
+- note ของการหักพ้อย
+- ชื่อแอดมินที่บันทึกรายการหักพ้อย
+
+**ตัวอย่าง:**
+
+```text
+ลูกค้ามีพ้อยสะสม 10,000
+แอดมินหักใช้ 1,500
+ระบบบันทึก points = -1500
+ยอดคงเหลือใหม่ = 8,500
+```
+
+### 9.6 Flow การจัดการ Cashback / Gift Voucher ในหน้า Admin
+
+หลังประกาศผลรางวัล ระบบจะแยกเป็น 2 ชั้นข้อมูล:
+
+1. `lottery_guesses.reward_amount`
+ความหมาย: ยอดสิทธิ์ต้นทางที่ลูกค้าได้รับจากงวดนั้น
+
+2. `lottery_reward_claims`
+ความหมาย: รายการบันทึกการใช้สิทธิ์แต่ละครั้งของลูกค้า
+
+หลักการทำงาน:
+
+```text
+ประกาศผลรางวัล
+  ↓
+ถ้าถูก → สร้างสิทธิ์ Cashback ต้นทางใน lottery_guesses
+ถ้าผิด → สร้างสิทธิ์ GV ต้นทางใน lottery_guesses
+  ↓
+แอดมินเปิดหน้า Overview → panel จัดการ Cashback / GV
+  ↓
+เลือกสิทธิ์ของลูกค้าจากตาราง
+  ↓
+กรอกยอดที่ลูกค้าจะใช้ในครั้งนั้น + ใส่ note
+  ↓
+ระบบบันทึกลง lottery_reward_claims
+  ↓
+ยอดคงเหลือ = reward_amount - SUM(claim.amount)
+```
+
+สิ่งที่แอดมินเห็นได้ใน panel นี้:
+
+- ได้รับทั้งหมด: ยอดสิทธิ์ต้นทาง
+- ใช้แล้ว: ผลรวมยอดที่เคยบันทึกใช้สิทธิ์
+- คงเหลือ: ยอดที่ยังใช้ได้
+- ใช้แล้วกี่ครั้ง: จำนวนรายการใน ledger
+- ประวัติย้อนหลัง: ใครใช้, ใช้เมื่อไร, ใช้เท่าไร, note อะไร
+
+### 9.7 ตัวอย่างการจัดการยอด 1,000 บาท
+
+สมมุติลูกค้าคนหนึ่งมีสิทธิ์ดังนี้:
+
+- Gift Voucher คงเหลือ `1,000` บาท
+- Cashback คงเหลือ `1,000` บาท
+
+กรณีลูกค้าใช้ **Gift Voucher 400 บาท**:
+
+```text
+ยอดเดิม 1,000
+ใช้ครั้งที่ 1 = 400
+คงเหลือ = 600
+```
+
+แอดมินจะบันทึก 1 รายการใน `lottery_reward_claims` ด้วย `reward_type = 'gv'` และ `amount = 400`
+
+กรณีลูกค้าใช้ **Cashback 300 บาท**:
+
+```text
+ยอดเดิม 1,000
+ใช้ครั้งที่ 1 = 300
+คงเหลือ = 700
+```
+
+แอดมินจะบันทึก 1 รายการใน `lottery_reward_claims` ด้วย `reward_type = 'cashback'` และ `amount = 300`
+
+ถ้าลูกค้ากลับมาใช้อีก:
+
+```text
+Cashback คงเหลือ 700
+ใช้ครั้งที่ 2 = 200
+คงเหลือ = 500
+```
+
+ระบบจะไม่ทับรายการเดิม แต่จะเพิ่ม ledger แถวใหม่ ทำให้ตรวจสอบย้อนหลังได้ครบ
+
+### 9.8 Image Storage
 
 - ตั้ง R2_ACCOUNT_ID, R2_ACCESS_KEY, R2_SECRET_KEY → อัปโหลดไป Cloudflare R2 CDN
 - ไม่ตั้ง → เก็บไฟล์ลง `/uploads/` serve ผ่าน `/uploads/:filename`
 
-### 9.5 Authentication
+### 9.9 Authentication
 
 | ประเภท | วิธีการ | เก็บที่ |
 |--------|--------|--------|
@@ -403,54 +591,51 @@ Admin token หมดอายุใน 8 ชั่วโมง
 
 ---
 
-## 10. Unified Identity (Multi-OA + Telegram)
+## 10. Identity & Points (LINE Login + Telegram)
 
 ### 10.1 แนวคิด
 
-ผู้ใช้คนเดียวอาจมีหลายตัวตน:
+ผู้ใช้คนเดียวอาจมีหลายตัวตนได้ในเชิงระบบ แต่ workflow ปัจจุบันใช้เพียง:
 - **LINE Login user ID** — จากการ login ผ่าน LIFF
-- **OA user ID** — user ID ที่ต่างกันไปตาม OA แต่ละตัว (OA_A, OA_B, OA_C)
 - **Telegram user ID** — จาก Telegram
 
-ระบบใช้ `global_user_id` (UUID) เป็นตัวกลางเชื่อมทุกตัวตนเข้าด้วยกัน
+ระบบใช้ `global_user_id` (UUID) เป็นตัวกลางเชื่อมบัญชีที่เป็นคนเดียวกัน และใช้ `platform_id` เป็นค่าที่ลูกค้าสามารถก็อปปี้ส่งให้แอดมินเพื่อเช็กสิทธิ์ได้โดยตรง
 
 ```
 global_user_id (UUID)
     ├── users.platform = 'line',    platform_id = 'U_line_login_123'
-    ├── users.platform = 'telegram', platform_id = '987654321'
-    │
-    ├── user_oa_mapping: oa_id = 'OA_A', oa_user_id = 'U_oa_a_456'
-    ├── user_oa_mapping: oa_id = 'OA_B', oa_user_id = 'U_oa_b_789'
-    └── user_oa_mapping: oa_id = 'OA_C', oa_user_id = 'U_oa_c_012'
+    └── users.platform = 'telegram', platform_id = '987654321'
 ```
 
 ### 10.2 การส่งข้อความกลับ
 
-1. ถ้ามี `oaId` + `oaUserId` → ดึง `access_token` จาก `oa_accounts` → push ผ่าน LINE Messaging API
-2. ถ้าไม่มี LINE OA → ตรวจว่ามี `telegram_user_id` ไหม → ส่งผ่าน Telegram Bot API
+1. กรณี Telegram → ส่งผ่าน Telegram Bot API
+2. กรณี LINE/ระบบบริษัท → ใช้ flow ที่ผูกกับ LINE Login / webhook ที่มีอยู่
 3. ถ้าไม่มีช่องทางเลย → return `channel: 'none'`
 
-### 10.3 การลงทะเบียน OA
+### 10.3 หมายเหตุเรื่องโครงสร้างใหม่
 
-```bash
-# Admin ลงทะเบียน OA ผ่าน API
-POST /api/oa-accounts
-{
-  "oa_id": "OA_A",
-  "oa_name": "Kiss Me สาขาสยาม",
-  "channel_id": "1234567890",
-  "channel_secret": "secret_here",
-  "access_token": "long_lived_token"
-}
+โค้ด runtime และ setup หลักของโปรเจกต์ถูกปรับให้ไม่ใช้ OA หลายตัวแล้ว โดยหน้าแอดมินและหน้าโปรไฟล์ใช้ `platform_id` / `User ID` เป็นตัวหลักในการตรวจสอบสิทธิ์, หักพ้อย, และหัก Cashback หรือ Gift Voucher
+
+หน้าแอดมินใน User Detail Modal จะแสดง `ID ที่ใช้ค้นหาในแอดมิน` เพื่อย้ำว่าการทำงานจริงใช้ LINE User ID, Telegram User ID หรือ Global User ID ของลูกค้า
+
+workflow หลักที่ใช้จริงคือ:
+
+```text
+ลูกค้าเปิด profile
+  ↓
+คัดลอก User ID
+  ↓
+ส่งให้แอดมิน
+  ↓
+แอดมินค้นหา user ใน admin panel
+  ↓
+ตรวจยอด / หักสิทธิ์ / บันทึก ledger
 ```
 
 ### 10.4 SQL ตัวอย่าง
 
-ดูไฟล์ `examples/unified-queries.sql` มี 4 query พร้อมใช้:
-1. หาลูกค้าที่อยู่ในหลาย OA พร้อมกัน + มี Telegram
-2. Unified profile lookup ด้วย LINE login user ID
-3. Unified profile lookup ด้วย Telegram user ID
-4. Unified profile lookup ด้วย (oa_id, oa_user_id)
+ดูไฟล์ `examples/unified-queries.sql` เป็น reference สำหรับ query identity/points เพิ่มเติม โดย workflow หลักตอนนี้เน้น lookup ด้วย LINE user ID, Telegram user ID หรือ `global_user_id`
 
 ---
 
@@ -508,9 +693,9 @@ ngrok http 3000
 | ไฟล์ | หน้าที่ | Port |
 |------|--------|------|
 | `line-points-gateway.js` | Gateway: LINE OAuth + บวกแต้ม + forward event ไปบริษัท | 3010 |
-| `company-callback.js` | Webhook receiver: บริษัทส่ง event กลับมา → reply ลูกค้าทาง LINE OA / Telegram | 3020 |
+| `company-callback.js` | Webhook receiver: บริษัทส่ง event กลับมา → reply ลูกค้าผ่าน Telegram ถ้ามีช่องทาง | 3020 |
 | `telegram-messaging.js` | Service: ส่งข้อความผ่าน Telegram Bot API | 3030 |
-| `unified-queries.sql` | SQL query ตัวอย่างสำหรับ unified identity lookup | — |
+| `unified-queries.sql` | SQL query ตัวอย่างสำหรับ identity / points lookup | — |
 
 > **หมายเหตุ:** Route ทั้งหมดจาก examples/ ถูก**รวมเข้า server.js แล้ว** — ไฟล์ examples/ เก็บไว้เป็น reference เท่านั้น
 
@@ -520,7 +705,6 @@ ngrok http 3000
 
 | รายการ | สถานะ | หมายเหตุ |
 |--------|-------|---------|
-| LINE OA 3 ตัว (OA_A, OA_B, OA_C) | ❌ รอข้อมูล | ต้องได้ channel_id, channel_secret, access_token จากบริษัท |
 | LINE Login Channel ID/Secret | ❌ รอตั้งค่า | ได้จาก LINE Developers Console |
 | Telegram Bot Token | ❌ รอตั้งค่า | ได้จาก @BotFather |
 | Company Webhook URL | ❌ รอตั้งค่า | URL ระบบฝั่งบริษัท |
@@ -528,4 +712,4 @@ ngrok http 3000
 
 ---
 
-> **Last updated:** 5 เมษายน 2569 (2026)
+> **Last updated:** 8 เมษายน 2569 (2026)

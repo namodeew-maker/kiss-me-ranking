@@ -159,7 +159,58 @@
 .user-platform-id {
     color: var(--text-muted);
     font-size: 0.75rem;
-    margin: 0;
+    margin: 0 0 8px;
+}
+.user-id-card {
+    min-width: min(100%, 420px);
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 240, 255, 0.18);
+    background: rgba(0, 240, 255, 0.05);
+}
+.user-id-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+.user-id-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.user-id-value {
+    flex: 1 1 220px;
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(6, 6, 18, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-silver);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.82rem;
+    word-break: break-all;
+}
+.copy-user-id-btn {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 240, 255, 0.24);
+    background: rgba(0, 240, 255, 0.08);
+    color: var(--neon-cyan);
+    font-family: 'Kanit', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.copy-user-id-btn:hover {
+    background: rgba(0, 240, 255, 0.14);
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+}
+.user-id-help {
+    margin-top: 8px;
+    font-size: 0.74rem;
+    color: var(--text-muted);
 }
 .user-stats {
     display: flex;
@@ -675,6 +726,13 @@
     .user-card {
         flex-direction: column;
         align-items: flex-start;
+    }
+    .user-id-card {
+        width: 100%;
+    }
+    .user-id-row {
+        flex-direction: column;
+        align-items: stretch;
     }
     .user-stats {
         width: 100%;

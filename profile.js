@@ -5,6 +5,7 @@ const API_ROOT = API_BASE.replace(/\/api$/, '');
 const LIFF_ID = '2009696727-evibES3H';
 
 let currentUser = null;
+let copyUserIdResetTimer = null;
 
 // ==================== HELPERS ====================
 function escapeHtml(str) {
@@ -68,6 +69,28 @@ function hideEl(id) { setElVisible(id, false); }
 const profileImgModal = document.getElementById('profile-img-modal');
 const profileImgModalImg = document.getElementById('profile-img-modal-img');
 const profileImgModalClose = document.getElementById('profile-img-modal-close');
+const userIdValueEl = document.getElementById('user-id-value');
+const copyUserIdBtn = document.getElementById('btn-copy-user-id');
+
+async function copyTextToClipboard(text) {
+    if (!text) return false;
+
+    if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+    }
+
+    const temp = document.createElement('textarea');
+    temp.value = text;
+    temp.setAttribute('readonly', '');
+    temp.style.position = 'absolute';
+    temp.style.left = '-9999px';
+    document.body.appendChild(temp);
+    temp.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(temp);
+    return copied;
+}
 
 function openProfileImageModal(src, alt = 'รูปหลักฐานการรีวิว') {
     if (!profileImgModal || !profileImgModalImg) return;
@@ -87,6 +110,27 @@ if (profileImgModal) {
         if (event.target === profileImgModal) {
             profileImgModal.hidden = true;
         }
+    });
+}
+
+if (copyUserIdBtn) {
+    copyUserIdBtn.addEventListener('click', async () => {
+        const userId = userIdValueEl?.textContent?.trim();
+        if (!userId || userId === '-') return;
+
+        try {
+            const copied = await copyTextToClipboard(userId);
+            if (!copied) throw new Error('copy-failed');
+
+            copyUserIdBtn.textContent = 'คัดลอกแล้ว';
+        } catch {
+            copyUserIdBtn.textContent = 'คัดลอกไม่ได้';
+        }
+
+        window.clearTimeout(copyUserIdResetTimer);
+        copyUserIdResetTimer = window.setTimeout(() => {
+            copyUserIdBtn.textContent = 'คัดลอก';
+        }, 1800);
     });
 }
 
@@ -236,7 +280,9 @@ function renderUserCard(user, stats) {
     }
 
     document.getElementById('user-display-name').textContent = user.display_name || '—';
-    document.getElementById('user-platform-id').textContent = `ID: ${user.platform_id || user.id}`;
+    document.getElementById('user-platform-id').textContent = `${(user.platform || 'line').toUpperCase()} Account`;
+    if (userIdValueEl) userIdValueEl.textContent = user.platform_id || user.id || '-';
+    if (copyUserIdBtn) copyUserIdBtn.textContent = 'คัดลอก';
 
     const badge = document.getElementById('platform-badge');
     const platform = user.platform || 'line';

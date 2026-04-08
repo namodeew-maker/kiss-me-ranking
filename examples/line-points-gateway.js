@@ -59,20 +59,6 @@ async function upsertUserByLineLogin(client, profile) {
     return result.rows[0];
 }
 
-async function ensureUserOaMapping(client, globalUserId, oaId, oaUserId) {
-    if (!oaId || !oaUserId) return;
-
-    const sql = `
-        INSERT INTO user_oa_mapping (global_user_id, oa_id, oa_user_id)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (oa_id, oa_user_id) DO UPDATE SET
-            global_user_id = EXCLUDED.global_user_id,
-            updated_at = NOW()
-    `;
-
-    await client.query(sql, [globalUserId, oaId, oaUserId]);
-}
-
 async function addPointAndForwardActivity(payload) {
     const client = await pool.connect();
     try {
@@ -84,8 +70,6 @@ async function addPointAndForwardActivity(payload) {
             pictureUrl: payload.pictureUrl
         });
 
-        await ensureUserOaMapping(client, user.global_user_id, payload.oaId, payload.oaUserId);
-
         const pointResult = await client.query(
             `INSERT INTO points (global_user_id, activity_type, points, source_platform, source_oa_id, metadata)
              VALUES ($1, $2, $3, 'line', $4, $5)
@@ -94,7 +78,7 @@ async function addPointAndForwardActivity(payload) {
                 user.global_user_id,
                 payload.activityType,
                 payload.points,
-                payload.oaId || null,
+                null,
                 payload.metadata || null
             ]
         );
@@ -105,8 +89,6 @@ async function addPointAndForwardActivity(payload) {
             eventType: 'POINTS_ADDED',
             globalUserId: user.global_user_id,
             lineLoginUserId: user.line_login_user_id,
-            oaId: payload.oaId,
-            oaUserId: payload.oaUserId,
             activityType: payload.activityType,
             points: payload.points,
             pointTxnId: pointResult.rows[0].id,
@@ -133,38 +115,9 @@ async function addPointAndForwardActivity(payload) {
     }
 }
 
-async function pushLineMessageByOa(oaId, toOaUserId, messageText) {
-    const result = await pool.query(
-        'SELECT access_token FROM oa_accounts WHERE oa_id = $1 AND is_active = TRUE',
-        [oaId]
-    );
-
-    if (!result.rowCount) {
-        throw new Error(`OA not found or inactive: ${oaId}`);
-    }
-
-    const token = result.rows[0].access_token;
-
-    const resp = await fetch('https://api.line.me/v2/bot/message/push', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-            to: toOaUserId,
-            messages: [{ type: 'text', text: messageText }]
-        })
-    });
-
-    if (!resp.ok) {
-        throw new Error(`LINE push failed: ${await resp.text()}`);
-    }
-}
-
 // OAuth callback from LINE Login.
 app.get('/auth/line/callback', async (req, res) => {
-    const { code, state, oaId, oaUserId } = req.query;
+    const { code, state } = req.query;
     if (!code) return res.status(400).json({ error: 'Missing code' });
 
     try {
@@ -175,7 +128,6 @@ app.get('/auth/line/callback', async (req, res) => {
         try {
             await client.query('BEGIN');
             const user = await upsertUserByLineLogin(client, profile);
-            await ensureUserOaMapping(client, user.global_user_id, oaId, oaUserId);
             await client.query('COMMIT');
             res.json({ success: true, state, user });
         } catch (err) {
@@ -191,7 +143,7 @@ app.get('/auth/line/callback', async (req, res) => {
 
 // Add points from app activity and forward to company system.
 app.post('/api/points/activity', async (req, res) => {
-    const { lineLoginUserId, oaId, oaUserId, displayName, pictureUrl, activityType, points, metadata } = req.body;
+    const { lineLoginUserId, displayName, pictureUrl, activityType, points, metadata } = req.body;
 
     if (!lineLoginUserId || !activityType || !Number.isInteger(points)) {
         return res.status(400).json({
@@ -202,18 +154,12 @@ app.post('/api/points/activity', async (req, res) => {
     try {
         const result = await addPointAndForwardActivity({
             lineLoginUserId,
-            oaId,
-            oaUserId,
             displayName,
             pictureUrl,
             activityType,
             points,
             metadata
         });
-
-        if (oaId && oaUserId) {
-            await pushLineMessageByOa(oaId, oaUserId, `Points +${points} from ${activityType}`);
-        }
 
         res.json({ success: true, result });
     } catch (error) {

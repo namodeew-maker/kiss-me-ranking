@@ -6,7 +6,7 @@
     <title>Kiss Me Ranking — โปรไฟล์</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260408b">
-    <link rel="stylesheet" href="profile.css?v=20260408b">
+    <link rel="stylesheet" href="profile.css?v=20260408d">
 </head>
 <body class="futuristic-bg">
     <!-- Animated Background Particles -->
@@ -57,6 +57,14 @@
                     <div class="user-info">
                         <h2 class="user-display-name" id="user-display-name">Loading...</h2>
                         <p class="user-platform-id" id="user-platform-id"></p>
+                        <div class="user-id-card">
+                            <div class="user-id-label">User ID สำหรับส่งให้แอดมิน</div>
+                            <div class="user-id-row">
+                                <span class="user-id-value" id="user-id-value">-</span>
+                                <button type="button" class="copy-user-id-btn" id="btn-copy-user-id">คัดลอก</button>
+                            </div>
+                            <div class="user-id-help">ใช้ ID นี้ให้แอดมินค้นหาเพื่อตรวจสอบยอดพ้อย, Cashback หรือ Gift Voucher</div>
+                        </div>
                     </div>
                 </div>
                 <div class="user-stats">
@@ -140,6 +148,6 @@
     </div>
 
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-    <script src="profile.js?v=20260408c"></script>
+    <script src="profile.js?v=20260408d"></script>
 </body>
 </html>

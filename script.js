@@ -8,6 +8,7 @@ let currentUser = null; // { id, platform, platform_id, display_name, picture_ur
 let currentVisitedStaffIds = new Set();
 let telegramWidgetLoadedFor = null;
 let telegramLoginConfig = null;
+let mainUserIdCopyResetTimer = null;
 
 function setElementVisible(element, isVisible, displayValue = '') {
     if (!element) return;
@@ -49,6 +50,30 @@ function resolveAssetUrl(value) {
     return `${API_ROOT}/uploads/${encodeURIComponent(normalized)}`;
 }
 
+async function copyTextToClipboard(text) {
+    if (!text) return false;
+
+    if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+
+    try {
+        return document.execCommand('copy');
+    } finally {
+        document.body.removeChild(textarea);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
 
     // ==================== DOM REFERENCES ====================
@@ -57,6 +82,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainContent = document.getElementById('main-content');
     const termsAgree = document.getElementById('terms-agree');
     const btnAccept = document.getElementById('btn-terms-accept');
+    const mainUserIdCard = document.getElementById('main-user-id-card');
+    const mainUserIdValue = document.getElementById('main-user-id-value');
+    const mainUserIdHelp = document.getElementById('main-user-id-help');
+    const btnCopyMainUserId = document.getElementById('btn-copy-main-user-id');
 
     // ==================== LIFF STATE ====================
     let liffInitialized = false;
@@ -256,9 +285,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /** Update header LIFF profile area with currentUser info */
     function updateProfileUI() {
-        if (!currentUser) return;
         const avatar = document.getElementById('liff-avatar');
         const nameEl = document.getElementById('liff-name');
+        if (!currentUser) {
+            if (nameEl) nameEl.textContent = 'กำลังโหลด...';
+            renderMainUserIdCard();
+            return;
+        }
+
         if (avatar && currentUser.picture_url) {
             avatar.src = currentUser.picture_url;
         } else if (avatar) {
@@ -267,6 +301,30 @@ document.addEventListener('DOMContentLoaded', () => {
         if (nameEl) {
             nameEl.textContent = currentUser.display_name || currentUser.platform_id;
         }
+
+        renderMainUserIdCard();
+    }
+
+    function renderMainUserIdCard() {
+        if (!mainUserIdCard || !mainUserIdValue || !mainUserIdHelp || !btnCopyMainUserId) return;
+
+        const userId = currentUser?.platform_id || currentUser?.id || '';
+        const platformLabel = currentUser?.platform === 'telegram' ? 'Telegram User ID' : 'LINE User ID';
+
+        if (!userId) {
+            mainUserIdValue.textContent = '-';
+            mainUserIdValue.removeAttribute('title');
+            btnCopyMainUserId.disabled = true;
+            btnCopyMainUserId.textContent = 'คัดลอก User ID';
+            mainUserIdHelp.textContent = 'ล็อกอินแล้วคัดลอก User ID นี้ส่งให้แอดมิน เพื่อใช้ค้นหาบัญชีและหักสิทธิ์หรือเช็ครางวัลได้ตรงตัว';
+            return;
+        }
+
+        mainUserIdValue.textContent = userId;
+        mainUserIdValue.title = userId;
+        btnCopyMainUserId.disabled = false;
+        btnCopyMainUserId.textContent = 'คัดลอก User ID';
+        mainUserIdHelp.textContent = `${platformLabel} นี้ใช้เป็นรหัสอ้างอิงสำหรับส่งให้แอดมิน เมื่อจะให้เช็กยอดคะแนน หักสิทธิ์ หรือดูสิทธิ์รางวัล`;
     }
 
     function renderProgressState(progressCount) {
@@ -372,12 +430,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
             currentUser.progress_count = progressCount;
             sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+            renderMainUserIdCard();
         } catch (error) {
             console.error('Runtime state refresh error:', error);
             renderProgressState(currentUser?.progress_count || 0);
             renderTotalPoints(0);
             syncLottoState(null);
+            renderMainUserIdCard();
         }
+    }
+
+    if (btnCopyMainUserId) {
+        btnCopyMainUserId.addEventListener('click', async () => {
+            const userId = currentUser?.platform_id || currentUser?.id || '';
+            if (!userId) return;
+
+            try {
+                const copied = await copyTextToClipboard(userId);
+                btnCopyMainUserId.textContent = copied ? 'คัดลอกแล้ว' : 'คัดลอกไม่สำเร็จ';
+            } catch (error) {
+                console.error('Copy main user ID error:', error);
+                btnCopyMainUserId.textContent = 'คัดลอกไม่สำเร็จ';
+            }
+
+            clearTimeout(mainUserIdCopyResetTimer);
+            mainUserIdCopyResetTimer = window.setTimeout(() => {
+                btnCopyMainUserId.textContent = 'คัดลอก User ID';
+            }, 1800);
+        });
     }
 
     // --- LINE Login ---

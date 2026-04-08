@@ -1026,6 +1026,248 @@
     color: var(--neon-cyan, #00f0ff);
 }
 
+.reward-ledger-panel {
+    border-color: rgba(255, 204, 0, 0.22);
+    background: rgba(255, 204, 0, 0.03);
+}
+
+.reward-ledger-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.reward-ledger-summary {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+}
+
+.reward-ledger-card {
+    padding: 16px 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 204, 0, 0.18);
+    background: rgba(255, 255, 255, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.reward-ledger-label,
+.reward-ledger-help,
+.reward-value-meta,
+.reward-round-meta,
+.reward-claim-copy {
+    color: var(--text-muted);
+}
+
+.reward-ledger-label {
+    font-size: 0.8rem;
+}
+
+.reward-ledger-value {
+    color: #ffd54f;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.35rem;
+}
+
+.reward-ledger-help,
+.reward-value-meta,
+.reward-round-meta {
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.reward-ledger-grid {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+    gap: 16px;
+}
+
+.reward-ledger-table-wrap {
+    min-width: 0;
+}
+
+.reward-ledger-row-active {
+    background: rgba(255, 204, 0, 0.08);
+}
+
+.reward-user-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.reward-user-name {
+    color: var(--text-silver);
+    font-weight: 700;
+}
+
+.reward-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.reward-type-badge-cashback {
+    color: #00ff88;
+    background: rgba(0, 255, 136, 0.12);
+    border: 1px solid rgba(0, 255, 136, 0.2);
+}
+
+.reward-type-badge-gv {
+    color: var(--neon-cyan, #00f0ff);
+    background: rgba(0, 240, 255, 0.12);
+    border: 1px solid rgba(0, 240, 255, 0.2);
+}
+
+.reward-value-strong {
+    display: block;
+    font-weight: 700;
+    color: var(--text-silver);
+}
+
+.reward-value-strong.reward-value-remaining {
+    color: #ffd54f;
+}
+
+.reward-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.reward-claim-card {
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 204, 0, 0.18);
+    background: rgba(255, 255, 255, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.reward-claim-card h4,
+.reward-claims-history-card h4 {
+    margin: 0;
+    color: #ffd54f;
+}
+
+.reward-claim-target {
+    min-height: 78px;
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px dashed rgba(255, 204, 0, 0.24);
+    color: var(--text-silver);
+    line-height: 1.6;
+}
+
+.reward-claim-form-row {
+    align-items: stretch;
+}
+
+.reward-claim-form-row input {
+    flex: 1 1 auto;
+}
+
+.reward-claim-note {
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid #333;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-silver);
+    padding: 12px 14px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.reward-claim-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.reward-claim-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.reward-claim-entry-main {
+    flex: 1 1 auto;
+}
+
+.reward-claim-entry .btn-small {
+    flex: 0 0 auto;
+}
+
+.user-reward-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.user-reward-chip {
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 204, 0, 0.15);
+}
+
+.user-reward-chip strong {
+    display: block;
+    color: #ffd54f;
+    font-family: 'Orbitron', sans-serif;
+    margin-bottom: 4px;
+}
+
+.user-reward-chip span {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+}
+
+.user-point-redeem-card {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.user-point-redeem-row input {
+    flex: 1 1 auto;
+}
+
+.point-positive {
+    color: #00ff88;
+}
+
+.point-negative {
+    color: #ff8a65;
+}
+
+.point-entry-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.reward-claims-history-card {
+    margin-top: 18px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .admin-tabs {
@@ -1079,6 +1321,15 @@
     }
 
     .storage-panel-header {
+        flex-direction: column;
+    }
+
+    .reward-ledger-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .reward-claim-actions,
+    .reward-actions {
         flex-direction: column;
     }
 }
@@ -1355,6 +1606,22 @@
     color: var(--text-muted);
 }
 
+.user-reward-balance-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 160px;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--text-silver);
+}
+
+.user-reward-balance-cell strong {
+    color: var(--gold);
+    font-weight: 700;
+    margin-right: 6px;
+}
+
 #users-body tr {
     transition: background 0.2s ease, box-shadow 0.2s ease;
 }
@@ -1538,5 +1805,9 @@
 
     .user-detail-columns {
         grid-template-columns: 1fr;
+    }
+
+    .user-reward-balance-cell {
+        min-width: 132px;
     }
 }

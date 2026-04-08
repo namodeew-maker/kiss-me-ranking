@@ -103,6 +103,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_user_lottery_round
     ON lottery_guesses (user_id, round_label);
 
 -- ============================================
+-- 5.1 ตาราง lottery_reward_claims — บันทึกการใช้สิทธิ์รางวัล
+-- รองรับการทยอยใช้ Cashback / GV หลายครั้ง และให้แอดมินตรวจสอบยอดคงเหลือได้
+-- ============================================
+CREATE TABLE IF NOT EXISTS lottery_reward_claims (
+    id SERIAL PRIMARY KEY,
+    lottery_guess_id INTEGER NOT NULL REFERENCES lottery_guesses(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reward_type VARCHAR(20) NOT NULL
+        CHECK (reward_type IN ('cashback', 'gv')),
+    amount NUMERIC(10,2) NOT NULL CHECK (amount > 0),
+    note TEXT,
+    redeemed_by INTEGER REFERENCES admin_users(id) ON DELETE SET NULL,
+    redeemed_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reward_claims_guess
+    ON lottery_reward_claims (lottery_guess_id);
+
+CREATE INDEX IF NOT EXISTS idx_reward_claims_user
+    ON lottery_reward_claims (user_id, redeemed_at DESC);
+
+-- ============================================
 -- 6. ตาราง sold_out — เลขที่ถูกจองแล้วในแต่ละรอบ
 -- (ถ้าต้องการจำกัดจำนวนคนทายเลขเดียวกัน)
 -- ============================================

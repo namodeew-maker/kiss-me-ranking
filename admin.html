@@ -6,7 +6,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260408e">
-    <link rel="stylesheet" href="admin.css?v=20260408e">
+    <link rel="stylesheet" href="admin.css?v=20260408f">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -140,6 +140,80 @@
                     </div>
                 </section>
 
+                <section class="admin-panel reward-ledger-panel">
+                    <div class="reward-ledger-header">
+                        <div>
+                            <h3>🧾 จัดการการใช้สิทธิ์ Cashback / GV</h3>
+                            <p class="panel-caption">กรณีลูกค้าทายผิดครบ 5 ครั้งแล้วได้ GV หรือถูกรางวัลแล้วทยอยใช้ ระบบจะบันทึกยอดใช้แล้ว คงเหลือ และประวัติการใช้สิทธิ์ให้แอดมินตรวจสอบได้ตรงนี้</p>
+                        </div>
+                        <button class="btn-action btn-blue" id="btn-refresh-rewards" type="button">รีเฟรชสิทธิ์รางวัล</button>
+                    </div>
+
+                    <div class="reward-ledger-summary" id="reward-ledger-summary">
+                        <div class="reward-ledger-card">
+                            <span class="reward-ledger-label">สิทธิ์ที่ยังค้าง</span>
+                            <strong class="reward-ledger-value" id="reward-open-count">0 รายการ</strong>
+                            <span class="reward-ledger-help">ยังมีสิทธิ์ที่แอดมินต้องติดตาม</span>
+                        </div>
+                        <div class="reward-ledger-card">
+                            <span class="reward-ledger-label">Cashback คงเหลือ</span>
+                            <strong class="reward-ledger-value" id="reward-cashback-remaining">0 ฿</strong>
+                            <span class="reward-ledger-help" id="reward-cashback-remaining-net">สุทธิ 0 ฿</span>
+                        </div>
+                        <div class="reward-ledger-card">
+                            <span class="reward-ledger-label">GV คงเหลือ</span>
+                            <strong class="reward-ledger-value" id="reward-gv-remaining">0 ฿</strong>
+                            <span class="reward-ledger-help">รวมสิทธิ์ที่ยังไม่ได้ตัดใช้</span>
+                        </div>
+                        <div class="reward-ledger-card">
+                            <span class="reward-ledger-label">บันทึกการใช้สิทธิ์</span>
+                            <strong class="reward-ledger-value" id="reward-claim-count">0 ครั้ง</strong>
+                            <span class="reward-ledger-help">ทุกครั้งที่ทยอยใช้จะถูกเก็บเป็น ledger</span>
+                        </div>
+                    </div>
+
+                    <div class="reward-ledger-grid">
+                        <div class="reward-ledger-table-wrap">
+                            <table class="admin-table" id="reward-ledger-table">
+                                <thead>
+                                    <tr>
+                                        <th>ผู้ใช้</th>
+                                        <th>งวด</th>
+                                        <th>รางวัล</th>
+                                        <th>ได้รับ</th>
+                                        <th>ใช้แล้ว</th>
+                                        <th>คงเหลือ</th>
+                                        <th>ใช้แล้วกี่ครั้ง</th>
+                                        <th>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="reward-ledger-body"></tbody>
+                            </table>
+                            <p class="empty-msg" id="no-reward-ledger">กำลังโหลดสิทธิ์รางวัล...</p>
+                        </div>
+
+                        <div class="reward-claim-card">
+                            <h4>บันทึกการใช้สิทธิ์</h4>
+                            <p class="panel-caption reward-claim-copy">เลือกแถวจากตารางซ้าย แล้วบันทึกยอดใช้สิทธิ์แต่ละครั้งได้เลย กรณี Cashback ให้กรอกยอดก่อนภาษี ระบบจะแสดงยอดสุทธิประกอบให้</p>
+                            <div class="reward-claim-target" id="reward-claim-target">ยังไม่ได้เลือกรายการ</div>
+                            <div class="input-row reward-claim-form-row">
+                                <input type="number" id="reward-claim-amount" min="0" step="0.01" placeholder="ยอดที่ใช้สิทธิ์">
+                                <button class="btn-small" id="btn-claim-remaining" type="button">ใส่ยอดคงเหลือ</button>
+                            </div>
+                            <textarea id="reward-claim-note" class="reward-claim-note" rows="4" placeholder="โน้ต เช่น ใช้กับบิลวันที่..., นัดรับ GV แล้ว, หรือลูกค้าแบ่งใช้ครั้งที่ 2"></textarea>
+                            <div class="reward-claim-actions">
+                                <button class="btn-action btn-green" id="btn-save-reward-claim" type="button">บันทึกการใช้สิทธิ์</button>
+                                <button class="btn-action" id="btn-clear-reward-claim" type="button">ล้างการเลือก</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="user-detail-card reward-claims-history-card">
+                        <h4>รายการใช้สิทธิ์ล่าสุด</h4>
+                        <div id="reward-claims-list" class="user-activity-list"></div>
+                    </div>
+                </section>
+
                 <section class="admin-panel storage-panel">
                     <div class="storage-panel-header">
                         <div>
@@ -225,6 +299,7 @@
                                 <th>ID</th>
                                 <th>สิทธิ์รอบนี้</th>
                                 <th>แต้มสะสม</th>
+                                <th>Cashback / GV</th>
                                 <th>รายการทั้งหมด</th>
                                 <th>ใช้งานล่าสุด</th>
                                 <th>จัดการ</th>
@@ -445,8 +520,9 @@
                         <div id="user-linked-accounts" class="user-linked-accounts"></div>
                     </div>
                     <div class="user-detail-card">
-                        <h4>OA Bindings</h4>
-                        <div id="user-oa-bindings" class="user-linked-accounts"></div>
+                        <h4>ID ที่ใช้ค้นหาในแอดมิน</h4>
+                        <p class="panel-caption">ให้ลูกค้าคัดลอก User ID จากหน้าโปรไฟล์แล้วส่งให้แอดมิน จากนั้นค้นหาด้วย ID นี้เพื่อเช็กยอดและหักสิทธิ์</p>
+                        <div id="user-admin-search-keys" class="user-linked-accounts"></div>
                     </div>
                 </div>
 
@@ -460,10 +536,46 @@
                         <div id="user-recent-points" class="user-activity-list"></div>
                     </div>
                 </div>
+
+                <div class="user-detail-columns">
+                    <div class="user-detail-card">
+                        <h4>ใช้พ้อย / แลกพ้อย</h4>
+                        <div id="user-points-summary" class="user-reward-summary"></div>
+                        <div class="user-point-redeem-card">
+                            <p class="panel-caption">เมื่อลูกค้าแจ้ง User ID ให้แอดมินค้นหาจากตารางด้านบน แล้วหักพ้อยจากส่วนนี้ ระบบจะตัดยอดคงเหลือให้อัตโนมัติและเก็บประวัติย้อนหลัง</p>
+                            <div class="input-row user-point-redeem-row">
+                                <input type="number" id="user-point-redeem-amount" min="1" step="1" placeholder="จำนวนพ้อยที่ต้องการใช้">
+                                <button class="btn-small" id="btn-fill-redeemable-points" type="button">ใส่ยอดคงเหลือ</button>
+                            </div>
+                            <textarea id="user-point-redeem-note" class="reward-claim-note" rows="3" placeholder="โน้ต เช่น ใช้แลกคูปองหน้าร้าน, ลูกค้าแจ้งใช้พ้อยผ่านแอดมิน"></textarea>
+                            <div class="reward-claim-actions">
+                                <button class="btn-action btn-gold" id="btn-redeem-user-points" type="button">หักพ้อยให้ลูกค้า</button>
+                                <button class="btn-action" id="btn-clear-user-points" type="button">ล้างค่า</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-detail-card">
+                        <h4>ประวัติพ้อยย้อนหลัง</h4>
+                        <div id="user-point-history-note" class="panel-caption">รายการพ้อยบวกและลบจะแสดงรวมกันในส่วนนี้</div>
+                        <div id="user-point-history" class="user-activity-list"></div>
+                    </div>
+                </div>
+
+                <div class="user-detail-columns">
+                    <div class="user-detail-card">
+                        <h4>สิทธิ์ Cashback / GV</h4>
+                        <div id="user-reward-summary" class="user-reward-summary"></div>
+                        <div id="user-reward-items" class="user-activity-list"></div>
+                    </div>
+                    <div class="user-detail-card">
+                        <h4>ประวัติการใช้สิทธิ์</h4>
+                        <div id="user-reward-claims" class="user-activity-list"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="admin.js?v=20260408e"></script>
+    <script src="admin.js?v=20260408i"></script>
 </body>
 </html>
