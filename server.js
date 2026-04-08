@@ -22,9 +22,10 @@ const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
 const R2_ACCESS_KEY = process.env.R2_ACCESS_KEY;
 const R2_SECRET_KEY = process.env.R2_SECRET_KEY;
 const R2_BUCKET = process.env.R2_BUCKET || 'kissme-uploads';
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || '';
+const R2_PUBLIC_URL = String(process.env.R2_PUBLIC_URL || '').trim().replace(/\/+$/, '');
 
-const useR2 = !!(R2_ACCOUNT_ID && R2_ACCESS_KEY && R2_SECRET_KEY);
+const hasR2Credentials = !!(R2_ACCOUNT_ID && R2_ACCESS_KEY && R2_SECRET_KEY);
+const useR2 = hasR2Credentials && !!R2_PUBLIC_URL;
 
 let s3Client;
 if (useR2) {
@@ -36,6 +37,8 @@ if (useR2) {
             secretAccessKey: R2_SECRET_KEY,
         },
     });
+} else if (hasR2Credentials && !R2_PUBLIC_URL) {
+    console.warn('R2 credentials found but R2_PUBLIC_URL is missing. Falling back to local uploads.');
 }
 
 // Ensure local uploads directory exists (fallback)
@@ -75,6 +78,231 @@ async function uploadToR2(buffer, filename, mimetype) {
         ContentType: mimetype,
     }));
     return `${R2_PUBLIC_URL}/${filename}`;
+}
+
+function getMimeTypeFromFilename(filename) {
+    const ext = path.extname(String(filename || '')).toLowerCase();
+    switch (ext) {
+        case '.jpg':
+        case '.jpeg':
+            return 'image/jpeg';
+        case '.png':
+            return 'image/png';
+        case '.gif':
+            return 'image/gif';
+        case '.webp':
+            return 'image/webp';
+        default:
+            return 'application/octet-stream';
+    }
+}
+
+function isR2ManagedUrl(value) {
+    if (!value || !R2_PUBLIC_URL) return false;
+    return String(value).trim().startsWith(`${R2_PUBLIC_URL}/`);
+}
+
+function extractLocalUploadFilename(value) {
+    if (!value) return null;
+    const normalized = String(value).trim();
+    if (!normalized || isR2ManagedUrl(normalized)) return null;
+
+    if (/^https?:\/\//i.test(normalized)) {
+        try {
+            const url = new URL(normalized);
+            const uploadMatch = url.pathname.match(/\/uploads\/([^?#]+)/i);
+            return uploadMatch ? decodeURIComponent(uploadMatch[1]) : null;
+        } catch {
+            return null;
+        }
+    }
+
+    if (normalized.startsWith('/uploads/')) {
+        return decodeURIComponent(normalized.slice('/uploads/'.length));
+    }
+
+    if (normalized.startsWith('uploads/')) {
+        return decodeURIComponent(normalized.slice('uploads/'.length));
+    }
+
+    if (/^[A-Za-z0-9._%-]+\.(jpg|jpeg|png|gif|webp)$/i.test(normalized)) {
+        return decodeURIComponent(normalized);
+    }
+
+    const embeddedUploadMatch = normalized.match(/\/uploads\/([^?#]+)/i);
+    return embeddedUploadMatch ? decodeURIComponent(embeddedUploadMatch[1]) : null;
+}
+
+const ASSET_REFERENCE_CONFIG = [
+    { table: 'staffs', column: 'avatar_url', label: 'รูปพนักงาน' },
+    { table: 'transactions', column: 'slip_image_url', label: 'รูปหลักฐาน' },
+    { table: 'users', column: 'picture_url', label: 'รูปผู้ใช้' }
+];
+
+async function loadAssetReferences() {
+    const refs = [];
+    for (const config of ASSET_REFERENCE_CONFIG) {
+        const result = await pool.query(
+            `SELECT id, ${config.column} AS asset_value FROM ${config.table} WHERE ${config.column} IS NOT NULL AND ${config.column} <> ''`
+        );
+        result.rows.forEach((row) => {
+            refs.push({
+                table: config.table,
+                column: config.column,
+                label: config.label,
+                id: row.id,
+                value: row.asset_value
+            });
+        });
+    }
+    return refs;
+}
+
+function createAssetTableSummary() {
+    return {
+        total: 0,
+        r2: 0,
+        local_existing: 0,
+        local_missing: 0,
+        external: 0
+    };
+}
+
+async function summarizeAssetStorage() {
+    const refs = await loadAssetReferences();
+    const summary = {
+        storage: {
+            mode: useR2 ? 'r2' : 'local',
+            r2_enabled: useR2,
+            r2_public_url: R2_PUBLIC_URL || null,
+            bucket: useR2 ? R2_BUCKET : null,
+            local_upload_files: fs.existsSync(uploadsDir) ? fs.readdirSync(uploadsDir).length : 0
+        },
+        counts: {
+            total: 0,
+            r2: 0,
+            local_existing: 0,
+            local_missing: 0,
+            external: 0
+        },
+        tables: {},
+        missing_samples: []
+    };
+
+    for (const config of ASSET_REFERENCE_CONFIG) {
+        summary.tables[config.table] = createAssetTableSummary();
+    }
+
+    refs.forEach((ref) => {
+        const tableSummary = summary.tables[ref.table] || createAssetTableSummary();
+        summary.counts.total += 1;
+        tableSummary.total += 1;
+
+        if (isR2ManagedUrl(ref.value)) {
+            summary.counts.r2 += 1;
+            tableSummary.r2 += 1;
+            summary.tables[ref.table] = tableSummary;
+            return;
+        }
+
+        const filename = extractLocalUploadFilename(ref.value);
+        if (filename) {
+            const localPath = path.join(uploadsDir, filename);
+            if (fs.existsSync(localPath)) {
+                summary.counts.local_existing += 1;
+                tableSummary.local_existing += 1;
+            } else {
+                summary.counts.local_missing += 1;
+                tableSummary.local_missing += 1;
+                if (summary.missing_samples.length < 8) {
+                    summary.missing_samples.push({
+                        table: ref.table,
+                        id: ref.id,
+                        filename
+                    });
+                }
+            }
+            summary.tables[ref.table] = tableSummary;
+            return;
+        }
+
+        summary.counts.external += 1;
+        tableSummary.external += 1;
+        summary.tables[ref.table] = tableSummary;
+    });
+
+    return summary;
+}
+
+async function migrateLocalAssetsToR2() {
+    if (!useR2) {
+        throw new Error('R2 storage is not configured');
+    }
+
+    const refs = await loadAssetReferences();
+    const uploadCache = new Map();
+    const result = {
+        scanned: refs.length,
+        migrated_rows: 0,
+        uploaded_files: 0,
+        already_r2: 0,
+        external_skipped: 0,
+        missing_files: [],
+        failed_rows: []
+    };
+
+    for (const ref of refs) {
+        if (isR2ManagedUrl(ref.value)) {
+            result.already_r2 += 1;
+            continue;
+        }
+
+        const filename = extractLocalUploadFilename(ref.value);
+        if (!filename) {
+            result.external_skipped += 1;
+            continue;
+        }
+
+        let cachedUpload = uploadCache.get(filename);
+        if (!cachedUpload) {
+            const filePath = path.join(uploadsDir, filename);
+            if (!fs.existsSync(filePath)) {
+                cachedUpload = { status: 'missing' };
+            } else {
+                const fileBuffer = await fs.promises.readFile(filePath);
+                const publicUrl = await uploadToR2(fileBuffer, filename, getMimeTypeFromFilename(filename));
+                cachedUpload = { status: 'uploaded', url: publicUrl };
+                result.uploaded_files += 1;
+            }
+            uploadCache.set(filename, cachedUpload);
+        }
+
+        if (cachedUpload.status !== 'uploaded') {
+            if (result.missing_files.length < 20) {
+                result.missing_files.push({ table: ref.table, id: ref.id, filename });
+            }
+            continue;
+        }
+
+        try {
+            await pool.query(
+                `UPDATE ${ref.table} SET ${ref.column} = $1 WHERE id = $2`,
+                [cachedUpload.url, ref.id]
+            );
+            result.migrated_rows += 1;
+        } catch (err) {
+            if (result.failed_rows.length < 20) {
+                result.failed_rows.push({
+                    table: ref.table,
+                    id: ref.id,
+                    filename,
+                    error: err.message
+                });
+            }
+        }
+    }
+
+    return result;
 }
 
 // Helper: resolve slip image path for local files
@@ -258,6 +486,33 @@ app.post('/api/login', async (req, res) => {
 // GET /api/auth/verify
 app.get('/api/auth/verify', requireAuth, (req, res) => {
     res.json({ valid: true, username: req.adminUser });
+});
+
+app.get('/api/admin/storage/status', requireAuth, async (req, res) => {
+    try {
+        const summary = await summarizeAssetStorage();
+        res.json(summary);
+    } catch (err) {
+        console.error('Storage status error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดสถานะ storage ได้' });
+    }
+});
+
+app.post('/api/admin/storage/migrate', requireAuth, async (req, res) => {
+    if (!useR2) {
+        return res.status(400).json({
+            error: 'R2 storage ยังไม่พร้อมใช้งาน กรุณาตั้งค่า R2_ACCOUNT_ID, R2_ACCESS_KEY, R2_SECRET_KEY และ R2_PUBLIC_URL ก่อน'
+        });
+    }
+
+    try {
+        const migration = await migrateLocalAssetsToR2();
+        const summary = await summarizeAssetStorage();
+        res.json({ success: true, migration, summary });
+    } catch (err) {
+        console.error('Storage migrate error:', err);
+        res.status(500).json({ error: 'ไม่สามารถย้ายไฟล์ขึ้น R2 ได้', detail: err.message });
+    }
 });
 
 // POST /api/logout

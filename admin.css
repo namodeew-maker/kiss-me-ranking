@@ -824,6 +824,114 @@
     color: var(--neon-cyan, #00f0ff);
 }
 
+.storage-panel {
+    border-color: rgba(0, 240, 255, 0.18);
+}
+
+.storage-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.storage-panel-copy {
+    margin: 4px 0 0;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+}
+
+.storage-panel-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.storage-status-grid {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+}
+
+.storage-stat-card {
+    padding: 16px 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.storage-stat-card-warning {
+    border-color: rgba(255, 153, 0, 0.35);
+    background: rgba(255, 153, 0, 0.06);
+}
+
+.storage-stat-label {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.storage-stat-value {
+    color: var(--text-silver);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.35rem;
+}
+
+.storage-stat-help {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.storage-breakdown {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.storage-breakdown-card {
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 240, 255, 0.12);
+    background: rgba(0, 240, 255, 0.04);
+}
+
+.storage-breakdown-card strong {
+    display: block;
+    color: var(--text-silver);
+    margin-bottom: 8px;
+}
+
+.storage-breakdown-card span {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.storage-missing-list {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 120, 120, 0.2);
+    background: rgba(255, 80, 80, 0.05);
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.55;
+}
+
+.storage-missing-list strong {
+    color: #ffd3d3;
+    display: block;
+    margin-bottom: 8px;
+}
+
 /* History table extra badges */
 .badge-won {
     background: #003322;
@@ -906,6 +1014,10 @@
     }
 
     .audit-workflow {
+        flex-direction: column;
+    }
+
+    .storage-panel-header {
         flex-direction: column;
     }
 }

@@ -171,6 +171,90 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `${API_ROOT}/uploads/${encodeURIComponent(normalized)}`;
     }
 
+    const storageMode = document.getElementById('storage-mode');
+    const storagePublicUrl = document.getElementById('storage-public-url');
+    const storageLocalExisting = document.getElementById('storage-local-existing');
+    const storageLocalMissing = document.getElementById('storage-local-missing');
+    const storageR2Count = document.getElementById('storage-r2-count');
+    const storageLastMigration = document.getElementById('storage-last-migration');
+    const storageBreakdown = document.getElementById('storage-breakdown');
+    const storageMissingList = document.getElementById('storage-missing-list');
+    const btnRefreshStorage = document.getElementById('btn-refresh-storage');
+    const btnMigrateStorage = document.getElementById('btn-migrate-storage');
+    let isStorageMigrationRunning = false;
+
+    function setStorageBusyState(isBusy) {
+        isStorageMigrationRunning = isBusy;
+        if (btnMigrateStorage) {
+            btnMigrateStorage.disabled = isBusy;
+            btnMigrateStorage.textContent = isBusy ? 'กำลังย้ายไฟล์...' : 'ย้ายไฟล์ขึ้น R2';
+        }
+        if (btnRefreshStorage) btnRefreshStorage.disabled = isBusy;
+    }
+
+    function renderStorageSummary(summary, migration = null) {
+        if (!summary) return;
+
+        if (storageMode) {
+            storageMode.textContent = summary.storage?.r2_enabled ? 'R2 พร้อมใช้งาน' : 'Local Disk';
+        }
+
+        if (storagePublicUrl) {
+            storagePublicUrl.textContent = summary.storage?.r2_public_url
+                ? `Public URL: ${summary.storage.r2_public_url}`
+                : 'ยังไม่ได้ตั้งค่า R2_PUBLIC_URL';
+        }
+
+        if (storageLocalExisting) storageLocalExisting.textContent = String(summary.counts?.local_existing || 0);
+        if (storageLocalMissing) storageLocalMissing.textContent = String(summary.counts?.local_missing || 0);
+        if (storageR2Count) storageR2Count.textContent = String(summary.counts?.r2 || 0);
+
+        if (storageLastMigration) {
+            storageLastMigration.textContent = migration
+                ? `ล่าสุดย้าย ${migration.migrated_rows || 0} แถว / อัปโหลด ${migration.uploaded_files || 0} ไฟล์`
+                : `ไฟล์บน local disk ตอนนี้ ${summary.storage?.local_upload_files || 0} ไฟล์`;
+        }
+
+        if (btnMigrateStorage) {
+            btnMigrateStorage.disabled = !summary.storage?.r2_enabled || isStorageMigrationRunning;
+        }
+
+        if (storageBreakdown) {
+            storageBreakdown.innerHTML = Object.entries(summary.tables || {}).map(([tableName, tableSummary]) => `
+                <div class="storage-breakdown-card">
+                    <strong>${escapeHtml(tableName)}</strong>
+                    <span>R2 แล้ว: ${Number(tableSummary.r2 || 0).toLocaleString('th-TH')}</span>
+                    <span>Local ที่ยังย้ายได้: ${Number(tableSummary.local_existing || 0).toLocaleString('th-TH')}</span>
+                    <span>ไฟล์หาย: ${Number(tableSummary.local_missing || 0).toLocaleString('th-TH')}</span>
+                    <span>External URL: ${Number(tableSummary.external || 0).toLocaleString('th-TH')}</span>
+                </div>
+            `).join('');
+        }
+
+        if (storageMissingList) {
+            const missingSamples = summary.missing_samples || [];
+            if (missingSamples.length) {
+                storageMissingList.classList.remove('hidden');
+                storageMissingList.innerHTML = `<strong>ไฟล์ที่อ้างอิงอยู่แต่หาไม่เจอบนเซิร์ฟเวอร์</strong>${missingSamples.map((item) => `<div>${escapeHtml(item.table)} #${item.id} • ${escapeHtml(item.filename)}</div>`).join('')}`;
+            } else {
+                storageMissingList.classList.add('hidden');
+                storageMissingList.innerHTML = '';
+            }
+        }
+    }
+
+    async function renderStorageStatus() {
+        try {
+            const res = await authFetch(`${API_BASE}/admin/storage/status`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'storage-status-failed');
+            renderStorageSummary(data);
+        } catch (err) {
+            if (storageMode) storageMode.textContent = 'โหลดไม่สำเร็จ';
+            if (storagePublicUrl) storagePublicUrl.textContent = 'ไม่สามารถอ่านสถานะที่เก็บรูปได้';
+        }
+    }
+
     const userSearchInput = document.getElementById('user-search-input');
     const userPlatformFilter = document.getElementById('user-platform-filter');
     const userBody = document.getElementById('users-body');
@@ -626,6 +710,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    btnRefreshStorage?.addEventListener('click', () => {
+        renderStorageStatus();
+    });
+
+    btnMigrateStorage?.addEventListener('click', async () => {
+        const confirmed = window.confirm('ย้ายไฟล์รูปทั้งหมดที่ยังอยู่บน local disk ขึ้น R2 ตอนนี้ใช่หรือไม่?');
+        if (!confirmed) return;
+
+        setStorageBusyState(true);
+        try {
+            const res = await authFetch(`${API_BASE}/admin/storage/migrate`, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'storage-migrate-failed');
+
+            renderStorageSummary(data.summary, data.migration);
+            showToast(`ย้ายข้อมูลขึ้น R2 แล้ว ${data.migration.migrated_rows || 0} แถว`, 'success');
+            renderHistory();
+            renderApproval();
+            renderStaffGrid();
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถย้ายไฟล์ขึ้น R2 ได้', 'error');
+        } finally {
+            setStorageBusyState(false);
+        }
+    });
+
     document.getElementById('btn-user-search')?.addEventListener('click', () => renderUsers(1));
     document.getElementById('btn-user-refresh')?.addEventListener('click', () => {
         if (userSearchInput) userSearchInput.value = '';
@@ -773,6 +883,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderCashbackSummary();
     updateStats();
     renderUsers();
+    renderStorageStatus();
 
     // --- Load Round Info ---
     try {

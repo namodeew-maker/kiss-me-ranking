@@ -6,7 +6,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260408b">
-    <link rel="stylesheet" href="admin.css?v=20260408b">
+    <link rel="stylesheet" href="admin.css?v=20260408c">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -138,6 +138,43 @@
                             <span class="cashback-value" id="cashback-gv-total">0 ฿</span>
                         </div>
                     </div>
+                </section>
+
+                <section class="admin-panel storage-panel">
+                    <div class="storage-panel-header">
+                        <div>
+                            <h3>🗂️ ที่เก็บรูปถาวร</h3>
+                            <p class="storage-panel-copy">ตรวจสถานะรูปทั้งหมดและย้ายไฟล์จาก local disk ไป R2 เพื่อไม่ให้รูปหายหลัง deploy</p>
+                        </div>
+                        <div class="storage-panel-actions">
+                            <button class="btn-small" id="btn-refresh-storage" type="button">รีเฟรช</button>
+                            <button class="btn-action btn-blue" id="btn-migrate-storage" type="button">ย้ายไฟล์ขึ้น R2</button>
+                        </div>
+                    </div>
+                    <div class="storage-status-grid">
+                        <div class="storage-stat-card">
+                            <span class="storage-stat-label">โหมดจัดเก็บ</span>
+                            <strong class="storage-stat-value" id="storage-mode">กำลังโหลด...</strong>
+                            <span class="storage-stat-help" id="storage-public-url">-</span>
+                        </div>
+                        <div class="storage-stat-card">
+                            <span class="storage-stat-label">Local ที่ยังย้ายได้</span>
+                            <strong class="storage-stat-value" id="storage-local-existing">0</strong>
+                            <span class="storage-stat-help">ไฟล์ยังอยู่บนเซิร์ฟเวอร์</span>
+                        </div>
+                        <div class="storage-stat-card storage-stat-card-warning">
+                            <span class="storage-stat-label">Local ที่ไฟล์หายแล้ว</span>
+                            <strong class="storage-stat-value" id="storage-local-missing">0</strong>
+                            <span class="storage-stat-help">ต้องกู้ไฟล์หรืออัปโหลดใหม่</span>
+                        </div>
+                        <div class="storage-stat-card">
+                            <span class="storage-stat-label">อ้างอิงที่อยู่บน R2 แล้ว</span>
+                            <strong class="storage-stat-value" id="storage-r2-count">0</strong>
+                            <span class="storage-stat-help" id="storage-last-migration">ยังไม่ย้ายรอบล่าสุด</span>
+                        </div>
+                    </div>
+                    <div class="storage-breakdown" id="storage-breakdown"></div>
+                    <div class="storage-missing-list hidden" id="storage-missing-list"></div>
                 </section>
 
             </div>
@@ -427,6 +464,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260408b"></script>
+    <script src="admin.js?v=20260408c"></script>
 </body>
 </html>
