@@ -347,6 +347,26 @@ document.addEventListener('DOMContentLoaded', () => {
         btnLottoConfirm.disabled = !canGuess || !currentLottoSelection;
     }
 
+    function resetLottoSelection() {
+        setSelectedLottoNumber('');
+        document.querySelector('.lotto-num.selected')?.classList.remove('selected');
+    }
+
+    function hideLottoSection() {
+        const lottoSection = document.getElementById('lotto-section');
+        if (!lottoSection) return;
+        lottoSection.hidden = true;
+    }
+
+    function showLottoSection(scrollIntoView = false) {
+        const lottoSection = document.getElementById('lotto-section');
+        if (!lottoSection) return;
+        lottoSection.hidden = false;
+        if (scrollIntoView) {
+            lottoSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
     function renderProgressState(pointBalance, guessCredits) {
         const normalizedPoints = Math.max(0, Number(pointBalance) || 0);
         const availableGuessCredits = Math.max(0, Number(guessCredits) || 0);
@@ -415,29 +435,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function syncLottoState(progressData) {
-        const overlay = document.getElementById('lotto-lock-overlay');
-        const overlayText = overlay ? overlay.querySelector('p') : null;
-        const lockProgressEl = document.getElementById('lock-progress-text');
+        const btnOpenLotto = document.getElementById('btn-open-lotto');
+        const lottoEntryHelp = document.getElementById('lotto-entry-help');
+        const lottoEntryPanel = document.getElementById('lotto-entry-panel');
+        const lottoEntryPoints = document.getElementById('lotto-entry-points');
+        const lottoEntryRemaining = document.getElementById('lotto-entry-remaining');
+        const lottoEntryStatus = document.getElementById('lotto-entry-status');
+        if (!btnOpenLotto || !lottoEntryHelp || !lottoEntryPanel || !lottoEntryPoints || !lottoEntryRemaining || !lottoEntryStatus) return;
 
-        if (!overlay) return;
+        const pointBalance = Math.max(0, Number(progressData?.guess_point_balance || 0));
+        const guessCredits = Math.max(0, Number(progressData?.guess_credits_remaining || 0));
+        const pointsNeeded = Math.max(0, Number(progressData?.points_needed_for_next_guess || 5));
+        const roundOpen = Boolean(progressData?.is_round_open);
+        const canGuess = Boolean(progressData?.can_guess_lottery);
 
-        if (!progressData?.is_round_open) {
-            overlay.classList.remove('hidden');
-            if (overlayText) overlayText.textContent = 'รอบนี้ปิดรับทายเลขแล้ว';
-            if (lockProgressEl) lockProgressEl.textContent = `${Number(progressData?.guess_point_balance || 0).toLocaleString('th-TH')} แต้ม`;
+        lottoEntryHelp.classList.remove('is-unlocked');
+        lottoEntryPanel.classList.remove('is-ready');
+        lottoEntryStatus.classList.remove('is-ready', 'is-waiting', 'is-closed');
+        lottoEntryPoints.textContent = pointBalance.toLocaleString('th-TH');
+        lottoEntryRemaining.textContent = pointsNeeded.toLocaleString('th-TH');
+
+        if (!currentUser?.platform_id) {
+            btnOpenLotto.disabled = true;
+            btnOpenLotto.textContent = '🎰 ล็อกอินเพื่อเปิดสิทธิ์ทายเลข';
+            lottoEntryHelp.textContent = 'เมื่อสะสมครบทุก 5 พ้อย ปุ่มนี้จะเปิดให้เข้าไปเลือกเลข 00-99 ได้';
+            lottoEntryStatus.textContent = 'รอเข้าสู่ระบบ';
+            lottoEntryStatus.classList.add('is-waiting');
+            hideLottoSection();
+            resetLottoSelection();
             return;
         }
 
-        if (overlayText) {
-            if (progressData?.can_guess_lottery) {
-                overlayText.textContent = 'มีพ้อยพอสำหรับทายเลขแล้ว';
-            } else {
-                const pointsNeeded = Math.max(0, Number(progressData?.points_needed_for_next_guess) || 5);
-                overlayText.innerHTML = `สะสมอีก <strong>${pointsNeeded}</strong> พ้อย เพื่อปลดล็อก`;
-            }
+        if (!roundOpen) {
+            btnOpenLotto.disabled = true;
+            btnOpenLotto.textContent = '⏳ รอบนี้ยังไม่เปิดให้ทายเลข';
+            lottoEntryHelp.textContent = pointBalance > 0
+                ? `ตอนนี้มี ${pointBalance.toLocaleString('th-TH')} แต้ม ระบบจะเปิดให้ใช้เมื่อถึงรอบสะสมถัดไป`
+                : 'รอรอบสะสมถัดไปเพื่อเริ่มเก็บพ้อยและปลดล็อกสิทธิ์ทายเลข';
+            lottoEntryStatus.textContent = 'รอบนี้ปิดรับทายเลข';
+            lottoEntryStatus.classList.add('is-closed');
+            hideLottoSection();
+            resetLottoSelection();
+            return;
         }
-        if (lockProgressEl) lockProgressEl.textContent = `${Number(progressData?.guess_point_balance || 0).toLocaleString('th-TH')} แต้ม`;
-        overlay.classList.toggle('hidden', Boolean(progressData?.can_guess_lottery));
+
+        if (canGuess) {
+            btnOpenLotto.disabled = false;
+            btnOpenLotto.textContent = `🎰 ใช้สิทธิ์ทายเลข ${guessCredits.toLocaleString('th-TH')} ครั้ง`;
+            lottoEntryHelp.textContent = `พร้อมแล้วสำหรับการเลือกเลข 00-99 ตอนนี้คุณมี ${pointBalance.toLocaleString('th-TH')} แต้ม และทายได้ ${guessCredits.toLocaleString('th-TH')} ครั้ง`;
+            lottoEntryHelp.classList.add('is-unlocked');
+            lottoEntryPanel.classList.add('is-ready');
+            lottoEntryStatus.textContent = `พร้อมใช้งาน ${guessCredits.toLocaleString('th-TH')} สิทธิ์`;
+            lottoEntryStatus.classList.add('is-ready');
+            lottoEntryRemaining.textContent = '0';
+            return;
+        }
+
+        btnOpenLotto.disabled = true;
+        btnOpenLotto.textContent = `🎰 สะสมอีก ${pointsNeeded.toLocaleString('th-TH')} พ้อยเพื่อปลดล็อก`;
+        lottoEntryHelp.textContent = `ตอนนี้มี ${pointBalance.toLocaleString('th-TH')} แต้ม ครบทุก 5 พ้อยเมื่อไร ปุ่มนี้จะเปิดให้ใช้สิทธิ์ทันที`;
+        lottoEntryStatus.textContent = 'ยังไม่ถึงเกณฑ์ปลดล็อก';
+        lottoEntryStatus.classList.add('is-waiting');
+        hideLottoSection();
+        resetLottoSelection();
     }
 
     async function refreshUserRuntimeState() {
@@ -632,6 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const lottoGrid = document.getElementById('lotto-grid');
     const selectedNumber = document.getElementById('selected-number');
     const btnLottoConfirm = document.getElementById('btn-lotto-confirm');
+    const btnOpenLotto = document.getElementById('btn-open-lotto');
 
     function setSelectedLottoNumber(number) {
         currentLottoSelection = String(number || '');
@@ -871,14 +932,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 alert(data.message || `ทายเลข ${currentLottoSelection} สำเร็จ`);
-                setSelectedLottoNumber('');
-                document.querySelector('.lotto-num.selected')?.classList.remove('selected');
+                resetLottoSelection();
                 await refreshUserRuntimeState();
             } catch (error) {
                 console.error('Lottery submit error:', error);
                 alert(error.message || 'ไม่สามารถทายเลขได้');
                 updateLottoConfirmButton();
             }
+        });
+    }
+
+    if (btnOpenLotto) {
+        btnOpenLotto.addEventListener('click', () => {
+            if (!currentProgressData?.can_guess_lottery) {
+                return;
+            }
+            showLottoSection(true);
         });
     }
 
