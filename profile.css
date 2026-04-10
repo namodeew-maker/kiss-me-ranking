@@ -4,6 +4,10 @@
     max-width: 1120px;
 }
 
+.profile-page .glass-panel {
+    border-radius: 8px;
+}
+
 .profile-hidden {
     display: none;
 }
@@ -20,13 +24,14 @@
     grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
     gap: 18px;
     align-items: start;
+    margin-bottom: 18px;
 }
 
 .profile-primary-column,
 .profile-secondary-column {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
 }
 
 /* Back button */
@@ -48,6 +53,7 @@
 
 /* Header link */
 .header-link {
+    background: transparent;
     color: var(--text-muted);
     text-decoration: none;
     font-size: 0.85rem;
@@ -108,7 +114,7 @@
     background: linear-gradient(135deg, var(--neon-red), #cc2222);
     color: white;
     text-decoration: none;
-    border-radius: 10px;
+    border-radius: 8px;
     font-family: 'Kanit', sans-serif;
     font-weight: 600;
     font-size: 0.95rem;
@@ -135,6 +141,12 @@
     min-width: 0;
     flex: 1 1 420px;
 }
+
+.user-info {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .user-avatar-wrap {
     position: relative;
     flex-shrink: 0;
@@ -152,7 +164,7 @@
     bottom: -4px;
     right: -4px;
     padding: 2px 8px;
-    border-radius: 10px;
+    border-radius: 8px;
     font-size: 0.65rem;
     font-weight: 700;
     letter-spacing: 0.5px;
@@ -180,7 +192,7 @@
 .user-id-card {
     min-width: min(100%, 420px);
     padding: 12px 14px;
-    border-radius: 12px;
+    border-radius: 8px;
     border: 1px solid rgba(0, 240, 255, 0.18);
     background: rgba(0, 240, 255, 0.05);
 }
@@ -199,7 +211,7 @@
     flex: 1 1 220px;
     min-width: 0;
     padding: 10px 12px;
-    border-radius: 10px;
+    border-radius: 8px;
     background: rgba(6, 6, 18, 0.75);
     border: 1px solid rgba(255, 255, 255, 0.08);
     color: var(--text-silver);
@@ -209,7 +221,7 @@
 }
 .copy-user-id-btn {
     padding: 10px 14px;
-    border-radius: 10px;
+    border-radius: 8px;
     border: 1px solid rgba(0, 240, 255, 0.24);
     background: rgba(0, 240, 255, 0.08);
     color: var(--neon-cyan);
@@ -242,7 +254,7 @@
     align-items: center;
     justify-content: center;
     padding: 10px 14px;
-    border-radius: 10px;
+    border-radius: 8px;
     border: 1px solid rgba(0, 240, 255, 0.26);
     background: rgba(0, 240, 255, 0.08);
     color: var(--neon-cyan);
@@ -283,7 +295,7 @@
     align-items: flex-start;
     gap: 4px;
     padding: 12px 14px;
-    border-radius: 12px;
+    border-radius: 8px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -778,7 +790,7 @@
 .reward-card {
     text-align: center;
     padding: 16px 12px;
-    border-radius: 12px;
+    border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(20, 20, 40, 0.6);
     transition: transform 0.2s, box-shadow 0.2s;
@@ -847,79 +859,400 @@
     border: 1px solid rgba(0, 240, 255, 0.15);
 }
 
-@media (max-width: 520px) {
+@media (max-width: 900px) {
     .profile-overview-grid {
-        grid-template-columns: 1fr;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin-bottom: 14px;
+    }
+    .profile-primary-column {
+        display: contents;
     }
     .user-card {
-        flex-direction: column;
-        align-items: flex-start;
+        order: 1;
+    }
+    .profile-secondary-column {
+        order: 2;
+    }
+    .profile-history-board {
+        order: 3;
+    }
+}
+
+@media (max-width: 760px) {
+    .profile-page {
+        padding: 10px 12px 18px;
+    }
+    .profile-page header {
+        gap: 8px;
+        margin-bottom: 14px;
+        padding-bottom: 12px;
+    }
+    .profile-page .logo-area {
+        gap: 8px;
+        min-width: 0;
+    }
+    .profile-page .logo-icon {
+        display: none;
+    }
+    .profile-page header h1 {
+        font-size: 0.95rem;
+        letter-spacing: 0;
+        text-transform: none;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .profile-page .subtitle {
+        display: none;
+    }
+    .profile-header-actions {
+        gap: 6px;
+        margin-left: auto;
+        flex-wrap: nowrap;
+    }
+    .profile-header-actions .header-link[href="index.html"] {
+        display: none;
+    }
+    .back-btn,
+    .header-link {
+        padding: 5px 8px;
+        font-size: 0.78rem;
+    }
+    .profile-secondary-column {
+        gap: 10px;
+    }
+    .user-card {
+        align-items: stretch;
+        gap: 12px;
+        padding: 14px;
     }
     .user-card-left {
         width: 100%;
-        flex-direction: column;
+        flex: 1 1 auto;
         align-items: flex-start;
+        gap: 10px;
+    }
+    .user-avatar {
+        width: 56px;
+        height: 56px;
+        border-width: 2px;
+    }
+    .platform-badge {
+        bottom: -3px;
+        right: -5px;
+        padding: 1px 6px;
+        font-size: 0.58rem;
+    }
+    .user-display-name {
+        font-size: 0.95rem;
+        line-height: 1.25;
+        letter-spacing: 0;
+        margin-bottom: 2px;
+        overflow-wrap: anywhere;
+    }
+    .user-platform-id {
+        display: none;
     }
     .user-id-card {
         width: 100%;
+        min-width: 0;
+        padding: 8px;
+        margin-top: 6px;
+    }
+    .user-id-label {
+        margin-bottom: 4px;
+        font-size: 0.68rem;
     }
     .user-id-row {
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: stretch;
+        gap: 6px;
+    }
+    .user-id-value {
+        flex: none;
+        padding: 7px 8px;
+        font-size: 0.68rem;
+        line-height: 1.3;
+        max-height: 2.9em;
+        overflow: auto;
+    }
+    .copy-user-id-btn {
+        min-width: 62px;
+        padding: 7px 9px;
+        font-size: 0.74rem;
+    }
+    .user-id-help {
+        display: none;
+    }
+    .profile-avatar-tools {
+        align-items: flex-start;
+        gap: 6px;
+        margin-top: 8px;
+    }
+    .avatar-upload-btn {
+        padding: 7px 9px;
+        font-size: 0.74rem;
+    }
+    .avatar-upload-status {
+        font-size: 0.7rem;
+        line-height: 1.35;
+    }
+    .avatar-upload-status:not(.is-error):not(.is-success) {
+        display: none;
     }
     .user-stats {
         width: 100%;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        padding-top: 12px;
+        min-width: 0;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        padding-top: 10px;
         border-top: 1px solid rgba(255, 255, 255, 0.06);
     }
-    .profile-section-header {
-        flex-direction: column;
-    }
-    .tab-btn {
-        padding: 10px 14px;
-        font-size: 0.88rem;
-    }
-    .list-item {
-        padding: 12px 14px;
-    }
-    .item-main {
-        flex-direction: column;
-    }
-    .item-right {
-        flex-direction: row;
+    .user-stat {
         align-items: center;
-        align-self: stretch;
-        justify-content: space-between;
+        min-width: 0;
+        padding: 8px 4px;
+        gap: 2px;
+        text-align: center;
+    }
+    .stat-value {
+        max-width: 100%;
+        overflow: hidden;
+        font-size: 1rem;
+        line-height: 1.1;
+        text-overflow: ellipsis;
+    }
+    .stat-label {
+        font-size: 0.62rem;
+        line-height: 1.2;
+        white-space: normal;
+    }
+    .profile-progress-card,
+    .rank-card,
+    .reward-summary,
+    .profile-history-board {
+        padding: 12px;
+    }
+    .profile-progress-card .progress-header {
+        gap: 8px;
+        margin-bottom: 8px;
+        font-size: 0.8rem;
+    }
+    .profile-progress-card .progress-count {
+        font-size: 0.9rem;
+    }
+    .profile-progress-card .progress-track {
+        height: 8px;
+        margin-bottom: 8px;
+    }
+    .profile-progress-card .progress-dot {
+        width: 26px;
+        height: 26px;
+        border-width: 1px;
     }
     .rank-display {
-        gap: 12px;
+        gap: 10px;
+        margin-bottom: 10px;
     }
     .rank-icon-wrap {
-        width: 56px;
-        height: 56px;
+        width: 48px;
+        height: 48px;
+        border-width: 2px;
     }
     .rank-icon {
-        font-size: 1.6rem;
+        font-size: 1.35rem;
+    }
+    .rank-label {
+        font-size: 0.64rem;
+        letter-spacing: 0.08em;
     }
     .rank-name {
-        font-size: 1.2rem;
+        font-size: 1.05rem;
+        letter-spacing: 0.08em;
+    }
+    .rank-stats-mini {
+        font-size: 0.7rem;
+    }
+    .rank-tier-track {
+        gap: 4px;
+        margin-bottom: 10px;
+        padding: 0;
     }
     .rank-tier-dot {
-        width: 30px;
-        height: 30px;
+        width: 26px;
+        height: 26px;
+        border-width: 1px;
     }
     .rank-tier-dot span {
-        font-size: 0.85rem;
+        font-size: 0.78rem;
+    }
+    .rank-progress-section {
+        padding-top: 10px;
+    }
+    .rank-next-label {
+        margin-bottom: 6px;
+        font-size: 0.72rem;
+    }
+    .rank-progress-details {
+        font-size: 0.68rem;
+    }
+    .reward-summary-header {
+        margin-bottom: 10px;
+        font-size: 0.9rem;
     }
     .reward-summary-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        gap: 6px;
     }
     .reward-card {
-        padding: 12px 8px;
+        min-width: 0;
+        padding: 10px 6px;
+    }
+    .reward-card-icon {
+        font-size: 1.15rem;
+        margin-bottom: 2px;
     }
     .reward-card-value {
-        font-size: 1rem;
+        font-size: 0.92rem;
+        overflow-wrap: anywhere;
+    }
+    .reward-card-label {
+        margin-bottom: 2px;
+        font-size: 0.7rem;
+    }
+    .reward-card-sub {
+        font-size: 0.62rem;
+        line-height: 1.35;
+    }
+    .reward-card-count {
+        margin-top: 4px;
+        font-size: 0.62rem;
+    }
+    .reward-pending-note {
+        margin-top: 8px;
+        padding: 7px;
+        font-size: 0.72rem;
+    }
+    .profile-section-header {
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    .profile-section-header h3 {
+        font-size: 0.9rem;
+    }
+    .profile-section-copy {
+        display: none;
+    }
+    .profile-section-meta {
+        padding: 5px 8px;
+        font-size: 0.68rem;
+    }
+    .profile-list {
+        min-height: 56px;
+    }
+    .list-empty {
+        padding: 18px 12px;
+        font-size: 0.8rem;
+    }
+    .profile-activity-list .list-item {
+        padding: 10px 0;
+    }
+    .list-item {
+        padding: 10px 12px;
+    }
+    .item-main {
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .item-info {
+        gap: 8px;
+    }
+    .item-number {
+        display: none;
+    }
+    .item-primary {
+        margin-bottom: 2px;
+        font-size: 0.82rem;
+        line-height: 1.3;
+    }
+    .staff-fullname {
+        display: none;
+    }
+    .item-secondary,
+    .item-reject-note {
+        font-size: 0.7rem;
+        line-height: 1.35;
+    }
+    .item-right {
+        align-items: flex-end;
+        gap: 6px;
+        max-width: 82px;
+    }
+    .slip-thumb {
+        width: 34px;
+        height: 34px;
+    }
+    .item-badge {
+        border-radius: 8px;
+        padding: 3px 7px;
+        font-size: 0.65rem;
+        line-height: 1.2;
+        letter-spacing: 0;
+        text-align: center;
+        white-space: normal;
+    }
+    .activity-type-pill {
+        gap: 4px;
+        padding: 2px 6px;
+        border-radius: 8px;
+        font-size: 0.63rem;
+    }
+    .lotto-number-display {
+        min-width: 38px;
+        font-size: 1.2rem;
+    }
+    .reward-amount,
+    .reward-gv {
+        font-size: 0.72rem;
+    }
+    .profile-tabs,
+    .tab-content {
+        display: none !important;
+    }
+}
+
+@media (max-width: 380px) {
+    .profile-page {
+        padding: 8px 10px 16px;
+    }
+    .user-card-left {
+        gap: 8px;
+    }
+    .user-avatar {
+        width: 50px;
+        height: 50px;
+    }
+    .user-stats {
+        gap: 5px;
+    }
+    .stat-value {
+        font-size: 0.92rem;
+    }
+    .stat-label {
+        font-size: 0.58rem;
+    }
+    .rank-tier-dot,
+    .profile-progress-card .progress-dot {
+        width: 24px;
+        height: 24px;
+    }
+    .reward-card-sub {
+        display: none;
+    }
+    .item-right {
+        max-width: 72px;
     }
 }
