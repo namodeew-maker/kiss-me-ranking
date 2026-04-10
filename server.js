@@ -1580,7 +1580,7 @@ app.post('/api/admin/customers/reset-rank', requireAuth, async (req, res) => {
     }
 });
 
-// GET /api/ranking/staff — staff ranking by approved transaction count only
+// GET /api/ranking/staff — staff ranking by approved transaction count and rating averages
 app.get('/api/ranking/staff', async (req, res) => {
     try {
         const resetDate = await getRankingResetDate();
@@ -1588,14 +1588,19 @@ app.get('/api/ranking/staff', async (req, res) => {
             SELECT
                 s.id, s.name, s.nickname, s.avatar_url,
                 COUNT(t.id)::int AS total_votes,
+                COALESCE(ROUND(AVG((r.looks_score + r.service_score + r.value_score) / 3.0)::numeric, 2), 0)::float AS avg_score,
+                COALESCE(ROUND(AVG(r.looks_score)::numeric, 2), 0)::float AS avg_looks_score,
+                COALESCE(ROUND(AVG(r.service_score)::numeric, 2), 0)::float AS avg_service_score,
+                COALESCE(ROUND(AVG(r.value_score)::numeric, 2), 0)::float AS avg_value_score,
                 MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_service_at
             FROM staffs s
             LEFT JOIN transactions t ON t.staff_id = s.id
                 AND t.status = 'approved'
                 AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
+            LEFT JOIN ratings r ON r.transaction_id = t.id
             WHERE s.is_active = TRUE
             GROUP BY s.id, s.name, s.nickname, s.avatar_url
-            ORDER BY total_votes DESC, MAX(COALESCE(t.service_date::timestamp, t.created_at)) DESC, s.id ASC
+            ORDER BY total_votes DESC, avg_score DESC, MAX(COALESCE(t.service_date::timestamp, t.created_at)) DESC, s.id ASC
         `, [resetDate]);
         res.json(result.rows);
     } catch (err) {

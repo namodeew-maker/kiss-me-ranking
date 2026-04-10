@@ -308,7 +308,7 @@
 .leaderboard-table-head,
 .leaderboard-row {
     display: grid;
-    grid-template-columns: 84px 1fr 104px;
+    grid-template-columns: 76px 58px minmax(0, 1fr) 104px;
     gap: 12px;
     align-items: center;
 }
@@ -343,6 +343,43 @@
     align-items: center;
     gap: 10px;
     min-width: 0;
+}
+
+.leaderboard-rank-logo-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 54px;
+    height: 54px;
+    flex-shrink: 0;
+}
+
+.leaderboard-rank-logo {
+    width: 54px;
+    height: 54px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 14px color-mix(in srgb, var(--tier-color, #888) 54%, transparent));
+}
+
+.leaderboard-rank-logo.customer-rank-logo-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+
+.podium-rank-logo-wrap {
+    margin: 0 auto -2px;
+}
+
+.podium-rank-logo-wrap .leaderboard-rank-logo {
+    width: 62px;
+    height: 62px;
+}
+
+.podium-slot.is-first .podium-rank-logo-wrap .leaderboard-rank-logo {
+    width: 74px;
+    height: 74px;
 }
 
 .leaderboard-row-avatar,
@@ -530,13 +567,24 @@
     margin-top: 10px;
 }
 
+.best-player-rank-logo-wrap {
+    width: 86px;
+    height: 86px;
+}
+
+.best-player-rank-logo-wrap .leaderboard-rank-logo {
+    width: 86px;
+    height: 86px;
+}
+
 .customer-tier-badge {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    justify-content: center;
+    gap: 0;
     max-width: 100%;
     min-width: 0;
-    padding: 8px 12px;
+    padding: 8px 14px;
     border-radius: 8px;
     background:
         radial-gradient(circle at 30% 15%, color-mix(in srgb, var(--tier-color, #888) 30%, transparent), transparent 46%),
@@ -750,7 +798,7 @@
 
     .leaderboard-table-head,
     .leaderboard-row {
-        grid-template-columns: 54px 1fr 72px;
+        grid-template-columns: 42px 42px minmax(0, 1fr) 72px;
         gap: 8px;
     }
 
@@ -772,6 +820,22 @@
     .leaderboard-row-avatar {
         width: 40px;
         height: 40px;
+    }
+
+    .leaderboard-rank-logo-wrap,
+    .leaderboard-rank-logo {
+        width: 40px;
+        height: 40px;
+    }
+
+    .podium-rank-logo-wrap .leaderboard-rank-logo {
+        width: 50px;
+        height: 50px;
+    }
+
+    .podium-slot.is-first .podium-rank-logo-wrap .leaderboard-rank-logo {
+        width: 58px;
+        height: 58px;
     }
 
     .leaderboard-row-name {
@@ -834,6 +898,12 @@
     .best-player-avatar {
         width: 78px;
         height: 78px;
+    }
+
+    .best-player-rank-logo-wrap,
+    .best-player-rank-logo-wrap .leaderboard-rank-logo {
+        width: 72px;
+        height: 72px;
     }
 
     .best-player-score-wrap {

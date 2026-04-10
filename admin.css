@@ -1481,7 +1481,7 @@
     }
 
     .admin-table-wrap-staff-ranking #staff-ranking-table {
-        min-width: 560px;
+        min-width: 780px;
     }
 
     .staff-ranking-header {
@@ -1495,6 +1495,19 @@
     .staff-ranking-highlight-grid {
         grid-template-columns: 1fr;
         gap: 10px;
+    }
+
+    .customer-rank-reset-card {
+        grid-template-columns: 1fr;
+    }
+
+    .user-management-panel .stat-card {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .user-management-panel .stat-label {
+        text-align: left;
     }
 
     .staff-ranking-user-cell {
@@ -1749,6 +1762,27 @@
     font-size: 0.82rem;
 }
 
+.staff-ranking-score-chips {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.staff-ranking-score-chips span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    background: rgba(0, 240, 255, 0.07);
+    border: 1px solid rgba(0, 240, 255, 0.14);
+    color: var(--text-silver);
+    font-size: 0.76rem;
+    line-height: 1.25;
+}
+
 .staff-ranking-highlight-points {
     margin-top: 10px;
     color: var(--neon-cyan);
@@ -1763,7 +1797,14 @@
 }
 
 .admin-table-wrap-staff-ranking #staff-ranking-table {
-    min-width: 760px;
+    min-width: 920px;
+}
+
+.staff-ranking-score-cell {
+    color: var(--gold);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.86rem;
+    font-weight: 700;
 }
 
 .ranking-reset-row {
@@ -1856,29 +1897,72 @@
 }
 
 .user-stat-cards {
-    margin-top: 18px;
+    margin-top: 12px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.user-management-panel {
+    padding-top: 20px;
+}
+
+.user-management-panel .panel-caption {
+    margin-bottom: 10px;
+}
+
+.user-management-panel .stat-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    text-align: left;
+}
+
+.user-management-panel .stat-number {
+    flex-shrink: 0;
+    font-size: 1.55rem;
+    line-height: 1;
+}
+
+.user-management-panel .stat-label {
+    margin-top: 0;
+    line-height: 1.3;
+    text-align: right;
 }
 
 .customer-rank-reset-card {
     display: grid;
-    gap: 12px;
-    margin-top: 18px;
-    padding: 16px 0;
-    border-top: 1px solid rgba(0, 240, 255, 0.14);
-    border-bottom: 1px solid rgba(0, 240, 255, 0.14);
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px 14px;
+    margin-top: 12px;
+    padding: 12px 14px;
+    border: 1px solid rgba(0, 240, 255, 0.14);
+    border-radius: 8px;
+    background: rgba(0, 240, 255, 0.03);
 }
 
 .customer-rank-reset-card h4 {
-    margin: 0 0 6px;
+    margin: 0 0 4px;
     color: var(--text-silver);
+}
+
+.customer-rank-reset-card .panel-caption {
+    margin: 0;
+    font-size: 0.78rem;
 }
 
 .customer-rank-reset-row {
     align-items: center;
+    justify-content: flex-end;
 }
 
 .customer-rank-reset-meta {
+    grid-column: 1 / -1;
     justify-content: flex-start;
+    margin-top: 0;
+    padding: 9px 11px;
 }
 
 .platform-badge {
@@ -2040,7 +2124,7 @@
     align-items: center;
     gap: 16px;
     padding: 16px;
-    border-radius: 14px;
+    border-radius: 12px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -2225,7 +2309,7 @@
     }
 
     .admin-table-wrap-staff-ranking #staff-ranking-table {
-        min-width: 560px;
+        min-width: 780px;
     }
 
     .staff-ranking-header .btn-action {

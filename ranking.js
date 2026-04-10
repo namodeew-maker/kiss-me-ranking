@@ -43,9 +43,15 @@ function renderRankLogo(rank, className) {
 function renderCustomerTierBadge(tierInfo, className = '') {
     if (!tierInfo) return '';
     return `<span class="customer-tier-badge ${className}" style="--tier-color:${tierInfo.color}">
-        ${renderRankLogo(tierInfo, 'customer-tier-logo')}
         <span>${escapeHtml(tierInfo.name)}</span>
     </span>`;
+}
+
+function renderRankLogoMark(tierInfo, className = '') {
+    if (!tierInfo) return '';
+    return `<div class="leaderboard-rank-logo-wrap ${className}" style="--tier-color:${tierInfo.color}">
+        ${renderRankLogo(tierInfo, 'leaderboard-rank-logo')}
+    </div>`;
 }
 
 function resolveAssetUrl(value) {
@@ -149,6 +155,7 @@ function renderLeaderboardBoard(list, options) {
                  onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=160'">`;
         return `<div class="podium-slot ${rank === 1 ? 'is-first' : ''}">
             <div class="podium-slot-rank">${formatRank(rank)}</div>
+            ${renderRankLogoMark(tierInfo, 'podium-rank-logo-wrap')}
             ${avatarNode}
             <div class="podium-name">${escapeHtml(displayName)}</div>
             <div class="podium-meta">
@@ -173,6 +180,7 @@ function renderLeaderboardBoard(list, options) {
                  onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=96'">`;
         return `<div class="leaderboard-row ${rank === 1 ? 'is-top-1' : ''}">
             <div class="leaderboard-row-rank">${formatRank(rank)}</div>
+            ${renderRankLogoMark(tierInfo, 'leaderboard-row-rank-logo-wrap')}
             <div class="leaderboard-row-main">
                 ${rowAvatar}
                 <div>
@@ -227,6 +235,7 @@ function renderLeaderboardBoard(list, options) {
         <div class="leaderboard-table">
             <div class="leaderboard-table-head">
                 <div>Rank</div>
+                <div>Badge</div>
                 <div>Name</div>
                 <div class="leaderboard-table-head-metric">${escapeHtml(options.metricHeader)}</div>
             </div>
@@ -247,6 +256,7 @@ function renderLeaderboardBoard(list, options) {
                     <div class="best-player-rank">1</div>
                     <div class="best-player-label">Best<br>Player</div>
                 </div>
+                ${renderRankLogoMark(bestTierInfo, 'best-player-rank-logo-wrap')}
                 <div class="best-player-avatar-wrap">
                     ${bestAvatar}
                     <div class="best-player-avatar-caption">อันดับสูงสุดตอนนี้</div>

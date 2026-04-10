@@ -189,6 +189,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
     }
 
+    function formatStaffScore(value) {
+        const score = Number(value || 0);
+        if (!score) return '—';
+        return score.toLocaleString('th-TH', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+    }
+
+    function renderStaffScoreChips(staff) {
+        return `
+            <div class="staff-ranking-score-chips">
+                <span>เฉลี่ย ${formatStaffScore(staff.avg_score)}</span>
+                <span>บริการ ${formatStaffScore(staff.avg_service_score)}</span>
+                <span>หน้าตา ${formatStaffScore(staff.avg_looks_score)}</span>
+                <span>คุ้มค่า ${formatStaffScore(staff.avg_value_score)}</span>
+            </div>
+        `;
+    }
+
     function staffAvatarSrc(staff) {
         const displayName = staff.nickname || staff.name || 'Staff';
         if (staff.avatar_url) return resolveAssetUrl(staff.avatar_url);
@@ -1661,6 +1678,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </button>
                     <div class="staff-ranking-highlight-name">${escapeHtml(displayName)}</div>
                     <div class="staff-ranking-highlight-sub">${escapeHtml(subtitle)}</div>
+                    ${renderStaffScoreChips(staff)}
                     <div class="staff-ranking-highlight-meta">ล่าสุด ${staff.last_service_at ? formatDateTime(staff.last_service_at) : 'ยังไม่มีรายการอนุมัติ'}</div>
                     <div class="staff-ranking-highlight-points">${Number(staff.total_votes || 0).toLocaleString('th-TH')} รายการอนุมัติ</div>
                 </div>`;
@@ -1683,6 +1701,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                             </div>
                         </div>
                     </td>
+                    <td class="staff-ranking-score-cell">${formatStaffScore(staff.avg_score)}</td>
+                    <td class="staff-ranking-score-cell">${formatStaffScore(staff.avg_service_score)}</td>
+                    <td class="staff-ranking-score-cell">${formatStaffScore(staff.avg_looks_score)}</td>
+                    <td class="staff-ranking-score-cell">${formatStaffScore(staff.avg_value_score)}</td>
                     <td>${Number(staff.total_votes || 0).toLocaleString('th-TH')}</td>
                     <td>${staff.last_service_at ? formatDateTime(staff.last_service_at) : '—'}</td>
                 </tr>`;
