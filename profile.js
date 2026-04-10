@@ -209,7 +209,7 @@ function renderRankVisual(rank, className) {
     return `<span class="${className} rank-visual-fallback" aria-hidden="true">${rank.icon}</span>`;
 }
 
-function renderRankCard(lifetimeApproved) {
+function renderRankCard(lifetimeApproved, rankResetDate = null) {
     const { current, next, currentIdx } = calculateRank(lifetimeApproved);
     const el = document.getElementById('rank-card');
     if (!el) return;
@@ -253,7 +253,8 @@ function renderRankCard(lifetimeApproved) {
             <div class="rank-info">
                 <div class="rank-label">แรงค์ปัจจุบัน</div>
                 <div class="rank-name" style="color:${current.color}">${current.name}</div>
-                <div class="rank-stats-mini">ใช้บริการอนุมัติ: ${lifetimeApproved.toLocaleString('th-TH')} ครั้ง</div>
+                <div class="rank-stats-mini">Rank EXP: ${lifetimeApproved.toLocaleString('th-TH')} จากสลิปอนุมัติ</div>
+                ${rankResetDate ? `<div class="rank-reset-note">นับแรงค์ตั้งแต่ ${formatServiceDate(rankResetDate)}</div>` : ''}
             </div>
         </div>
         <div class="rank-tier-track">${dotsHtml}</div>
@@ -564,7 +565,7 @@ async function loadProfileData(platformId, platform) {
 
         renderUserCard({ ...data.user, platform, platform_id: platformId }, stats);
         renderProgress(data.current_round_points ?? 0);
-        renderRankCard(data.lifetime_approved || 0);
+        renderRankCard(data.lifetime_approved || 0, data.rank_reset_date || null);
         renderRewardSummary(data.guesses);
         renderActivityFeed(buildCombinedActivities(data.transactions, data.guesses));
         renderTransactions(data.transactions);

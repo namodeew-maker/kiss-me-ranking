@@ -6,7 +6,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260408e">
-    <link rel="stylesheet" href="admin.css?v=20260408i">
+    <link rel="stylesheet" href="admin.css?v=20260410b">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -291,6 +291,22 @@
                         </div>
                     </div>
 
+                    <div class="customer-rank-reset-card">
+                        <div>
+                            <h4>🔁 รีแรงค์ลูกค้า / Rank EXP</h4>
+                            <p class="panel-caption">แรงค์เป็น EXP โปรไฟล์ระยะยาว: สลิปอนุมัติ 1 ครั้ง = 1 EXP สะสมตามวันที่เริ่มนับแรงค์ที่แอดมินกำหนด แยกจากพ้อยทายเลขรอบสั้น</p>
+                        </div>
+                        <div class="input-row ranking-reset-row customer-rank-reset-row">
+                            <label for="customer-rank-reset-date" class="panel-caption ranking-reset-label">วันที่เริ่มนับแรงค์ใหม่</label>
+                            <input type="date" id="customer-rank-reset-date" title="เลือกวันที่รีแรงค์ลูกค้า">
+                            <button class="btn-action btn-gold" id="btn-save-customer-rank-reset" type="button">บันทึกรีแรงค์ลูกค้า</button>
+                        </div>
+                        <div class="ranking-reset-meta customer-rank-reset-meta">
+                            <span>วันที่รีแรงค์ลูกค้าปัจจุบัน:</span>
+                            <strong id="customer-rank-reset-current">ยังไม่ได้ตั้งค่า</strong>
+                        </div>
+                    </div>
+
                     <div class="admin-table-wrap admin-table-wrap-users">
                         <table class="admin-table" id="users-table">
                             <thead>
@@ -300,7 +316,8 @@
                                     <th>แพลตฟอร์ม</th>
                                     <th>ID</th>
                                     <th>พ้อยรอบนี้</th>
-                                    <th>แต้มสะสม</th>
+                                    <th>พ้อยรวม</th>
+                                    <th>แรงค์ / EXP</th>
                                     <th>Cashback / GV</th>
                                     <th>รายการทั้งหมด</th>
                                     <th>ใช้งานล่าสุด</th>
@@ -347,9 +364,12 @@
                     <div class="staff-ranking-header">
                         <div>
                             <h3>🏆 อันดับพนักงาน</h3>
-                            <p class="panel-caption">ย้ายมาจากหน้าอันดับลูกค้าเพื่อให้ดูผลอันดับพนักงานได้เฉพาะในหน้า Admin</p>
-                                    <th>รายการอนุมัติ</th>
-                                    <th>ใช้งานล่าสุด</th>
+                            <p class="panel-caption">ดูผลอันดับพนักงานจากรายการอนุมัติ เฉพาะในหน้า Admin และกดเช็กข้อมูลล่าสุดได้ทันที</p>
+                        </div>
+                        <button class="btn-action btn-blue" id="btn-refresh-staff-ranking" type="button">เช็กอันดับล่าสุด</button>
+                    </div>
+
+                    <div class="staff-ranking-highlight-grid" id="staff-ranking-highlight-grid">
                         <div class="staff-ranking-loading-card">กำลังโหลดอันดับพนักงาน...</div>
                     </div>
 
@@ -359,11 +379,8 @@
                                 <tr>
                                     <th>อันดับ</th>
                                     <th>พนักงาน</th>
-                                    <th>คะแนนเฉลี่ย</th>
-                                    <th>บริการ</th>
-                                    <th>หน้าตา</th>
-                                    <th>ความคุ้มค่า</th>
-                                    <th>โหวตรวม</th>
+                                    <th>รายการอนุมัติ</th>
+                                    <th>ใช้งานล่าสุด</th>
                                 </tr>
                             </thead>
                             <tbody id="staff-ranking-body"></tbody>
@@ -461,17 +478,22 @@
 
                 <section class="admin-panel">
                     <h3>🗓️ รอบสะสมแต้มทายเลข</h3>
-                    <p class="panel-caption">แต้มสำหรับทายเลขจะนับจากวันที่เริ่มรอบนี้ไปอีก 1 เดือนเต็ม คะแนนก่อนวันเริ่มรอบจะไม่ถูกนำมาคิดสิทธิ์ทายเลข</p>
+                    <p class="panel-caption">พ้อยทายเลขเป็นรอบสั้น: สลิปอนุมัติ 1 ครั้ง = 1 พ้อย, สะสมครบ 5 พ้อยทายได้ 1 เลข และพ้อยที่ไม่ครบจะไม่ยกไปรอบถัดไปเมื่อเริ่มรอบใหม่</p>
                     <div class="input-row ranking-reset-row">
                         <label for="guess-points-cycle-start" class="panel-caption ranking-reset-label">วันที่เริ่มนับแต้มทายเลข</label>
                         <input type="date" id="guess-points-cycle-start" title="เลือกวันที่เริ่มนับแต้มทายเลข">
                         <button class="btn-action btn-gold" id="btn-save-guess-points-cycle">บันทึกรอบแต้มทายเลข</button>
+                        <button class="btn-action btn-blue" id="btn-recheck-guess-points" type="button">รีเช็คพ้อยทายเลข</button>
                     </div>
                     <div class="ranking-reset-meta guess-cycle-meta">
                         <span>เริ่มนับปัจจุบัน:</span>
                         <strong id="guess-points-cycle-current">กำลังโหลด...</strong>
                         <span>ครบกำหนด:</span>
                         <strong id="guess-points-cycle-end">กำลังโหลด...</strong>
+                    </div>
+                    <div class="ranking-reset-meta guess-cycle-meta">
+                        <span>ผลรีเช็คล่าสุด:</span>
+                        <strong id="guess-points-recheck-status">ยังไม่ได้รีเช็ค</strong>
                     </div>
                 </section>
 
@@ -638,6 +660,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260408l"></script>
+    <script src="admin.js?v=20260410b"></script>
 </body>
 </html>

@@ -564,6 +564,13 @@ async function getRankingResetDate() {
     return result.rows[0]?.value || null;
 }
 
+async function getCustomerRankResetDate() {
+    const result = await pool.query(
+        "SELECT value FROM app_settings WHERE key = 'customer_rank_reset_date' LIMIT 1"
+    );
+    return result.rows[0]?.value || null;
+}
+
 // ============ ROUND LOGIC ============
 // Round A: day 1-14, draw on 16th
 // Round B: day 16-29, draw on 1st of next month
@@ -769,7 +776,7 @@ async function getRecentPointsForGlobalUser(client, globalUserId, limit = 10) {
     return result.rows;
 }
 
-async function addApprovedTransactionPoint(queryable, transactionRow) {
+async function addApprovedTransactionPoint(queryable, transactionRow, createdAtOverride = null) {
     if (!transactionRow?.user_id || !(await tableExists(queryable, 'points'))) return false;
 
     const userResult = await queryable.query(
@@ -790,9 +797,11 @@ async function addApprovedTransactionPoint(queryable, transactionRow) {
     );
     if (existingResult.rows.length > 0) return false;
 
+    const pointCreatedAt = createdAtOverride || transactionRow.reviewed_at || null;
+
     await queryable.query(
-        `INSERT INTO points (global_user_id, activity_type, points, source_platform, source_oa_id, metadata)
-         VALUES ($1, 'transaction_approved', 1, $2, NULL, $3)`,
+        `INSERT INTO points (global_user_id, activity_type, points, source_platform, source_oa_id, metadata, created_at)
+         VALUES ($1, 'transaction_approved', 1, $2, NULL, $3, COALESCE($4::timestamp, NOW()))`,
         [
             user.global_user_id,
             user.platform || 'line',
@@ -803,7 +812,8 @@ async function addApprovedTransactionPoint(queryable, transactionRow) {
                 platform_id: user.platform_id,
                 display_name: user.display_name || null,
                 event_type: 'approved_transaction_point'
-            })
+            }),
+            pointCreatedAt
         ]
     );
 
@@ -1288,6 +1298,105 @@ app.post('/api/admin/points/redeem', requireAuth, async (req, res) => {
     res.status(409).json({ error: 'พ้อยถูกใช้สำหรับทายเลขอัตโนมัติเท่านั้น ไม่รองรับการหักพ้อยจากแอดมินแล้ว' });
 });
 
+app.post('/api/admin/guess-points/reconcile', requireAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        if (!(await tableExists(client, 'points'))) {
+            await client.query('ROLLBACK');
+            return res.status(500).json({ error: 'ยังไม่มีตาราง points สำหรับสะสมพ้อยทายเลข' });
+        }
+
+        const invalidApprovedPointResult = await client.query(
+            `DELETE FROM points p
+             WHERE p.activity_type = 'transaction_approved'
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM transactions t
+                    JOIN users u ON u.id = t.user_id
+                    WHERE u.global_user_id = p.global_user_id
+                      AND t.id::text = p.metadata->>'transaction_id'
+                      AND t.status = 'approved'
+               )`
+        );
+
+        const orphanSpendPointResult = await client.query(
+            `DELETE FROM points p
+             WHERE p.activity_type = 'lottery_guess_spend'
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM lottery_guesses lg
+                    JOIN users u ON u.id = lg.user_id
+                    WHERE u.global_user_id = p.global_user_id
+                      AND lg.id::text = p.metadata->>'lottery_guess_id'
+               )`
+        );
+
+        const missingApprovedResult = await client.query(
+            `SELECT t.id, t.user_id, t.staff_id, t.round_label, t.reviewed_at, t.created_at
+             FROM transactions t
+             JOIN users u ON u.id = t.user_id
+             WHERE t.status = 'approved'
+               AND u.global_user_id IS NOT NULL
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM points p
+                    WHERE p.global_user_id = u.global_user_id
+                      AND p.activity_type = 'transaction_approved'
+                      AND p.metadata->>'transaction_id' = t.id::text
+               )
+             ORDER BY COALESCE(t.reviewed_at, t.created_at), t.id`
+        );
+
+        let insertedApprovedPoints = 0;
+        for (const transaction of missingApprovedResult.rows) {
+            const inserted = await addApprovedTransactionPoint(
+                client,
+                transaction,
+                transaction.reviewed_at || transaction.created_at || null
+            );
+            if (inserted) insertedApprovedPoints += 1;
+        }
+
+        const usersToSyncResult = await client.query(
+            `SELECT DISTINCT user_id
+             FROM transactions
+             WHERE round_label = $1
+
+             UNION
+
+             SELECT id AS user_id
+             FROM users
+             WHERE progress_count <> 0`,
+            [getCurrentRoundLabel()]
+        );
+
+        for (const row of usersToSyncResult.rows) {
+            await syncUserRoundState(client, row.user_id);
+        }
+
+        const cycle = await getGuessPointCycleConfig(client);
+
+        await client.query('COMMIT');
+        res.json({
+            success: true,
+            inserted_approved_points: insertedApprovedPoints,
+            removed_invalid_approved_points: invalidApprovedPointResult.rowCount || 0,
+            removed_orphan_spend_points: orphanSpendPointResult.rowCount || 0,
+            synced_users: usersToSyncResult.rows.length,
+            cycle_start_date: cycle.start_date,
+            cycle_end_date: cycle.end_date
+        });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Guess points reconcile error:', err);
+        res.status(500).json({ error: 'ไม่สามารถรีเช็คพ้อยทายเลขได้' });
+    } finally {
+        client.release();
+    }
+});
+
 // POST /api/logout
 app.post('/api/logout', (req, res) => {
     const authHeader = req.headers.authorization;
@@ -1440,6 +1549,37 @@ app.post('/api/staffs/reset-ranking', requireAuth, async (req, res) => {
     }
 });
 
+// GET /api/admin/customers/reset-rank — get customer rank reset date (admin)
+app.get('/api/admin/customers/reset-rank', requireAuth, async (req, res) => {
+    try {
+        const date = await getCustomerRankResetDate();
+        res.json({ reset_date: date });
+    } catch (err) {
+        console.error('Get customer rank reset date error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดวันที่รีแรงค์ลูกค้าได้' });
+    }
+});
+
+// POST /api/admin/customers/reset-rank — set customer rank reset date (admin)
+app.post('/api/admin/customers/reset-rank', requireAuth, async (req, res) => {
+    const { date } = req.body;
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ error: 'กรุณาระบุวันที่รีแรงค์ (YYYY-MM-DD)' });
+    }
+    try {
+        await pool.query(
+            `INSERT INTO app_settings (key, value, updated_at)
+             VALUES ('customer_rank_reset_date', $1, NOW())
+             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+            [date]
+        );
+        res.json({ success: true, reset_date: date });
+    } catch (err) {
+        console.error('Reset customer rank error:', err);
+        res.status(500).json({ error: 'ไม่สามารถรีแรงค์ลูกค้าได้' });
+    }
+});
+
 // GET /api/ranking/staff — staff ranking by approved transaction count only
 app.get('/api/ranking/staff', async (req, res) => {
     try {
@@ -1464,22 +1604,33 @@ app.get('/api/ranking/staff', async (req, res) => {
     }
 });
 
-// GET /api/ranking/customers — customer ranking by total approved service usage
+// GET /api/ranking/customers — customer ranking by approved service usage after customer rank reset date
 app.get('/api/ranking/customers', async (req, res) => {
     try {
+        const resetDate = await getCustomerRankResetDate();
         const result = await pool.query(`
             SELECT
                 u.id, u.display_name, u.picture_url, u.platform,
                 COUNT(t.id)::int AS total_approved,
+                (
+                    SELECT COUNT(*)::int
+                    FROM transactions t_all
+                    WHERE t_all.user_id = u.id
+                      AND t_all.status = 'approved'
+                ) AS total_lifetime_approved,
                 MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_service_at
             FROM users u
             LEFT JOIN transactions t ON t.user_id = u.id
                 AND t.status = 'approved'
+                AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
             GROUP BY u.id, u.display_name, u.picture_url, u.platform
             HAVING COUNT(t.id) > 0
             ORDER BY COUNT(t.id) DESC, MAX(COALESCE(t.service_date::timestamp, t.created_at)) DESC, u.id ASC
-        `);
-        res.json(result.rows);
+        `, [resetDate]);
+        res.json(result.rows.map((row) => ({
+            ...row,
+            rank_reset_date: resetDate
+        })));
     } catch (err) {
         console.error('Customer ranking error:', err);
         res.status(500).json({ error: 'ไม่สามารถโหลดอันดับลูกค้าได้' });
@@ -1776,10 +1927,19 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
             [user.id]
         );
 
-        // Total lifetime approved transactions (for rank)
+        // Approved transactions used for customer rank, respecting the rank reset date.
+        const customerRankResetDate = await getCustomerRankResetDate();
         const lifetimeResult = await pool.query(
-            `SELECT COUNT(*)::int AS total_approved FROM transactions WHERE user_id = $1 AND status = 'approved'`,
-            [user.id]
+            `SELECT
+                COUNT(*) FILTER (
+                    WHERE $2::date IS NULL
+                       OR COALESCE(service_date, created_at::date) >= $2::date
+                )::int AS total_approved,
+                COUNT(*)::int AS total_lifetime_approved
+             FROM transactions
+             WHERE user_id = $1
+               AND status = 'approved'`,
+            [user.id, customerRankResetDate]
         );
 
         // Total points (if global_user_id exists)
@@ -1802,6 +1962,8 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
             transactions: txResult.rows,
             guesses: guessResult.rows,
             lifetime_approved: lifetimeResult.rows[0].total_approved,
+            total_lifetime_approved: lifetimeResult.rows[0].total_lifetime_approved,
+            rank_reset_date: customerRankResetDate,
             total_points: totalPoints,
             current_round_label: roundLabel,
             current_round_progress: currentProgressCount,
@@ -2562,6 +2724,7 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
     const currentRoundLabel = getCurrentRoundLabel();
 
     try {
+        const customerRankResetDate = await getCustomerRankResetDate();
         const [summaryResult, usersResult] = await Promise.all([
             pool.query(
                 `SELECT
@@ -2601,6 +2764,11 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                         ), 0) AS current_round_progress,
                         COUNT(t.id)::int AS transaction_count,
                         COALESCE(SUM(CASE WHEN t.status = 'approved' THEN 1 ELSE 0 END), 0)::int AS approved_count,
+                        COALESCE(SUM(CASE
+                            WHEN t.status = 'approved'
+                             AND ($7::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $7::date)
+                            THEN 1 ELSE 0
+                        END), 0)::int AS rank_approved_count,
                         COALESCE(SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END), 0)::int AS pending_count,
                         COALESCE((
                             SELECT SUM(p.points)::int
@@ -2631,13 +2799,14 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                 FROM user_rows
                 ORDER BY COALESCE(last_activity_at, created_at) DESC, created_at DESC
                 LIMIT $4 OFFSET $5`,
-                [search, like, platform, limit, offset, currentRoundLabel]
+                [search, like, platform, limit, offset, currentRoundLabel, customerRankResetDate]
             )
         ]);
 
         const usersWithGuessPoints = await Promise.all(
             usersResult.rows.map(async (row) => ({
                 ...row,
+                rank_reset_date: customerRankResetDate,
                 current_round_points: await getRoundPointsForGlobalUser(pool, row.global_user_id)
             }))
         );
@@ -2692,17 +2861,23 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
         }
 
         const linkedUserIds = linkedAccounts.map((account) => account.id);
+        const customerRankResetDate = await getCustomerRankResetDate();
         const [statsResult, lotteryResult, recentTransactionsResult] = await Promise.all([
             client.query(
                 `SELECT
                     COUNT(*)::int AS transaction_count,
                     COALESCE(SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END), 0)::int AS approved_count,
+                    COALESCE(SUM(CASE
+                        WHEN status = 'approved'
+                         AND ($2::date IS NULL OR COALESCE(service_date, created_at::date) >= $2::date)
+                        THEN 1 ELSE 0
+                    END), 0)::int AS rank_approved_count,
                     COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0)::int AS pending_count,
                     COALESCE(SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END), 0)::int AS rejected_count,
                     MAX(COALESCE(service_date::timestamp, created_at)) AS last_activity_at
                  FROM transactions
                  WHERE user_id = ANY($1::int[])`,
-                [linkedUserIds]
+                [linkedUserIds, customerRankResetDate]
             ),
             client.query(
                 `SELECT COUNT(*)::int AS lottery_guess_count
@@ -2758,6 +2933,7 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
                 ...statsResult.rows[0],
                 lottery_guess_count: lotteryResult.rows[0]?.lottery_guess_count || 0,
                 total_points: totalPoints,
+                rank_reset_date: customerRankResetDate,
                 current_round_points: currentRoundPoints,
                 guess_point_cycle_start_date: guessPointCycle.start_date,
                 guess_point_cycle_end_date: guessPointCycle.end_date,

@@ -29,7 +29,7 @@
 **Kiss Me Ranking** คือระบบ Loyalty สำหรับธุรกิจบริการ โดยลูกค้า:
 
 1. **ล็อกอิน** ผ่าน LINE LIFF เท่านั้น (Telegram login ถูกปิดแล้ว)
-2. **ส่งสลิป** พร้อมเลือกพนักงาน + ให้คะแนนลับ 5 ดาว (admin มองไม่เห็น)
+2. **ส่งสลิป** พร้อมเลือกพนักงาน + ให้คะแนนลับ 10 ดาว (admin มองไม่เห็น)
 3. **ได้พ้อยทายเลข** จากสลิปที่ admin อนุมัติ รายการละ 1 พ้อย คำนวณภายในรอบสะสม 1 เดือนที่แอดมินกำหนด
 4. **ทายเลข 2 หลัก** (00-99) โดยใช้ 5 พ้อยต่อ 1 เลข สามารถทายได้หลายเลขในรอบเดียวกันถ้าพ้อยพอ
 5. **ถูกรางวัล** → Cashback 5,000 ฿ (ถอนเงินสดหัก 10% หรือเก็บใช้ซ้ำเต็มจำนวน)
@@ -100,6 +100,7 @@ Kiss Me Ranking/
 ├── init-db.sql                     ← Schema ตั้งต้นของระบบหลัก
 ├── Lotto_Project_Manual.md         ← คู่มือโปรเจกต์เดิม
 ├── migrate-guess-cycle.sql          ← Migration สำหรับระบบ re-vote หลังทายเลข (guess_cycle)
+├── migrate-rating-scale-10.sql       ← Migration ปรับ constraint คะแนนลับเป็น 1-10
 ├── migrate-reward-claim-mode.sql    ← Migration เพิ่ม claim_mode (withdraw/reuse) ใน lottery_reward_claims
 ├── migrate-sold-out-round.sql       ← Migration แก้ Sold Out ให้ unique ต่อ (number, round_label)
 ├── migrate-unified.sql             ← Migration เพิ่ม global_user_id / points / โครงสร้าง identity เพิ่มเติม
@@ -172,11 +173,11 @@ LINE_REDIRECT_URI=
 COMPANY_WEBHOOK_URL=
 COMPANY_WEBHOOK_TOKEN=
 
-# Telegram Bot
+# Telegram Bot (legacy / optional)
 TELEGRAM_BOT_TOKEN=
 ```
 
-> **หมายเหตุ:** LINE LIFF ID (`2009696727-evibES3H`) ฝังใน script.js / profile.js โดยตรง ไม่ได้อยู่ใน .env
+> **หมายเหตุ:** LINE LIFF ID (`2009696727-evibES3H`) ฝังใน script.js / profile.js โดยตรง ไม่ได้อยู่ใน .env และ `TELEGRAM_BOT_TOKEN` ไม่ใช่ค่าที่จำเป็นต่อ customer flow ปัจจุบันแล้ว
 
 ---
 
@@ -189,7 +190,7 @@ TELEGRAM_BOT_TOKEN=
 | **users** | ข้อมูลลูกค้า | `id`, `platform` (line/telegram), `platform_id`, `display_name`, `picture_url`, `progress_count` (legacy progress UI), `global_user_id` (UUID) |
 | **staffs** | ข้อมูลพนักงาน | `id`, `name`, `nickname`, `avatar_url`, `is_active` |
 | **transactions** | บันทึกส่งสลิป | `id`, `user_id`, `staff_id`, `slip_image_url`, `status` (pending/approved/rejected), `round_label`, `reviewed_by`, `reject_reason`, `guess_cycle` (INT — ระบุว่าเป็นชุดโหวตรอบที่เท่าไร) |
-| **ratings** | คะแนนลับ 3 ด้าน (**admin มองไม่เห็น**) | `transaction_id`, `looks_score`, `service_score`, `value_score` (1-5 แต่ละด้าน) |
+| **ratings** | คะแนนลับ 3 ด้าน (**admin มองไม่เห็น**) | `transaction_id`, `looks_score`, `service_score`, `value_score` (1-10 แต่ละด้าน) |
 | **lottery_guesses** | ทายเลข 2 หลัก | `user_id`, `guess_number` (00-99), `round_label`, `result` (pending/won/lost), `reward_amount` |
 | **lottery_reward_claims** | บันทึกการใช้สิทธิ์ Cashback / GV แบบทยอยใช้ | `lottery_guess_id`, `user_id`, `reward_type` (cashback/gv), `amount`, `note`, `redeemed_by`, `redeemed_at`, `claim_mode` (withdraw/reuse — เฉพาะ Cashback) |
 | **sold_out** | เลขที่ถูกจองแล้วต่อรอบ | `number` (0-99), `round_label` |
@@ -201,7 +202,7 @@ TELEGRAM_BOT_TOKEN=
 |-------|--------|-------------|
 | **points** | คะแนนสะสมจากกิจกรรมต่างๆ | `global_user_id`, `activity_type`, `points`, `source_platform`, `source_oa_id`, `metadata` (JSONB) |
 
-> หมายเหตุ: migration และ setup ปัจจุบันโฟกัสที่ LINE Login + Telegram + points ledger โดยใช้ `platform_id` / `User ID` ที่ลูกค้าคัดลอกจากหน้า profile มาให้แอดมินแทน
+> หมายเหตุ: migration และ setup ปัจจุบันโฟกัสที่ LINE Login + points ledger เป็นหลัก โดยใช้ `platform_id` / `User ID` ที่ลูกค้าคัดลอกจากหน้า profile มาให้แอดมินแทน ส่วนข้อมูล Telegram จัดเป็น legacy compatibility
 
 ### 6.3 Constraints สำคัญ
 
@@ -261,8 +262,9 @@ TELEGRAM_BOT_TOKEN=
 | `POST` | `/api/users/upsert` | — | สร้าง/อัปเดต user |
 | `GET` | `/api/users/:platform_id/progress` | — | ดูพ้อยรอบปัจจุบัน, progress UI และสิทธิ์ทายที่คำนวณจากพ้อย |
 | `GET` | `/api/users/:platform_id/history` | — | ประวัติ transaction + lottery ทั้งหมด |
+| `POST` | `/api/users/:platform_id/avatar` | — | อัปโหลด/เปลี่ยนรูปโปรไฟล์ของลูกค้า (LINE เท่านั้น) |
 
-> Query param `?platform=line` (default) หรือ `?platform=telegram`
+> Query param หลักที่ใช้งานจริงคือ `?platform=line` โดยข้อมูล Telegram ที่ยังมีอยู่ใช้เพื่อ lookup ข้อมูล legacy เท่านั้น
 
 ### 7.5 Transaction (ส่งสลิป)
 
@@ -283,7 +285,7 @@ platform_id: U1234abcd
 platform: line
 looks_score: 4
 service_score: 5
-value_score: 3
+value_score: 8
 ```
 
 ### 7.6 Lottery
@@ -318,19 +320,23 @@ value_score: 3
 |--------|------|------|--------|
 | `GET` | `/api/admin/guess-points/cycle` | Bearer | ดูรอบสะสมแต้มทายเลขปัจจุบัน (start/end date) |
 | `POST` | `/api/admin/guess-points/cycle` | Bearer | ตั้งค่าวันเริ่มรอบสะสมแต้มทายเลข |
+| `POST` | `/api/admin/guess-points/reconcile` | Bearer | รีเช็ค ledger พ้อยทายเลขจากสลิปอนุมัติ: เติม point ที่ตกหล่น, ลบรายการ point ที่ไม่มีข้อมูลจริงรองรับ, และ sync progress user |
 
 ### 7.11 Ranking
 
 | Method | Path | Auth | หน้าที่ |
 |--------|------|------|--------|
-| `GET` | `/api/ranking/customers` | — | อันดับลูกค้า จัดตาม approved service count (ไม่ใช้ points) |
+| `GET` | `/api/ranking/customers` | — | อันดับลูกค้า จัดตาม Rank EXP จากสลิปอนุมัติหลังวันที่รีแรงค์ลูกค้า |
+| `GET` | `/api/ranking/staff` | — | อันดับพนักงาน จัดตามรายการอนุมัติหลังวันที่รีอันดับพนักงาน ใช้แสดงในหน้า Admin |
+| `GET` | `/api/admin/customers/reset-rank` | Bearer | ดูวันที่เริ่มนับ Rank EXP ลูกค้าปัจจุบัน |
+| `POST` | `/api/admin/customers/reset-rank` | Bearer | ตั้งวันที่เริ่มนับ Rank EXP ลูกค้าใหม่ โดยไม่ลบประวัติสลิปเดิม |
 
 ### 7.9 Identity & Points
 
 | Method | Path | Auth | หน้าที่ |
 |--------|------|------|--------|
 | `POST` | `/api/points/activity` | — | บวกแต้ม + forward ไปบริษัท |
-| `POST` | `/api/admin/points/redeem` | Bearer | แอดมินหักพ้อย/ใช้พ้อยให้ลูกค้า |
+| `POST` | `/api/admin/points/redeem` | Bearer | ปิดใช้แล้ว — runtime ปัจจุบัน return 409 เพราะพ้อยใช้สำหรับระบบทายเลขอัตโนมัติเท่านั้น |
 | `GET` | `/api/points/:global_user_id` | — | ยอดคะแนนสะสม + ประวัติล่าสุด |
 | `GET` | `/api/unified/profile` | — | Unified profile lookup |
 | `POST` | `/api/company/activity` | Webhook Token | บริษัท ส่ง event กลับ → reply กลับตาม channel ที่ยังเชื่อมอยู่ |
@@ -358,7 +364,7 @@ value_score: 3
 **Flow:**
 ```
 เปิดหน้า → เช็ค LIFF auto-login → ยอมรับข้อตกลง → ล็อกอินผ่าน LINE เท่านั้น
-→ เข้าเนื้อหาหลัก → เลือกพนักงาน + อัปโหลดสลิป + ให้คะแนน 5 ดาว → ส่ง
+→ เข้าเนื้อหาหลัก → เลือกพนักงาน + อัปโหลดสลิป + ให้คะแนน 10 ดาว → ส่ง
 → เมื่อมีพ้อยครบ 5 ขึ้นไป → เลือกเลข 2 หลักจาก grid 00-99 และใช้เลขละ 5 พ้อย
 → เมื่อทายเลขแล้ว สามารถโหวตพนักงานที่เคยโหวตในชุดเดิมได้อีกครั้ง (re-vote)
 ```
@@ -369,12 +375,17 @@ value_score: 3
 - `terms_accepted` — ยอมรับข้อตกลงแล้วหรือยัง
 - `currentUser` — JSON ข้อมูล user ที่ล็อกอินอยู่
 
+**จุดที่อัปเดตล่าสุดบนหน้า index:**
+- คะแนนลับใช้สเกล 1-10 แบบ 10 ปุ่มใน 1 แถวบน desktop
+- ช่องวันที่มาใช้บริการมีปุ่ม `เปิดปฏิทิน` และ shortcut `วันนี้`, `เมื่อวาน`, `3 วันที่แล้ว`, `7 วันที่แล้ว`
+- หลังส่งฟอร์มสำเร็จ ระบบรีเซ็ตคะแนนกลับไปค่าเริ่มต้น 5/10 และรีเซ็ตวันที่กลับเป็นวันนี้
+
 **CSS Theme:** Neon futuristic — สีหลัก `#ff3c3c` (แดง), `#00f0ff` (ฟ้า), `#00ffaa` (เขียว), พื้นหลัง `#060612`  
 **Fonts:** Orbitron (หัวข้อ/ตัวเลข), Kanit (เนื้อหาภาษาไทย)
 
 ### 8.2 profile.html — หน้าโปรไฟล์
 
-แสดง: User card (avatar, ชื่อ, platform badge) → block `User ID สำหรับส่งให้แอดมิน` พร้อมปุ่มคัดลอก → แถบพ้อยรอบนี้ → สรุปรางวัล → section `📊 ประวัติการใช้บริการ & ผลทายเลข` แบบรวม → Tab สลิป / Tab ทายเลข
+แสดง: User card (avatar, ชื่อ, platform badge) → block `User ID สำหรับส่งให้แอดมิน` พร้อมปุ่มคัดลอก → ปุ่มอัปโหลด `เปลี่ยนรูปโปรไฟล์` → แถบพ้อยรอบนี้ → สรุปรางวัล → section `📊 ประวัติการใช้บริการ & ผลทายเลข` แบบรวม → Tab สลิป / Tab ทายเลข
 
 หน้า profile ถูกจัดใหม่เป็น layout 2 คอลัมน์เพื่อให้ card หลัก, progress, rank, reward summary และ combined activity feed อ่านง่ายขึ้นบน desktop และยังยุบเป็นคอลัมน์เดียวบน mobile
 
@@ -384,11 +395,12 @@ value_score: 3
 
 **Login:** username + password → admin token (เก็บใน `sessionStorage`)
 
-**Dashboard มี 4 Tab หลัก + panel จัดการเพิ่มเติมในหน้า Overview:**
+**Dashboard มีหลาย Tab หลัก + panel จัดการเพิ่มเติมในหน้า Overview/User/Lottery:**
 1. Overview: สถิติรวม, สรุป Cashback / GV, reward ledger, สถานะที่เก็บรูป
-2. Staff: จัดการพนักงาน + รีอันดับ
-3. Approval: คิวรออนุมัติ + ประวัติทั้งหมด
-4. Lottery: sold-out, กราฟ, ประกาศผล, **ตั้งค่ารอบสะสมแต้มทายเลข**
+2. Users: ค้นหา user, ดูรายละเอียด, ดูพ้อยทายเลข, Rank EXP, Cashback / GV และตั้งค่าวันรีแรงค์ลูกค้า
+3. Staff: จัดการพนักงาน + อันดับพนักงาน + รีอันดับพนักงาน
+4. Approval: คิวรออนุมัติ + ประวัติทั้งหมด
+5. Lottery: sold-out, กราฟ, ประกาศผล, **ตั้งค่ารอบสะสมแต้มทายเลข** และปุ่มรีเช็คพ้อยทายเลข
 
 **ใน Overview มี panel “จัดการการใช้สิทธิ์ Cashback / GV” เพิ่มเติม:**
 - สรุปสิทธิ์ที่ยังค้างทั้งหมด
@@ -396,11 +408,22 @@ value_score: 3
 - ฟอร์มบันทึกการใช้สิทธิ์ทีละยอด
 - รายการย้อนหลังว่าใครใช้ไปเท่าไร เมื่อไร และแอดมินคนไหนบันทึก
 
-**ใน User Detail Modal มีส่วน “ใช้พ้อย / แลกพ้อย” เพิ่มเติม:**
-- แสดงพ้อยคงเหลือสุทธิของลูกค้าคนนั้น
-- แอดมินกรอกจำนวนพ้อยที่ลูกค้าต้องการใช้
-- ระบบตรวจสอบว่าพ้อยพอหรือไม่ก่อนหัก
-- เมื่อบันทึกแล้ว ระบบจะหักจากยอดคงเหลือทันทีและเก็บเป็นประวัติพ้อยติดลบ
+**ใน User Management มีส่วนแยกพ้อยทายเลขกับ Rank EXP:**
+- พ้อยทายเลขเป็นรอบสั้นสำหรับสิทธิ์ทายเลข: สลิปอนุมัติ 1 ครั้ง = 1 พ้อย, ใช้ 5 พ้อยต่อ 1 เลข
+- Rank EXP เป็นคะแนนสะสมระยะยาวของโปรไฟล์: สลิปอนุมัติ 1 ครั้ง = 1 EXP และนับตามวันที่รีแรงค์ลูกค้าที่แอดมินกำหนด
+- User Detail Modal แสดงทั้งพ้อยทายเลข, พ้อยรวม, Rank EXP, วันที่รีแรงค์ และประวัติพ้อยล่าสุด
+- ระบบแอดมินหักพ้อยแบบ manual ถูกปิดแล้ว เพราะพ้อยถูกใช้กับการทายเลขอัตโนมัติเท่านั้น
+
+**ใน Staff มีอันดับพนักงาน:**
+- อันดับพนักงานถูกย้ายมาไว้ในหน้า Admin
+- มีปุ่ม `เช็กอันดับล่าสุด` เพื่อ reload อันดับจาก `/api/ranking/staff`
+- มี highlight top 3 และตารางอันดับที่นับจากรายการอนุมัติหลังวันที่รีอันดับพนักงาน
+
+**ในแท็บ Lottery มีระบบรีเช็คพ้อยทายเลข:**
+- ปุ่ม `รีเช็คพ้อยทายเลข` เรียก `/api/admin/guess-points/reconcile`
+- ระบบเติม point จากสลิปอนุมัติที่ตกหล่น
+- ระบบลบ point ที่ไม่มี transaction/guess จริงรองรับ
+- ระบบ sync progress ของ user หลังรีเช็ค
 
 **ใน User Detail Modal มีส่วน “บันทึกการใช้สิทธิ์ของ user นี้” เพิ่มเติม:**
 - เลือก reward row ของลูกค้าจากรายการ Cashback / GV ที่คงเหลือ
@@ -476,73 +499,83 @@ Admin ประกาศเลขที่ถูก → POST /api/draw { winning
 - พ้อยทายเลขคำนวณภายในรอบสะสม 1 เดือนที่แอดมินตั้งค่าผ่าน admin panel (ไม่ได้ผูกกับ round label อีกแล้ว)
 - เมื่อทายเลขแล้ว ระบบจะเข้าสู่ชุดโหวตใหม่ (guess_cycle +1) ทำให้สามารถโหวตพนักงานที่เคยโหวตในชุดก่อนได้อีกรอบ
 
-### 9.4 เกณฑ์การจัดแรงค์ (Rank Criteria)
+### 9.4 เกณฑ์การจัดแรงค์ / Rank EXP (Rank Criteria)
 
-ระบบแรงค์ใช้เฉพาะจำนวน **สลิปที่อนุมัติสะสมตลอดอายุการใช้งาน** (`lifetimeApproved`) เป็นเกณฑ์เดียว ไม่ผูกกับพ้อยทายเลข:
+ระบบแรงค์ใช้ **Rank EXP จากสลิปที่อนุมัติ** เป็นเกณฑ์เดียว โดยแยกจากพ้อยทายเลข:
+
+- สลิปอนุมัติ 1 ครั้ง = 1 Rank EXP
+- นับตามวันที่รีแรงค์ลูกค้าที่แอดมินกำหนดในหน้า User Management
+- ค่า setting เก็บใน `app_settings` key `customer_rank_reset_date`
+- ถ้ายังไม่ตั้งวันที่รีแรงค์ ระบบจะนับจากสลิปอนุมัติทั้งหมด
+- หน้า profile และ ranking ใช้ยอดที่นับหลังวันที่รีแรงค์นี้ ไม่ใช้ยอดพ้อยทายเลข
 
 | Rank | เงื่อนไขสลิปอนุมัติสะสม |
 |------|----------------------|
 | Unranked | 0 |
 | Bronze | 3 |
-| Silver | 10 |
-| Gold | 25 |
-| Platinum | 50 |
-| Diamond | 100 |
-| Master | 200 |
+| Silver | 6 |
+| Gold | 12 |
+| Platinum | 24 |
+| Diamond | 48 |
+| Master | 90 |
+| Grandmaster | 150 |
 
 **ตัวอย่าง:**
 - สลิปอนุมัติสะสม `2` → ยังเป็น `Unranked`
 - สลิปอนุมัติสะสม `3` → ได้ `Bronze`
-- สลิปอนุมัติสะสม `100` → ได้ `Diamond`
-- สลิปอนุมัติสะสม `200` → ได้ `Master`
+- สลิปอนุมัติสะสม `48` → ได้ `Diamond`
+- สลิปอนุมัติสะสม `90` → ได้ `Master`
 
 Frontend ที่ใช้เกณฑ์นี้อยู่ใน `profile.js` และ `ranking.js` โดยใช้เงื่อนไขเดียวกัน
 
 > **หมายเหตุ:** หน้า ranking สาธารณะ (`ranking.html`) แสดงเฉพาะอันดับลูกค้า ส่วนอันดับพนักงานถูกย้ายไปในหน้า Admin แล้ว
 
-### 9.5 Flow การใช้พ้อย / แลกพ้อย โดยแอดมิน
+### 9.5 Flow พ้อยทายเลขและการรีเช็คพ้อยโดยแอดมิน
 
-ระบบนี้ใช้แนวคิดว่า `points` เป็น ledger เดียวกันทั้งรายการบวกและลบ:
+ระบบนี้ใช้ `points` เป็น ledger สำหรับสิทธิ์ทายเลขอัตโนมัติ:
 
-- พ้อยบวก = ได้แต้มจากกิจกรรม
-- พ้อยลบ = แอดมินหักพ้อยให้ลูกค้าเมื่อมีการใช้พ้อย/แลกพ้อย
+- พ้อยบวก = `transaction_approved` จากสลิปที่ admin อนุมัติ
+- พ้อยลบ = `lottery_guess_spend` เมื่อผู้ใช้ทายเลขจริง ระบบหัก 5 พ้อยทันที
+- ไม่รองรับการหักพ้อย manual จาก admin แล้ว (`POST /api/admin/points/redeem` return 409)
 
-หลักการทำงาน:
+หลักการสะสม:
 
 ```text
-ลูกค้าแจ้ง User ID ให้แอดมิน
+Admin อนุมัติสลิป
   ↓
-แอดมินค้นหา User จากตาราง User Management
+INSERT points +1 (activity_type = transaction_approved)
   ↓
-เปิด User Detail Modal
+สะสมครบ 5 พ้อยในรอบสะสมทายเลข
   ↓
-ดูพ้อยคงเหลือที่ใช้ได้
+ผู้ใช้ทายเลข 1 ครั้ง
   ↓
-กรอกจำนวนพ้อยที่ลูกค้าต้องการใช้ + ใส่ note
-  ↓
-ระบบตรวจสอบว่า points ที่จะใช้ <= ยอดคงเหลือ
-  ↓
-ถ้าผ่าน → INSERT points เป็นค่าติดลบ (activity_type = points_redeem)
-  ↓
-ยอดคงเหลือใหม่ = SUM(points ทั้งหมดของ user)
+INSERT points -5 (activity_type = lottery_guess_spend)
 ```
 
-`User ID` ที่ใช้ใน flow นี้คือ `platform_id` ของลูกค้า เช่น LINE user ID หรือ Telegram user ID ไม่ต้องพึ่ง OA mapping
+ระบบรีเช็คพ้อย:
+
+- อยู่ใน Admin แท็บ Lottery ปุ่ม `รีเช็คพ้อยทายเลข`
+- เรียก `POST /api/admin/guess-points/reconcile`
+- เติม `transaction_approved` point ที่ตกหล่นจากสลิป approved
+- ลบ `transaction_approved` point ที่ไม่มี transaction approved จริงรองรับ
+- ลบ `lottery_guess_spend` point ที่ไม่มี lottery guess จริงรองรับ
+- sync `users.progress_count` ตามข้อมูลรอบปัจจุบัน
 
 สิ่งที่แอดมินเห็นได้:
 
-- พ้อยคงเหลือสุทธิ
+- พ้อยทายเลขรอบปัจจุบัน
+- จำนวนสิทธิ์ทายเลขที่คำนวณได้จากพ้อย
 - ประวัติพ้อยล่าสุดทั้งบวกและลบ
-- note ของการหักพ้อย
-- ชื่อแอดมินที่บันทึกรายการหักพ้อย
+- Rank EXP ของ user และวันที่รีแรงค์ที่ใช้นับ
 
-**ตัวอย่าง:**
+**ตัวอย่างพ้อยทายเลข:**
 
 ```text
-ลูกค้ามีพ้อยสะสม 10,000
-แอดมินหักใช้ 1,500
-ระบบบันทึก points = -1500
-ยอดคงเหลือใหม่ = 8,500
+ลูกค้ามีสลิปอนุมัติในรอบทายเลขปัจจุบัน 5 ครั้ง
+ระบบบันทึก points +1 จำนวน 5 รายการ
+ลูกค้าทายเลข 1 ครั้ง
+ระบบบันทึก points -5
+พ้อยคงเหลือในรอบนี้ = 0
 ```
 
 ### 9.6 Flow การจัดการ Cashback / Gift Voucher ในหน้า Admin
@@ -659,6 +692,7 @@ Admin token หมดอายุใน 8 ชั่วโมง และจะ�
 - พ้อยที่ได้ก่อนวันเริ่มรอบจะไม่นำมาคิดสิทธิ์ทายเลข
 - ค่าเก็บใน `app_settings` key `guess_points_cycle_start_date`
 - API: `GET/POST /api/admin/guess-points/cycle`
+- มีปุ่ม `รีเช็คพ้อยทายเลข` ใน Admin เพื่อ sync ledger จากข้อมูล transaction/guess จริง (`POST /api/admin/guess-points/reconcile`)
 
 ### 9.12 ระบบ Re-Vote หลังทายเลข (Guess Cycle)
 
@@ -695,15 +729,15 @@ global_user_id (UUID)
 
 ### 10.2 การส่งข้อความกลับ
 
-1. กรณี Telegram → ส่งผ่าน Telegram Bot API
-2. กรณี LINE/ระบบบริษัท → ใช้ flow ที่ผูกกับ LINE Login / webhook ที่มีอยู่
+1. กรณี LINE/ระบบบริษัท → ใช้ flow ที่ผูกกับ LINE Login / webhook ที่มีอยู่
+2. กรณี Telegram → จัดเป็น legacy integration ที่ยังอาจถูกเรียกใช้จากระบบภายนอกบางส่วน
 3. ถ้าไม่มีช่องทางเลย → return `channel: 'none'`
 
 ### 10.3 หมายเหตุเรื่องโครงสร้างใหม่
 
 โค้ด runtime และ setup หลักของโปรเจกต์ถูกปรับให้ไม่ใช้ OA หลายตัวแล้ว โดยหน้าแอดมินและหน้าโปรไฟล์ใช้ `platform_id` / `User ID` เป็นตัวหลักในการตรวจสอบสิทธิ์, หักพ้อย, และหัก Cashback หรือ Gift Voucher
 
-หน้าแอดมินใน User Detail Modal จะแสดง `ID ที่ใช้ค้นหาในแอดมิน` เพื่อย้ำว่าการทำงานจริงใช้ LINE User ID, Telegram User ID หรือ Global User ID ของลูกค้า
+หน้าแอดมินใน User Detail Modal จะแสดง `ID ที่ใช้ค้นหาในแอดมิน` เพื่อย้ำว่าการทำงานจริงใช้ LINE User ID หรือ Global User ID ของลูกค้าเป็นหลัก ส่วน Telegram จัดเป็นข้อมูล legacy
 
 workflow หลักที่ใช้จริงคือ:
 
@@ -721,7 +755,7 @@ workflow หลักที่ใช้จริงคือ:
 
 ### 10.4 SQL ตัวอย่าง
 
-ดูไฟล์ `examples/unified-queries.sql` เป็น reference สำหรับ query identity/points เพิ่มเติม โดย workflow หลักตอนนี้เน้น lookup ด้วย LINE user ID, Telegram user ID หรือ `global_user_id`
+ดูไฟล์ `examples/unified-queries.sql` เป็น reference สำหรับ query identity/points เพิ่มเติม โดย workflow หลักตอนนี้เน้น lookup ด้วย LINE user ID หรือ `global_user_id`
 
 ---
 
@@ -814,24 +848,49 @@ ngrok http 3000
 - Migration: `migrate-guess-cycle.sql`
 
 **ระบบจัดอันดับลูกค้า:**
-- แยกอันดับลูกค้าออกจากพ้อยทายเลข — ranking ใช้เฉพาะจำนวน approved service count
+- แยกอันดับลูกค้าออกจากพ้อยทายเลข — ranking ใช้ Rank EXP จากสลิปอนุมัติ ไม่ใช้ points
+- เพิ่มระบบรีแรงค์ลูกค้าในหน้า Admin แถบ User Management โดยเก็บวันที่เริ่มนับใน `app_settings.customer_rank_reset_date`
 - หน้า ranking สาธารณะแสดงเฉพาะลูกค้า ส่วนอันดับพนักงานย้ายเข้า admin
-- `/api/ranking/customers` return `total_approved` + `last_service_at`
+- `/api/ranking/customers` return `total_approved`, `total_lifetime_approved`, `rank_reset_date`, และ `last_service_at`
+- หน้า profile และ ranking แสดงคำว่า `Rank EXP` เพื่อแยกจากพ้อยทายเลขชัดเจน
+
+**ระบบจัดอันดับพนักงาน:**
+- อันดับพนักงานอยู่ในหน้า Admin แท็บ Staff เท่านั้น
+- ซ่อม markup ของ highlight grid และเพิ่มปุ่ม `เช็กอันดับล่าสุด`
+- ตารางอันดับพนักงานแสดงอันดับ, พนักงาน, รายการอนุมัติ และใช้งานล่าสุด
 
 **รอบสะสมแต้มทายเลข:**
 - พ้อยทายเลขไม่ผูกกับ round label อีก — ใช้รอบสะสม 1 เดือนที่แอดมินกำหนดแทน
 - Admin panel มี section "🗓️ รอบสะสมแต้มทายเลข" ในแท็บ การทายเลข
 - API: `GET/POST /api/admin/guess-points/cycle`
+- เพิ่ม API/ปุ่ม `POST /api/admin/guess-points/reconcile` สำหรับรีเช็คพ้อยทายเลขจาก ledger จริง
 
 **ระบบล็อกอิน:**
 - ปรับเป็น **LINE เท่านั้น** — ปุ่ม Telegram ถูกลบจาก UI, endpoint Telegram login return 410
 - `/api/auth/login` และ `/api/users/upsert` ปฏิเสธ platform อื่นที่ไม่ใช่ `line`
 
 **UI/UX:**
-- คะแนนลับ (ดาว) เปลี่ยนจาก 10 ปุ่ม 2 แถว → **5 ดาวใหญ่แถวเดียว** (สเกล 1-5, สีทอง/เทา)
-- ช่อง "วันที่มาใช้บริการ" ปรับให้เด่นขึ้น — ขอบ neon cyan เรืองแสง, ตัวอักษรหนา, glow shadow
+- ปรับหน้า customer กลับไปใช้ **10 ดาว** (สเกล 1-10) พร้อม hidden input ค่าเริ่มต้น `5`
+- ช่อง "วันที่มาใช้บริการ" ปรับให้เด่นขึ้น, จัดกึ่งกลาง, เพิ่มปุ่ม `เปิดปฏิทิน` และ shortcut เลือกวันแบบเร็ว
+- ปรับ UI หน้าโปรไฟล์ให้กระชับและเหมาะกับมือถือมากขึ้น
+- ปรับ visual ของ Rank/logo ให้เด่นขึ้นบน profile และ ranking
+- บนมือถือ ปุ่มทายเลขถูกย้ายไปอยู่ข้างปุ่มกติกาใน footer เพื่อลดการบังข้อมูลหน้าแรก
+- เพิ่มปุ่ม `เปลี่ยนรูปโปรไฟล์` บนหน้า profile เพื่อให้ลูกค้าอัปโหลด avatar ใหม่ได้โดยไม่ต้องผ่าน flow หน้า ranking
+- เพิ่ม API `POST /api/users/:platform_id/avatar` สำหรับอัปโหลดรูปโปรไฟล์ฝั่งลูกค้า
+- ปรับการแสดงรูป avatar ให้ fallback กลับไปใช้ ui-avatars ได้เสมอถ้ายังไม่มีรูปจริง
+- แก้ layout card สรุป Cashback / GV บนหน้า admin ไม่ให้ข้อความหรือตัวเลขยาวล้นกรอบ
 - Admin modal ขยายความกว้างเป็น 1240px และยุบเป็น 1 คอลัมน์เมื่อจอ < 1180px
-- Server validation สำหรับคะแนนลับปรับเป็น 1-5 (จากเดิม 1-10)
+- ปรับ responsive ของหน้า Admin สำหรับมือถือและ PC: tab เลื่อนง่ายขึ้น, table มี horizontal scroll, panel/padding/ปุ่มใน Staff Ranking เหมาะกับจอเล็กขึ้น
+- Server validation สำหรับคะแนนลับปรับเป็น 1-10 และ `ensureDatabaseStructure()` จะ rewrite check constraint ให้ตรงอัตโนมัติ
+
+**Schema / Migration:**
+- `init-db.sql` ปรับ comment และ check constraint ของ `ratings` เป็น 1-10
+- `init-db.sql` ระบุ `app_settings` ใช้เก็บทั้งวันที่รีอันดับพนักงานและวันที่รีแรงค์ลูกค้า
+- เพิ่ม `migrate-rating-scale-10.sql` สำหรับอัปเดต constraint ของฐานข้อมูลเดิม
+
+**สิ่งที่ถูกเอาออกหรือเลิกใช้ในรอบนี้:**
+- ยกเลิกเอกสารอ้างอิงเดิมที่บอกว่าคะแนนลับเป็น 5 ดาว / 1-5 เพราะไม่ตรงกับ runtime ปัจจุบันแล้ว
+- ยกเลิก assumption ว่าลูกค้าต้องไปหน้าอื่นก่อนจึงจะเปลี่ยนรูปโปรไฟล์ได้ ตอนนี้ทำได้ตรงจาก `profile.html`
 
 **แก้บั๊ก Sold Out:**
 - เลขที่ปิดขาย (Sold Out) แก้ schema/index ให้ unique per `(number, round_label)` ถูกต้อง
@@ -850,7 +909,7 @@ ngrok http 3000
 ### 14.2 งานโครงสร้าง / configuration
 
 - LINE Login Channel ID/Secret ยังรอข้อมูลจริงจากฝั่งบริษัท
-- ~~Telegram Bot Token~~ — ไม่จำเป็นแล้วเนื่องจาก Telegram login ถูกปิด (legacy code ยังอ้างอิง env var อยู่)
+- `TELEGRAM_BOT_TOKEN` ไม่ใช่ค่าที่จำเป็นต่อ customer flow ปัจจุบันแล้ว และควรถือเป็น legacy integration
 - Company Webhook URL ยังรอข้อมูลจริงจากฝั่งบริษัท
 - หากต้องการให้ local Codacy workflow ใช้งานได้ ต้องแก้ปัญหา environment ของ `wsl .codacy/cli.sh analyze ...` ที่ล้มอยู่ในเครื่องพัฒนา
 
@@ -867,10 +926,10 @@ ngrok http 3000
 | รายการ | สถานะ | หมายเหตุ |
 |--------|-------|---------|
 | LINE Login Channel ID/Secret | ❌ รอตั้งค่า | ได้จาก LINE Developers Console |
-| Telegram Bot Token | ❌ รอตั้งค่า | ได้จาก @BotFather |
+| Telegram Bot Token (legacy) | ⏸️ ไม่จำเป็นต่อ flow หลัก | ใช้เฉพาะกรณีต้องคง integration เก่าไว้ |
 | Company Webhook URL | ❌ รอตั้งค่า | URL ระบบฝั่งบริษัท |
 | Production frontend/backend | ✅ มีแล้ว | Frontend ใช้ GitHub Pages, Backend ใช้ Render |
 
 ---
 
-> **Last updated:** 9 เมษายน 2569 (2026) — อัปเดตหลังปรับระบบรางวัล (5,000/300), claim mode, re-vote, guess-point cycle, LINE-only, 5-star rating, ranking แยกจากพ้อย
+> **Last updated:** 10 เมษายน 2569 (2026) — อัปเดตหลังแยกพ้อยทายเลขกับ Rank EXP, เพิ่มรีแรงค์ลูกค้า, เพิ่มรีเช็คพ้อยทายเลข, ซ่อมอันดับพนักงานใน Admin, ปรับ Admin responsive, ปรับ rank/logo ให้เด่นขึ้น และย้ายปุ่มทายเลขบนมือถือไปข้างปุ่มกติกา

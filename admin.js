@@ -155,6 +155,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=1a1a2e&color=ff3c3c&size=96`;
     }
 
+    const CUSTOMER_RANK_TIERS = [
+        { name: 'Unranked', color: '#888888', minApproved: 0 },
+        { name: 'Bronze', color: '#cd7f32', minApproved: 3 },
+        { name: 'Silver', color: '#c0c0c0', minApproved: 6 },
+        { name: 'Gold', color: '#ffd700', minApproved: 12 },
+        { name: 'Platinum', color: '#00f0ff', minApproved: 24 },
+        { name: 'Diamond', color: '#b44aff', minApproved: 48 },
+        { name: 'Master', color: '#ff3c3c', minApproved: 90 },
+        { name: 'Grandmaster', color: '#ffd166', minApproved: 150 },
+    ];
+
+    function getCustomerRankInfo(totalApproved) {
+        const approvedCount = Number(totalApproved || 0);
+        let rank = CUSTOMER_RANK_TIERS[0];
+        for (let i = CUSTOMER_RANK_TIERS.length - 1; i >= 0; i--) {
+            if (approvedCount >= CUSTOMER_RANK_TIERS[i].minApproved) {
+                rank = CUSTOMER_RANK_TIERS[i];
+                break;
+            }
+        }
+        return rank;
+    }
+
+    function renderUserRankCell(user) {
+        const approvedForRank = Number(user.rank_approved_count ?? user.approved_count ?? 0);
+        const rank = getCustomerRankInfo(approvedForRank);
+        return `
+            <div class="user-rank-cell" style="--user-rank-color:${rank.color}">
+                <strong>${escapeHtml(rank.name)}</strong>
+                <span>${approvedForRank.toLocaleString('th-TH')} EXP</span>
+            </div>
+        `;
+    }
+
     function staffAvatarSrc(staff) {
         const displayName = staff.nickname || staff.name || 'Staff';
         if (staff.avatar_url) return resolveAssetUrl(staff.avatar_url);
@@ -334,7 +368,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const guessPointsCycleStart = document.getElementById('guess-points-cycle-start');
     const guessPointsCycleCurrent = document.getElementById('guess-points-cycle-current');
     const guessPointsCycleEnd = document.getElementById('guess-points-cycle-end');
+    const guessPointsRecheckStatus = document.getElementById('guess-points-recheck-status');
     const btnSaveGuessPointsCycle = document.getElementById('btn-save-guess-points-cycle');
+    const btnRecheckGuessPoints = document.getElementById('btn-recheck-guess-points');
+    const customerRankResetDateInput = document.getElementById('customer-rank-reset-date');
+    const customerRankResetCurrent = document.getElementById('customer-rank-reset-current');
+    const btnSaveCustomerRankReset = document.getElementById('btn-save-customer-rank-reset');
     let selectedUserId = null;
     let selectedRewardRow = null;
     let rewardLedgerState = { summary: {}, rewards: [], recentClaims: [] };
@@ -458,6 +497,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                     </td>
                     <td>${(user.total_points || 0).toLocaleString('th-TH')}</td>
+                    <td>${renderUserRankCell(user)}</td>
                     <td>${renderUserRewardBalanceCell(user)}</td>
                     <td>${user.transaction_count || 0}</td>
                     <td class="user-last-active-cell">${formatDateTime(user.last_activity_at || user.created_at)}</td>
@@ -793,7 +833,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             userEditDisplayName.value = data.user.display_name || '';
             userEditPictureUrl.value = data.user.picture_url || '';
 
+            const rankApprovedCount = Number(data.stats?.rank_approved_count || 0);
+            const rankInfo = getCustomerRankInfo(rankApprovedCount);
+
             userDetailTags.innerHTML = [
+                `<span class="user-tag">แรงค์ ${escapeHtml(rankInfo.name)} (${rankApprovedCount.toLocaleString('th-TH')} EXP)</span>`,
+                data.stats?.rank_reset_date ? `<span class="user-tag">รีแรงค์ตั้งแต่ ${formatServiceDate(data.stats.rank_reset_date)}</span>` : '',
                 `<span class="user-tag">พ้อยทายเลข ${Number(data.stats?.current_round_points || 0).toLocaleString('th-TH')}</span>`,
                 `<span class="user-tag">ทายได้ ${Number(data.stats?.current_round_guess_credits || 0).toLocaleString('th-TH')} เลข</span>`,
                 `<span class="user-tag">รอบแต้ม ${escapeHtml(data.stats?.guess_point_cycle_start_date || '—')} ถึง ${escapeHtml(data.stats?.guess_point_cycle_end_date || '—')}</span>`,
@@ -804,11 +849,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             userDetailStats.innerHTML = [
                 { label: 'รายการทั้งหมด', value: data.stats.transaction_count || 0 },
                 { label: 'อนุมัติแล้ว', value: data.stats.approved_count || 0 },
+                { label: 'Rank EXP', value: rankApprovedCount },
                 { label: 'รอตรวจ', value: data.stats.pending_count || 0 },
                 { label: 'ไม่อนุมัติ', value: data.stats.rejected_count || 0 },
                 { label: 'ทายเลข', value: data.stats.lottery_guess_count || 0 },
                 { label: 'พ้อยทายเลข', value: data.stats.current_round_points || 0 },
-                { label: 'แต้มสะสม', value: data.stats.total_points || 0 }
+                { label: 'พ้อยรวม', value: data.stats.total_points || 0 }
             ].map((item) => `
                 <div class="user-detail-stat">
                     <span class="user-detail-stat-value">${Number(item.value).toLocaleString('th-TH')}</span>
@@ -1549,6 +1595,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    async function loadCustomerRankResetDate() {
+        if (!customerRankResetCurrent || !customerRankResetDateInput) return;
+        try {
+            const res = await authFetch(`${API_BASE}/admin/customers/reset-rank`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'load-customer-rank-reset-failed');
+            if (data.reset_date) {
+                customerRankResetDateInput.value = data.reset_date;
+                customerRankResetCurrent.textContent = formatServiceDate(data.reset_date);
+            } else {
+                customerRankResetDateInput.value = '';
+                customerRankResetCurrent.textContent = 'ยังไม่ได้ตั้งค่า';
+            }
+        } catch (err) {
+            customerRankResetCurrent.textContent = 'โหลดไม่สำเร็จ';
+        }
+    }
+
     async function loadGuessPointsCycle() {
         if (!guessPointsCycleCurrent || !guessPointsCycleEnd || !guessPointsCycleStart) return;
         try {
@@ -1806,6 +1870,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    btnSaveCustomerRankReset?.addEventListener('click', async () => {
+        const date = customerRankResetDateInput?.value;
+        if (!date) {
+            showToast('กรุณาเลือกวันที่รีแรงค์ลูกค้า', 'error');
+            return;
+        }
+        try {
+            const res = await authFetch(`${API_BASE}/admin/customers/reset-rank`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'save-customer-rank-reset-failed');
+            showToast(`ตั้งวันที่รีแรงค์ลูกค้าเป็น ${formatServiceDate(date)} แล้ว`, 'success');
+            await loadCustomerRankResetDate();
+            renderUsers(currentUserPage);
+            if (selectedUserId) loadUserDetail(selectedUserId);
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถบันทึกวันที่รีแรงค์ลูกค้าได้', 'error');
+        }
+    });
+
     btnSaveGuessPointsCycle?.addEventListener('click', async () => {
         const startDate = guessPointsCycleStart?.value;
         if (!startDate) {
@@ -1830,9 +1917,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    btnRecheckGuessPoints?.addEventListener('click', async () => {
+        btnRecheckGuessPoints.disabled = true;
+        const originalText = btnRecheckGuessPoints.textContent;
+        btnRecheckGuessPoints.textContent = 'กำลังรีเช็ค...';
+        if (guessPointsRecheckStatus) guessPointsRecheckStatus.textContent = 'กำลังตรวจข้อมูลพ้อย...';
+
+        try {
+            const res = await authFetch(`${API_BASE}/admin/guess-points/reconcile`, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'recheck-guess-points-failed');
+
+            const summaryText = `เติม ${Number(data.inserted_approved_points || 0).toLocaleString('th-TH')} พ้อย, ลบรายการผิด ${Number((data.removed_invalid_approved_points || 0) + (data.removed_orphan_spend_points || 0)).toLocaleString('th-TH')} รายการ, ซิงก์ ${Number(data.synced_users || 0).toLocaleString('th-TH')} user`;
+            if (guessPointsRecheckStatus) guessPointsRecheckStatus.textContent = summaryText;
+            showToast(`รีเช็คพ้อยทายเลขแล้ว: ${summaryText}`, 'success');
+            loadGuessPointsCycle();
+            renderUsers(currentUserPage);
+            if (selectedUserId) loadUserDetail(selectedUserId);
+        } catch (err) {
+            if (guessPointsRecheckStatus) guessPointsRecheckStatus.textContent = 'รีเช็คไม่สำเร็จ';
+            showToast(err.message || 'ไม่สามารถรีเช็คพ้อยทายเลขได้', 'error');
+        } finally {
+            btnRecheckGuessPoints.disabled = false;
+            btnRecheckGuessPoints.textContent = originalText;
+        }
+    });
+
     renderStaffGrid();
     renderStaffRanking();
     loadRankingResetDate();
+    loadCustomerRankResetDate();
     loadGuessPointsCycle();
 
     // --- Logout ---

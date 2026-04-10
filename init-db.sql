@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS sold_out (
 
 -- ============================================
 -- 7.1 ตาราง app_settings — ค่าตั้งค่าระดับระบบ
--- ใช้เก็บวันที่รีอันดับ และ settings อื่นในอนาคต
+-- ใช้เก็บวันที่รีอันดับพนักงาน, วันที่รีแรงค์ลูกค้า และ settings อื่นในอนาคต
 -- ============================================
 CREATE TABLE IF NOT EXISTS app_settings (
     key VARCHAR(100) PRIMARY KEY,

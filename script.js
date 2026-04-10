@@ -436,12 +436,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function syncLottoState(progressData) {
         const btnOpenLotto = document.getElementById('btn-open-lotto');
+        const btnOpenLottoFooter = document.getElementById('btn-open-lotto-footer');
+        const lottoOpenButtons = [btnOpenLotto, btnOpenLottoFooter].filter(Boolean);
         const lottoEntryHelp = document.getElementById('lotto-entry-help');
         const lottoEntryPanel = document.getElementById('lotto-entry-panel');
         const lottoEntryPoints = document.getElementById('lotto-entry-points');
         const lottoEntryRemaining = document.getElementById('lotto-entry-remaining');
         const lottoEntryStatus = document.getElementById('lotto-entry-status');
-        if (!btnOpenLotto || !lottoEntryHelp || !lottoEntryPanel || !lottoEntryPoints || !lottoEntryRemaining || !lottoEntryStatus) return;
+        if (!lottoOpenButtons.length || !lottoEntryHelp || !lottoEntryPanel || !lottoEntryPoints || !lottoEntryRemaining || !lottoEntryStatus) return;
+
+        const setLottoOpenButtons = ({ disabled, panelText, footerText }) => {
+            if (btnOpenLotto) {
+                btnOpenLotto.disabled = disabled;
+                btnOpenLotto.textContent = panelText;
+            }
+            if (btnOpenLottoFooter) {
+                btnOpenLottoFooter.disabled = disabled;
+                btnOpenLottoFooter.textContent = footerText || panelText;
+            }
+        };
 
         const pointBalance = Math.max(0, Number(progressData?.guess_point_balance || 0));
         const guessCredits = Math.max(0, Number(progressData?.guess_credits_remaining || 0));
@@ -456,8 +469,11 @@ document.addEventListener('DOMContentLoaded', () => {
         lottoEntryRemaining.textContent = pointsNeeded.toLocaleString('th-TH');
 
         if (!currentUser?.platform_id) {
-            btnOpenLotto.disabled = true;
-            btnOpenLotto.textContent = '🎰 ล็อกอินเพื่อเปิดสิทธิ์ทายเลข';
+            setLottoOpenButtons({
+                disabled: true,
+                panelText: '🎰 ล็อกอินเพื่อเปิดสิทธิ์ทายเลข',
+                footerText: '🎰 ทายเลข'
+            });
             lottoEntryHelp.textContent = 'เมื่อสะสมครบทุก 5 พ้อย ปุ่มนี้จะเปิดให้เข้าไปเลือกเลข 00-99 ได้';
             lottoEntryStatus.textContent = 'รอเข้าสู่ระบบ';
             lottoEntryStatus.classList.add('is-waiting');
@@ -467,8 +483,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (!roundOpen) {
-            btnOpenLotto.disabled = true;
-            btnOpenLotto.textContent = '⏳ รอบนี้ยังไม่เปิดให้ทายเลข';
+            setLottoOpenButtons({
+                disabled: true,
+                panelText: '⏳ รอบนี้ยังไม่เปิดให้ทายเลข',
+                footerText: '⏳ ยังไม่เปิด'
+            });
             lottoEntryHelp.textContent = pointBalance > 0
                 ? `ตอนนี้มี ${pointBalance.toLocaleString('th-TH')} แต้ม ระบบจะเปิดให้ใช้เมื่อถึงรอบสะสมถัดไป`
                 : 'รอรอบสะสมถัดไปเพื่อเริ่มเก็บพ้อยและปลดล็อกสิทธิ์ทายเลข';
@@ -480,8 +499,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (canGuess) {
-            btnOpenLotto.disabled = false;
-            btnOpenLotto.textContent = `🎰 ใช้สิทธิ์ทายเลข ${guessCredits.toLocaleString('th-TH')} ครั้ง`;
+            setLottoOpenButtons({
+                disabled: false,
+                panelText: `🎰 ใช้สิทธิ์ทายเลข ${guessCredits.toLocaleString('th-TH')} ครั้ง`,
+                footerText: `🎰 ทายเลข ${guessCredits.toLocaleString('th-TH')}`
+            });
             lottoEntryHelp.textContent = `พร้อมแล้วสำหรับการเลือกเลข 00-99 ตอนนี้คุณมี ${pointBalance.toLocaleString('th-TH')} แต้ม และทายได้ ${guessCredits.toLocaleString('th-TH')} ครั้ง`;
             lottoEntryHelp.classList.add('is-unlocked');
             lottoEntryPanel.classList.add('is-ready');
@@ -491,8 +513,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        btnOpenLotto.disabled = true;
-        btnOpenLotto.textContent = `🎰 สะสมอีก ${pointsNeeded.toLocaleString('th-TH')} พ้อยเพื่อปลดล็อก`;
+        setLottoOpenButtons({
+            disabled: true,
+            panelText: `🎰 สะสมอีก ${pointsNeeded.toLocaleString('th-TH')} พ้อยเพื่อปลดล็อก`,
+            footerText: `🎰 อีก ${pointsNeeded.toLocaleString('th-TH')} พ้อย`
+        });
         lottoEntryHelp.textContent = `ตอนนี้มี ${pointBalance.toLocaleString('th-TH')} แต้ม ครบทุก 5 พ้อยเมื่อไร ปุ่มนี้จะเปิดให้ใช้สิทธิ์ทันที`;
         lottoEntryStatus.textContent = 'ยังไม่ถึงเกณฑ์ปลดล็อก';
         lottoEntryStatus.classList.add('is-waiting');
@@ -693,6 +718,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedNumber = document.getElementById('selected-number');
     const btnLottoConfirm = document.getElementById('btn-lotto-confirm');
     const btnOpenLotto = document.getElementById('btn-open-lotto');
+    const btnOpenLottoFooter = document.getElementById('btn-open-lotto-footer');
+    const lottoOpenButtons = [btnOpenLotto, btnOpenLottoFooter].filter(Boolean);
 
     function setSelectedLottoNumber(number) {
         currentLottoSelection = String(number || '');
@@ -942,14 +969,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (btnOpenLotto) {
-        btnOpenLotto.addEventListener('click', () => {
+    lottoOpenButtons.forEach((button) => {
+        button.addEventListener('click', () => {
             if (!currentProgressData?.can_guess_lottery) {
                 return;
             }
             showLottoSection(true);
         });
-    }
+    });
 
     // Handle Form submission - send to database
     const form = document.getElementById('submission-form');

@@ -300,17 +300,23 @@ async function loadCustomerRanking() {
         }
         list.innerHTML = renderLeaderboardBoard(customers, {
             boardLabel: 'Customer Leaderboard',
-            metricHeader: 'Approved',
+            metricHeader: 'Rank EXP',
             getAvatar: (customer) => getAvatarSrc(customer, customer.display_name || 'U'),
             getDisplayName: (customer) => customer.display_name || '—',
-            getSubtitle: (customer) => `อนุมัติ ${formatMetricNumber(customer.total_approved || 0)} ครั้ง`,
+            getSubtitle: (customer) => {
+                const resetText = customer.rank_reset_date
+                    ? ` • รีแรงค์ ${new Date(`${customer.rank_reset_date}T00:00:00`).toLocaleDateString('th-TH')}`
+                    : '';
+                return `Rank EXP ${formatMetricNumber(customer.total_approved || 0)} จากสลิปอนุมัติ${resetText}`;
+            },
             getTier: (customer) => getCustomerRank(customer.total_approved),
             getMetric: (customer) => formatMetricNumber(customer.total_approved || 0),
             getBestMeta: (customer) => {
                 const tierInfo = getCustomerRank(customer.total_approved);
                 return [
-                    { label: 'Approved', value: formatMetricNumber(customer.total_approved || 0) },
+                    { label: 'Rank EXP', value: formatMetricNumber(customer.total_approved || 0) },
                     { label: 'Tier', value: tierInfo.name },
+                    ...(customer.rank_reset_date ? [{ label: 'Re-rank', value: new Date(`${customer.rank_reset_date}T00:00:00`).toLocaleDateString('th-TH') }] : []),
                     { label: 'Last Active', value: customer.last_service_at ? new Date(customer.last_service_at).toLocaleDateString('th-TH') : '—' }
                 ];
             }
