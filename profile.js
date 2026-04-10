@@ -164,19 +164,19 @@ function spawnParticles() {
 
 // ==================== RANK SYSTEM ====================
 const RANK_TIERS = [
-    { name: 'Unranked',  icon: '🔘', color: '#888888', minApproved: 0,  minPoints: 0    },
-    { name: 'Bronze',    icon: '🥉', color: '#cd7f32', minApproved: 3,  minPoints: 0    },
-    { name: 'Silver',    icon: '🥈', color: '#c0c0c0', minApproved: 10, minPoints: 50   },
-    { name: 'Gold',      icon: '🥇', color: '#ffd700', minApproved: 25, minPoints: 150  },
-    { name: 'Platinum',  icon: '💎', color: '#00f0ff', minApproved: 50, minPoints: 400  },
-    { name: 'Diamond',   icon: '👑', color: '#b44aff', minApproved: 100,minPoints: 1000 },
-    { name: 'Master',    icon: '🏆', color: '#ff3c3c', minApproved: 200,minPoints: 2500 },
+    { name: 'Unranked', icon: '🔘', color: '#888888', minApproved: 0 },
+    { name: 'Bronze', icon: '🥉', color: '#cd7f32', minApproved: 3 },
+    { name: 'Silver', icon: '🥈', color: '#c0c0c0', minApproved: 10 },
+    { name: 'Gold', icon: '🥇', color: '#ffd700', minApproved: 25 },
+    { name: 'Platinum', icon: '💎', color: '#00f0ff', minApproved: 50 },
+    { name: 'Diamond', icon: '👑', color: '#b44aff', minApproved: 100 },
+    { name: 'Master', icon: '🏆', color: '#ff3c3c', minApproved: 200 },
 ];
 
-function calculateRank(lifetimeApproved, totalPoints) {
+function calculateRank(lifetimeApproved) {
     let rank = RANK_TIERS[0];
     for (let i = RANK_TIERS.length - 1; i >= 0; i--) {
-        if (lifetimeApproved >= RANK_TIERS[i].minApproved && totalPoints >= RANK_TIERS[i].minPoints) {
+        if (lifetimeApproved >= RANK_TIERS[i].minApproved) {
             rank = RANK_TIERS[i];
             break;
         }
@@ -187,8 +187,8 @@ function calculateRank(lifetimeApproved, totalPoints) {
     return { current: rank, next: nextRank, currentIdx };
 }
 
-function renderRankCard(lifetimeApproved, totalPoints) {
-    const { current, next, currentIdx } = calculateRank(lifetimeApproved, totalPoints);
+function renderRankCard(lifetimeApproved) {
+    const { current, next, currentIdx } = calculateRank(lifetimeApproved);
     const el = document.getElementById('rank-card');
     if (!el) return;
 
@@ -196,17 +196,14 @@ function renderRankCard(lifetimeApproved, totalPoints) {
     let progressHtml = '';
     if (next) {
         const approvedPct = next.minApproved > 0 ? Math.min(lifetimeApproved / next.minApproved * 100, 100) : 100;
-        const pointsPct = next.minPoints > 0 ? Math.min(totalPoints / next.minPoints * 100, 100) : 100;
-        const overallPct = Math.min((approvedPct + pointsPct) / 2, 100);
         progressHtml = `
             <div class="rank-progress-section">
                 <div class="rank-next-label">ถัดไป: <span style="color:${next.color}">${next.icon} ${next.name}</span></div>
                 <div class="rank-progress-bar">
-                    <div class="rank-progress-fill" style="width:${overallPct}%; background:linear-gradient(90deg, ${current.color}, ${next.color})"></div>
+                    <div class="rank-progress-fill" style="width:${approvedPct}%; background:linear-gradient(90deg, ${current.color}, ${next.color})"></div>
                 </div>
                 <div class="rank-progress-details">
-                    <span>สลิป: ${lifetimeApproved}/${next.minApproved}</span>
-                    <span>แต้ม: ${totalPoints.toLocaleString()}/${next.minPoints.toLocaleString()}</span>
+                    <span>ใช้บริการ: ${lifetimeApproved}/${next.minApproved} ครั้ง</span>
                 </div>
             </div>`;
     } else {
@@ -229,7 +226,7 @@ function renderRankCard(lifetimeApproved, totalPoints) {
             <div class="rank-info">
                 <div class="rank-label">แรงค์ปัจจุบัน</div>
                 <div class="rank-name" style="color:${current.color}">${current.name}</div>
-                <div class="rank-stats-mini">สลิปอนุมัติ: ${lifetimeApproved} &bull; แต้ม: ${totalPoints.toLocaleString()}</div>
+                <div class="rank-stats-mini">ใช้บริการอนุมัติ: ${lifetimeApproved.toLocaleString('th-TH')} ครั้ง</div>
             </div>
         </div>
         <div class="rank-tier-track">${dotsHtml}</div>
@@ -246,8 +243,8 @@ function renderRewardSummary(guesses) {
     const pendingGuesses = guesses.filter(g => g.result === 'pending');
 
     const totalCashback = wonGuesses.reduce((sum, g) => sum + parseFloat(g.reward_amount || 0), 0);
-    const cashbackAfterTax = totalCashback * 0.93; // 7% tax
-    const totalGV = lostGuesses.length * 500;
+    const cashbackAfterWithdrawFee = totalCashback * 0.9;
+    const totalGV = lostGuesses.reduce((sum, g) => sum + parseFloat(g.reward_amount || 0), 0);
 
     el.innerHTML = `
         <div class="reward-summary-header">🎁 สรุปรางวัลทั้งหมด</div>
@@ -255,15 +252,15 @@ function renderRewardSummary(guesses) {
             <div class="reward-card reward-cashback">
                 <div class="reward-card-icon">💰</div>
                 <div class="reward-card-value">${totalCashback.toLocaleString('th-TH')} ฿</div>
-                <div class="reward-card-label">Cashback (ก่อนภาษี)</div>
-                <div class="reward-card-sub">หักภาษี 7% = <strong>${cashbackAfterTax.toLocaleString('th-TH', { maximumFractionDigits: 0 })} ฿</strong></div>
+                <div class="reward-card-label">Cashback</div>
+                <div class="reward-card-sub">ถอนสุทธิหัก 10% = <strong>${cashbackAfterWithdrawFee.toLocaleString('th-TH', { maximumFractionDigits: 0 })} ฿</strong></div>
                 <div class="reward-card-count">${wonGuesses.length} ครั้งที่ถูก</div>
             </div>
             <div class="reward-card reward-gv-card">
                 <div class="reward-card-icon">🎟️</div>
                 <div class="reward-card-value">${totalGV.toLocaleString('th-TH')} ฿</div>
                 <div class="reward-card-label">Gift Voucher</div>
-                <div class="reward-card-sub">500 ฿ × ${lostGuesses.length} ครั้ง</div>
+                <div class="reward-card-sub">300 ฿ × ${lostGuesses.length} ครั้ง</div>
                 <div class="reward-card-count">${lostGuesses.length} ครั้งที่ไม่ถูก</div>
             </div>
         </div>
@@ -280,14 +277,13 @@ function renderUserCard(user, stats) {
     }
 
     document.getElementById('user-display-name').textContent = user.display_name || '—';
-    document.getElementById('user-platform-id').textContent = `${(user.platform || 'line').toUpperCase()} Account`;
+    document.getElementById('user-platform-id').textContent = 'LINE Account';
     if (userIdValueEl) userIdValueEl.textContent = user.platform_id || user.id || '-';
     if (copyUserIdBtn) copyUserIdBtn.textContent = 'คัดลอก';
 
     const badge = document.getElementById('platform-badge');
-    const platform = user.platform || 'line';
-    badge.textContent = platform === 'telegram' ? 'Telegram' : 'LINE';
-    badge.className = 'platform-badge ' + platform;
+    badge.textContent = 'LINE';
+    badge.className = 'platform-badge line';
 
     document.getElementById('stat-total-slips').textContent = stats.totalSlips;
     document.getElementById('stat-approved').textContent = stats.approved;
@@ -370,7 +366,7 @@ function renderLottery(guesses) {
         } else if (g.result === 'lost') {
             badgeClass = 'lost';
             badgeText = '😔 ไม่ถูก';
-            rewardText = '<div class="reward-gv">รับ GV 500 ฿</div>';
+            rewardText = '<div class="reward-gv">รับ GV 300 ฿</div>';
         } else {
             badgeClass = 'waiting';
             badgeText = '⏳ รอผลออก';
@@ -481,7 +477,7 @@ function renderActivityFeed(activities) {
         } else if (item.result === 'lost') {
             badgeClass = 'lost';
             badgeText = '😔 ไม่ถูก';
-            rewardText = '<div class="reward-gv">รับ GV 500 ฿</div>';
+            rewardText = '<div class="reward-gv">รับ GV 300 ฿</div>';
         }
 
         return `<div class="list-item lotto-item" style="animation-delay: ${idx * 0.04}s">
@@ -537,7 +533,7 @@ async function loadProfileData(platformId, platform) {
 
         renderUserCard({ ...data.user, platform, platform_id: platformId }, stats);
         renderProgress(data.current_round_points ?? 0);
-        renderRankCard(data.lifetime_approved || 0, data.total_points || 0);
+        renderRankCard(data.lifetime_approved || 0);
         renderRewardSummary(data.guesses);
         renderActivityFeed(buildCombinedActivities(data.transactions, data.guesses));
         renderTransactions(data.transactions);

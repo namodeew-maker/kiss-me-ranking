@@ -13,8 +13,9 @@ try { require('dotenv').config(); } catch { /* dotenv optional locally */ }
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const TELEGRAM_BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || '';
-const TELEGRAM_AUTH_MAX_AGE_SECONDS = 86400;
+const CASHBACK_REWARD_AMOUNT = 5000;
+const GV_REWARD_AMOUNT = 300;
+const CASHBACK_WITHDRAWAL_RATE = 0.9;
 
 // ============ CLOUDFLARE R2 CONFIG ============
 
@@ -23,9 +24,16 @@ const R2_ACCESS_KEY = process.env.R2_ACCESS_KEY;
 const R2_SECRET_KEY = process.env.R2_SECRET_KEY;
 const R2_BUCKET = process.env.R2_BUCKET || 'kissme-uploads';
 const R2_PUBLIC_URL = String(process.env.R2_PUBLIC_URL || '').trim().replace(/\/+$/, '');
+const REQUIRE_R2_STORAGE = String(process.env.REQUIRE_R2_STORAGE || 'true').toLowerCase() !== 'false';
 
 const hasR2Credentials = !!(R2_ACCOUNT_ID && R2_ACCESS_KEY && R2_SECRET_KEY);
 const useR2 = hasR2Credentials && !!R2_PUBLIC_URL;
+
+if (REQUIRE_R2_STORAGE && !useR2) {
+    throw new Error(
+        'R2 storage is required. Please configure R2_ACCOUNT_ID, R2_ACCESS_KEY, R2_SECRET_KEY, and R2_PUBLIC_URL.'
+    );
+}
 
 let s3Client;
 if (useR2) {
@@ -95,6 +103,57 @@ function getMimeTypeFromFilename(filename) {
         default:
             return 'application/octet-stream';
     }
+}
+
+function getExtensionFromMimeType(mimeType) {
+    switch (String(mimeType || '').toLowerCase()) {
+        case 'image/jpeg':
+            return '.jpg';
+        case 'image/png':
+            return '.png';
+        case 'image/gif':
+            return '.gif';
+        case 'image/webp':
+            return '.webp';
+        default:
+            return '';
+    }
+}
+
+function buildR2FilenameFromExternalUrl(assetUrl, mimeType) {
+    let extension = '';
+
+    try {
+        const parsedUrl = new URL(assetUrl);
+        extension = path.extname(parsedUrl.pathname || '');
+    } catch {
+        extension = '';
+    }
+
+    if (!extension) {
+        extension = getExtensionFromMimeType(mimeType);
+    }
+
+    return `external-${Date.now()}-${crypto.randomUUID()}${extension}`;
+}
+
+async function uploadExternalAssetToR2(assetUrl) {
+    const response = await fetch(assetUrl);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch external asset: ${response.status} ${response.statusText}`);
+    }
+
+    const mimeType = String(response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType)) {
+        throw new Error(`Unsupported external asset content type: ${mimeType || 'unknown'}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const filename = buildR2FilenameFromExternalUrl(assetUrl, mimeType);
+    const publicUrl = await uploadToR2(buffer, filename, mimeType);
+
+    return publicUrl;
 }
 
 function isR2ManagedUrl(value) {
@@ -247,6 +306,7 @@ async function migrateLocalAssetsToR2() {
         uploaded_files: 0,
         already_r2: 0,
         external_skipped: 0,
+        external_migrated: 0,
         missing_files: [],
         failed_rows: []
     };
@@ -259,7 +319,29 @@ async function migrateLocalAssetsToR2() {
 
         const filename = extractLocalUploadFilename(ref.value);
         if (!filename) {
-            result.external_skipped += 1;
+            if (!/^https?:\/\//i.test(String(ref.value || '').trim())) {
+                result.external_skipped += 1;
+                continue;
+            }
+
+            try {
+                const publicUrl = await uploadExternalAssetToR2(ref.value);
+                await pool.query(
+                    `UPDATE ${ref.table} SET ${ref.column} = $1 WHERE id = $2`,
+                    [publicUrl, ref.id]
+                );
+                result.external_migrated += 1;
+                result.migrated_rows += 1;
+            } catch (err) {
+                if (result.failed_rows.length < 20) {
+                    result.failed_rows.push({
+                        table: ref.table,
+                        id: ref.id,
+                        filename: ref.value,
+                        error: err.message
+                    });
+                }
+            }
             continue;
         }
 
@@ -313,7 +395,28 @@ async function resolveSlipUrl(file) {
         const filename = Date.now() + '-' + Math.round(Math.random() * 1e6) + ext;
         return uploadToR2(file.buffer, filename, file.mimetype);
     }
+    if (REQUIRE_R2_STORAGE) {
+        throw new Error('R2 storage is required for all uploads');
+    }
     return file.filename; // local: just the filename, served via /uploads/:name
+}
+
+async function migrateAssetsToR2OnStartup() {
+    if (!useR2) {
+        return {
+            skipped: true,
+            reason: 'R2 storage is not configured'
+        };
+    }
+
+    const migration = await migrateLocalAssetsToR2();
+    const summary = await summarizeAssetStorage();
+
+    return {
+        skipped: false,
+        migration,
+        summary
+    };
 }
 
 // ============ POSTGRESQL ============
@@ -380,6 +483,7 @@ async function ensureDatabaseStructure() {
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 reward_type VARCHAR(20) NOT NULL
                     CHECK (reward_type IN ('cashback', 'gv')),
+                claim_mode VARCHAR(20),
                 amount NUMERIC(10,2) NOT NULL CHECK (amount > 0),
                 note TEXT,
                 redeemed_by INTEGER REFERENCES admin_users(id) ON DELETE SET NULL,
@@ -388,13 +492,50 @@ async function ensureDatabaseStructure() {
         `);
         await pool.query('CREATE INDEX IF NOT EXISTS idx_reward_claims_guess ON lottery_reward_claims (lottery_guess_id)');
         await pool.query('CREATE INDEX IF NOT EXISTS idx_reward_claims_user ON lottery_reward_claims (user_id, redeemed_at DESC)');
+        await pool.query('ALTER TABLE lottery_reward_claims ADD COLUMN IF NOT EXISTS claim_mode VARCHAR(20)');
         await pool.query('ALTER TABLE transactions ADD COLUMN IF NOT EXISTS service_date DATE');
+        await pool.query('ALTER TABLE transactions ADD COLUMN IF NOT EXISTS guess_cycle INTEGER NOT NULL DEFAULT 0');
         await pool.query('ALTER TABLE sold_out ADD COLUMN IF NOT EXISTS round_label VARCHAR(20)');
+        await pool.query(`
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conrelid = 'sold_out'::regclass
+                      AND conname = 'sold_out_number_key'
+                ) THEN
+                    ALTER TABLE sold_out DROP CONSTRAINT sold_out_number_key;
+                END IF;
+            END $$;
+        `);
+        await pool.query('DROP INDEX IF EXISTS uq_sold_out_number_round');
+        await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_sold_out_number_round ON sold_out (number, round_label)');
+        await pool.query('DROP INDEX IF EXISTS uq_user_staff_round');
+        await pool.query('DROP INDEX IF EXISTS uq_user_staff_round_cycle');
+        await pool.query(`
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_user_staff_round_cycle
+            ON transactions (user_id, staff_id, round_label, guess_cycle)
+            WHERE status <> 'rejected'
+        `);
         await pool.query('DROP INDEX IF EXISTS uq_user_lottery_round');
         await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_user_lottery_round_number ON lottery_guesses (user_id, round_label, guess_number)');
+        await pool.query(`
+            UPDATE transactions t
+            SET guess_cycle = COALESCE((
+                SELECT COUNT(*)::int
+                FROM lottery_guesses lg
+                WHERE lg.user_id = t.user_id
+                  AND lg.round_label = t.round_label
+                  AND lg.created_at <= t.created_at
+            ), 0)
+        `);
         await pool.query(
             "UPDATE sold_out SET round_label = $1 WHERE round_label IS NULL OR round_label = ''",
             [getCurrentRoundLabel()]
+        );
+        await pool.query(
+            "UPDATE lottery_reward_claims SET claim_mode = 'withdraw' WHERE reward_type = 'cashback' AND COALESCE(claim_mode, '') = ''"
         );
     } catch (err) {
         console.error('Database bootstrap error:', err);
@@ -496,6 +637,45 @@ function getPointsNeededForNextGuess(pointBalance) {
     return remainder === 0 ? 0 : 5 - remainder;
 }
 
+function formatDateOnly(date) {
+    return [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, '0'),
+        String(date.getDate()).padStart(2, '0')
+    ].join('-');
+}
+
+function addMonths(date, months) {
+    const next = new Date(date);
+    next.setMonth(next.getMonth() + months);
+    return next;
+}
+
+function getDefaultGuessPointCycleStart() {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+}
+
+async function getGuessPointCycleConfig(queryable = pool) {
+    const result = await queryable.query(
+        "SELECT value FROM app_settings WHERE key = 'guess_points_cycle_start_date' LIMIT 1"
+    );
+
+    const savedValue = String(result.rows[0]?.value || '').trim();
+    const hasValidSavedDate = /^\d{4}-\d{2}-\d{2}$/.test(savedValue);
+    const startAt = hasValidSavedDate
+        ? new Date(`${savedValue}T00:00:00`)
+        : getDefaultGuessPointCycleStart();
+    const endAt = addMonths(startAt, 1);
+
+    return {
+        start_date: hasValidSavedDate ? savedValue : formatDateOnly(startAt),
+        end_date: formatDateOnly(endAt),
+        startAt,
+        endAt
+    };
+}
+
 // ============ AUTH ============
 
 const authTokens = new Map();
@@ -547,15 +727,15 @@ async function getTotalPointsForGlobalUser(client, globalUserId) {
 async function getRoundPointsForGlobalUser(client, globalUserId, roundLabel = getCurrentRoundLabel()) {
     if (!globalUserId || !(await tableExists(client, 'points'))) return 0;
 
-    const roundWindow = getRoundWindowFromLabel(roundLabel);
-    if (!roundWindow) return 0;
+    const guessPointCycle = await getGuessPointCycleConfig(client);
 
     const result = await client.query(
         `SELECT COALESCE(SUM(points), 0)::int AS total_points
          FROM points
          WHERE global_user_id = $1
-           AND ${getRoundScopedPointsClause(2, 3, 4)}`,
-        [globalUserId, roundLabel, roundWindow.startAt, roundWindow.endAt]
+           AND created_at >= $2
+           AND created_at < $3`,
+        [globalUserId, guessPointCycle.startAt, guessPointCycle.endAt]
     );
     return Number(result.rows[0]?.total_points || 0);
 }
@@ -698,6 +878,7 @@ function formatRewardSnapshotRow(row) {
         total_net_amount: Number(row.total_net_amount || 0),
         redeemed_net_amount: Number(row.redeemed_net_amount || 0),
         remaining_net_amount: Number(row.remaining_net_amount || 0),
+        last_claim_mode: row.last_claim_mode || null,
         claim_count: Number(row.claim_count || 0),
         created_at: row.created_at
     };
@@ -719,6 +900,13 @@ function buildRewardBaseQuery(userIds = []) {
                 SELECT
                     lottery_guess_id,
                     COALESCE(SUM(amount), 0)::numeric(10,2) AS redeemed_amount,
+                    COALESCE(SUM(
+                        CASE
+                            WHEN reward_type = 'cashback' AND claim_mode = 'withdraw' THEN amount * ${CASHBACK_WITHDRAWAL_RATE}
+                            ELSE amount
+                        END
+                    ), 0)::numeric(10,2) AS redeemed_net_amount,
+                    MAX(claim_mode) FILTER (WHERE claim_mode IS NOT NULL) AS last_claim_mode,
                     COUNT(*)::int AS claim_count
                 FROM lottery_reward_claims
                 GROUP BY lottery_guess_id
@@ -738,17 +926,15 @@ function buildRewardBaseQuery(userIds = []) {
                     COALESCE(ct.redeemed_amount, 0)::numeric(10,2) AS redeemed_amount,
                     GREATEST(COALESCE(lg.reward_amount, 0) - COALESCE(ct.redeemed_amount, 0), 0)::numeric(10,2) AS remaining_amount,
                     CASE WHEN lg.result = 'won'
-                        THEN (COALESCE(lg.reward_amount, 0) * 0.93)::numeric(10,2)
+                        THEN (COALESCE(lg.reward_amount, 0) * ${CASHBACK_WITHDRAWAL_RATE})::numeric(10,2)
                         ELSE COALESCE(lg.reward_amount, 0)::numeric(10,2)
                     END AS total_net_amount,
+                    COALESCE(ct.redeemed_net_amount, 0)::numeric(10,2) AS redeemed_net_amount,
                     CASE WHEN lg.result = 'won'
-                        THEN (COALESCE(ct.redeemed_amount, 0) * 0.93)::numeric(10,2)
-                        ELSE COALESCE(ct.redeemed_amount, 0)::numeric(10,2)
-                    END AS redeemed_net_amount,
-                    CASE WHEN lg.result = 'won'
-                        THEN GREATEST((COALESCE(lg.reward_amount, 0) * 0.93) - (COALESCE(ct.redeemed_amount, 0) * 0.93), 0)::numeric(10,2)
+                        THEN GREATEST((COALESCE(lg.reward_amount, 0) * ${CASHBACK_WITHDRAWAL_RATE}) - COALESCE(ct.redeemed_net_amount, 0), 0)::numeric(10,2)
                         ELSE GREATEST(COALESCE(lg.reward_amount, 0) - COALESCE(ct.redeemed_amount, 0), 0)::numeric(10,2)
                     END AS remaining_net_amount,
+                    ct.last_claim_mode,
                     COALESCE(ct.claim_count, 0)::int AS claim_count,
                     lg.created_at
                 FROM lottery_guesses lg
@@ -811,6 +997,7 @@ async function getRewardManagementSnapshot(client, options = {}) {
             rc.lottery_guess_id,
             rc.user_id,
             rc.reward_type,
+            rc.claim_mode,
             rc.amount,
             rc.note,
             rc.redeemed_at,
@@ -855,7 +1042,11 @@ async function getRewardManagementSnapshot(client, options = {}) {
             lottery_guess_id: row.lottery_guess_id,
             user_id: row.user_id,
             reward_type: row.reward_type,
+            claim_mode: row.claim_mode || null,
             amount: Number(row.amount || 0),
+            net_amount: row.reward_type === 'cashback'
+                ? Number((row.claim_mode === 'withdraw' ? Number(row.amount || 0) * CASHBACK_WITHDRAWAL_RATE : Number(row.amount || 0)) || 0)
+                : Number(row.amount || 0),
             note: row.note,
             redeemed_at: row.redeemed_at,
             redeemed_by: row.redeemed_by,
@@ -959,6 +1150,7 @@ app.post('/api/admin/rewards/claims', requireAuth, async (req, res) => {
     const amount = Number(req.body?.amount || 0);
     const note = String(req.body?.note || '').trim();
     const redeemedAtInput = String(req.body?.redeemed_at || '').trim();
+    const claimModeInput = String(req.body?.claim_mode || '').trim().toLowerCase();
 
     if (isNaN(lotteryGuessId)) {
         return res.status(400).json({ error: 'ไม่พบรายการรางวัลที่ต้องการบันทึก' });
@@ -993,6 +1185,15 @@ app.post('/api/admin/rewards/claims', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'รายการนี้ยังไม่พร้อมบันทึกการใช้สิทธิ์' });
         }
 
+        const claimMode = rewardType === 'cashback'
+            ? (claimModeInput || 'reuse')
+            : null;
+
+        if (rewardType === 'cashback' && !['withdraw', 'reuse'].includes(claimMode)) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Cashback ต้องเลือกวิธีใช้สิทธิ์เป็น withdraw หรือ reuse' });
+        }
+
         const claimedResult = await client.query(
             'SELECT COALESCE(SUM(amount), 0)::numeric(10,2) AS claimed_amount FROM lottery_reward_claims WHERE lottery_guess_id = $1',
             [lotteryGuessId]
@@ -1011,13 +1212,14 @@ app.post('/api/admin/rewards/claims', requireAuth, async (req, res) => {
         }
 
         const insertResult = await client.query(
-            `INSERT INTO lottery_reward_claims (lottery_guess_id, user_id, reward_type, amount, note, redeemed_by, redeemed_at)
-             VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::timestamp, NOW()))
+            `INSERT INTO lottery_reward_claims (lottery_guess_id, user_id, reward_type, claim_mode, amount, note, redeemed_by, redeemed_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamp, NOW()))
              RETURNING id, redeemed_at`,
             [
                 lotteryGuessId,
                 guess.user_id,
                 rewardType,
+                claimMode,
                 amount,
                 note || null,
                 req.adminUserId,
@@ -1224,7 +1426,7 @@ app.post('/api/staffs/reset-ranking', requireAuth, async (req, res) => {
     }
 });
 
-// GET /api/ranking/staff — staff ranking by approved transaction count + avg scores
+// GET /api/ranking/staff — staff ranking by approved transaction count only
 app.get('/api/ranking/staff', async (req, res) => {
     try {
         const resetDate = await getRankingResetDate();
@@ -1232,18 +1434,14 @@ app.get('/api/ranking/staff', async (req, res) => {
             SELECT
                 s.id, s.name, s.nickname, s.avatar_url,
                 COUNT(t.id)::int AS total_votes,
-                COALESCE(ROUND(AVG(r.looks_score), 1), 0) AS avg_looks,
-                COALESCE(ROUND(AVG(r.service_score), 1), 0) AS avg_service,
-                COALESCE(ROUND(AVG(r.value_score), 1), 0) AS avg_value,
-                COALESCE(ROUND((AVG(r.looks_score) + AVG(r.service_score) + AVG(r.value_score)) / 3, 1), 0) AS avg_overall
+                MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_service_at
             FROM staffs s
             LEFT JOIN transactions t ON t.staff_id = s.id
                 AND t.status = 'approved'
                 AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
-            LEFT JOIN ratings r ON r.transaction_id = t.id
             WHERE s.is_active = TRUE
             GROUP BY s.id, s.name, s.nickname, s.avatar_url
-            ORDER BY total_votes DESC, avg_overall DESC
+            ORDER BY total_votes DESC, MAX(COALESCE(t.service_date::timestamp, t.created_at)) DESC, s.id ASC
         `, [resetDate]);
         res.json(result.rows);
     } catch (err) {
@@ -1252,33 +1450,21 @@ app.get('/api/ranking/staff', async (req, res) => {
     }
 });
 
-// GET /api/ranking/customers — customer ranking by lifetime approved + points
+// GET /api/ranking/customers — customer ranking by total approved service usage
 app.get('/api/ranking/customers', async (req, res) => {
     try {
-        const resetDate = await getRankingResetDate();
         const result = await pool.query(`
             SELECT
                 u.id, u.display_name, u.picture_url, u.platform,
                 COUNT(t.id)::int AS total_approved,
-                COALESCE((
-                    SELECT SUM(p.points)::int
-                    FROM points p
-                    WHERE p.global_user_id = u.global_user_id
-                      AND ($1::date IS NULL OR p.created_at::date >= $1::date)
-                ), 0) AS total_points
+                MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_service_at
             FROM users u
             LEFT JOIN transactions t ON t.user_id = u.id
                 AND t.status = 'approved'
-                AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
-            GROUP BY u.id, u.display_name, u.picture_url, u.platform, u.global_user_id
+            GROUP BY u.id, u.display_name, u.picture_url, u.platform
             HAVING COUNT(t.id) > 0
-            ORDER BY COUNT(t.id) DESC, COALESCE((
-                SELECT SUM(p.points)::int
-                FROM points p
-                WHERE p.global_user_id = u.global_user_id
-                  AND ($1::date IS NULL OR p.created_at::date >= $1::date)
-            ), 0) DESC
-        `, [resetDate]);
+            ORDER BY COUNT(t.id) DESC, MAX(COALESCE(t.service_date::timestamp, t.created_at)) DESC, u.id ASC
+        `);
         res.json(result.rows);
     } catch (err) {
         console.error('Customer ranking error:', err);
@@ -1286,7 +1472,7 @@ app.get('/api/ranking/customers', async (req, res) => {
     }
 });
 
-// ============ CUSTOMER AUTH (Multi-Platform Login) ============
+// ============ CUSTOMER AUTH (LINE Login Only) ============
 
 function toAuthenticatedUser(user) {
     return {
@@ -1314,81 +1500,20 @@ async function upsertCustomerUser({ platform, platformId, displayName, pictureUr
     return result.rows[0];
 }
 
-function verifyTelegramAuthPayload(payload) {
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    if (!botToken) {
-        throw new Error('TELEGRAM_BOT_TOKEN is not configured');
-    }
-
-    const incomingHash = String(payload.hash || '');
-    const authDate = Number(payload.auth_date || 0);
-    const telegramId = String(payload.id || '');
-
-    if (!incomingHash || !authDate || !telegramId) {
-        return false;
-    }
-
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    if (Math.abs(nowSeconds - authDate) > TELEGRAM_AUTH_MAX_AGE_SECONDS) {
-        return false;
-    }
-
-    const dataCheckString = Object.keys(payload)
-        .filter((key) => key !== 'hash' && payload[key] !== undefined && payload[key] !== null && payload[key] !== '')
-        .sort()
-        .map((key) => `${key}=${payload[key]}`)
-        .join('\n');
-
-    const secretKey = crypto.createHash('sha256').update(botToken).digest();
-    const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-
-    if (incomingHash.length !== calculatedHash.length) {
-        return false;
-    }
-
-    return crypto.timingSafeEqual(Buffer.from(incomingHash, 'utf8'), Buffer.from(calculatedHash, 'utf8'));
-}
-
-// GET /api/auth/telegram/config — public config for Telegram Login Widget
+// GET /api/auth/telegram/config — login disabled
 app.get('/api/auth/telegram/config', (req, res) => {
-    const enabled = Boolean(process.env.TELEGRAM_BOT_TOKEN && TELEGRAM_BOT_USERNAME);
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.json({
-        enabled,
-        botUsername: enabled ? TELEGRAM_BOT_USERNAME : null
-    });
+    res.status(410).json({ enabled: false, botUsername: null, error: 'ปิดการเข้าสู่ระบบด้วย Telegram แล้ว กรุณาใช้ LINE เท่านั้น' });
 });
 
-// POST /api/auth/telegram — verify Telegram widget payload before creating login session
+// POST /api/auth/telegram — login disabled
 app.post('/api/auth/telegram', async (req, res) => {
-    if (!process.env.TELEGRAM_BOT_TOKEN || !TELEGRAM_BOT_USERNAME) {
-        return res.status(503).json({ error: 'ระบบ Telegram Login ยังไม่ได้ตั้งค่า' });
-    }
-
-    if (!verifyTelegramAuthPayload(req.body || {})) {
-        return res.status(401).json({ error: 'Telegram auth ไม่ถูกต้องหรือหมดอายุ' });
-    }
-
-    const displayName = [req.body.first_name, req.body.last_name].filter(Boolean).join(' ').trim() || req.body.username || `Telegram ${req.body.id}`;
-
-    try {
-        const user = await upsertCustomerUser({
-            platform: 'telegram',
-            platformId: String(req.body.id),
-            displayName,
-            pictureUrl: req.body.photo_url || null
-        });
-
-        res.json({ success: true, user: toAuthenticatedUser(user) });
-    } catch (err) {
-        console.error('Telegram login error:', err);
-        res.status(500).json({ error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ Telegram' });
-    }
+    return res.status(410).json({ error: 'ปิดการเข้าสู่ระบบด้วย Telegram แล้ว กรุณาใช้ LINE เท่านั้น' });
 });
 
-// POST /api/auth/login — customer login / register from any platform
+// POST /api/auth/login — customer login / register from LINE
 // Body: { platform, platform_id, display_name, picture_url }
 app.post('/api/auth/login', async (req, res) => {
     const { platform, platform_id, display_name, picture_url } = req.body;
@@ -1396,8 +1521,8 @@ app.post('/api/auth/login', async (req, res) => {
         return res.status(400).json({ error: 'platform_id is required' });
     }
     const plat = platform || 'line';
-    if (!['line', 'telegram'].includes(plat)) {
-        return res.status(400).json({ error: 'platform ต้องเป็น line หรือ telegram' });
+    if (plat !== 'line') {
+        return res.status(400).json({ error: 'platform ต้องเป็น line เท่านั้น' });
     }
     try {
         const user = await upsertCustomerUser({
@@ -1442,6 +1567,19 @@ async function getCurrentRoundApprovedCountForUsers(userIds, roundLabel = getCur
     return progressResult.rows[0]?.approved_count || 0;
 }
 
+async function getCurrentGuessCycle(queryable, userId, roundLabel = getCurrentRoundLabel()) {
+    if (!userId) return 0;
+
+    const guessCycleResult = await queryable.query(
+        `SELECT COUNT(*)::int AS guess_count
+         FROM lottery_guesses
+         WHERE user_id = $1 AND round_label = $2`,
+        [userId, roundLabel]
+    );
+
+    return guessCycleResult.rows[0]?.guess_count || 0;
+}
+
 async function syncUserRoundState(queryable, userId, affectedRoundLabel = getCurrentRoundLabel()) {
     const currentRoundLabel = getCurrentRoundLabel();
 
@@ -1475,7 +1613,7 @@ async function syncUserRoundState(queryable, userId, affectedRoundLabel = getCur
     };
 }
 
-// POST /api/users/upsert — create or update user from any platform profile
+// POST /api/users/upsert — create or update user from LINE profile
 app.post('/api/users/upsert', async (req, res) => {
     const { platform_id, platform, display_name, picture_url } = req.body;
     // Also accept legacy field name 'line_uid' for backward compat
@@ -1484,8 +1622,8 @@ app.post('/api/users/upsert', async (req, res) => {
     if (!pid) {
         return res.status(400).json({ error: 'platform_id is required' });
     }
-    if (!['line', 'telegram'].includes(plat)) {
-        return res.status(400).json({ error: 'platform ต้องเป็น line หรือ telegram' });
+    if (plat !== 'line') {
+        return res.status(400).json({ error: 'platform ต้องเป็น line เท่านั้น' });
     }
     try {
         const result = await pool.query(
@@ -1506,10 +1644,13 @@ app.post('/api/users/upsert', async (req, res) => {
 });
 
 // GET /api/users/:platform_id/progress — get current round progress
-// Optional query param: ?platform=line (default) or ?platform=telegram
+// Optional query param: ?platform=line (default)
 app.get('/api/users/:platform_id/progress', async (req, res) => {
     const { platform_id } = req.params;
-    const platform = req.query.platform || 'line';
+    const platform = String(req.query.platform || 'line').trim().toLowerCase();
+    if (platform !== 'line') {
+        return res.status(400).json({ error: 'platform ต้องเป็น line เท่านั้น' });
+    }
     const roundLabel = getCurrentRoundLabel();
     try {
         const userResult = await pool.query(
@@ -1525,6 +1666,8 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
         const approvedCount = await getCurrentRoundApprovedCount(user.id, roundLabel);
         const guessPointBalance = await getRoundPointsForGlobalUser(pool, user.global_user_id, roundLabel);
         const guessCreditsRemaining = getGuessCreditsFromPoints(guessPointBalance);
+        const currentGuessCycle = await getCurrentGuessCycle(pool, user.id, roundLabel);
+        const guessPointCycle = await getGuessPointCycleConfig(pool);
 
         const guessResult = await pool.query(
             'SELECT * FROM lottery_guesses WHERE user_id = $1 AND round_label = $2 ORDER BY created_at DESC, id DESC',
@@ -1534,8 +1677,8 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
         // List which staffs already visited this round
         const visitedResult = await pool.query(
             `SELECT DISTINCT staff_id FROM transactions
-             WHERE user_id = $1 AND round_label = $2 AND status <> 'rejected'`,
-            [user.id, roundLabel]
+             WHERE user_id = $1 AND round_label = $2 AND guess_cycle = $3 AND status <> 'rejected'`,
+            [user.id, roundLabel, currentGuessCycle]
         );
 
         res.json({
@@ -1546,6 +1689,8 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
             round_label: roundLabel,
             guess_point_balance: guessPointBalance,
             guess_point_target: 5,
+            guess_point_cycle_start_date: guessPointCycle.start_date,
+            guess_point_cycle_end_date: guessPointCycle.end_date,
             guess_credits_remaining: guessCreditsRemaining,
             points_needed_for_next_guess: getPointsNeededForNextGuess(guessPointBalance),
             can_guess_lottery: isRoundOpen() && guessCreditsRemaining > 0,
@@ -1553,6 +1698,7 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
             lottery_guess: guessResult.rows[0] || null,
             lottery_guesses: guessResult.rows,
             guess_count: guessResult.rows.length,
+            current_guess_cycle: currentGuessCycle,
             visited_staff_ids: visitedResult.rows.map(r => r.staff_id)
         });
     } catch (err) {
@@ -1565,7 +1711,10 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
 // Optional query param: ?platform=line (default)
 app.get('/api/users/:platform_id/history', async (req, res) => {
     const { platform_id } = req.params;
-    const platform = req.query.platform || 'line';
+    const platform = String(req.query.platform || 'line').trim().toLowerCase();
+    if (platform !== 'line') {
+        return res.status(400).json({ error: 'platform ต้องเป็น line เท่านั้น' });
+    }
     try {
         const roundLabel = getCurrentRoundLabel();
         // Find user
@@ -1626,6 +1775,7 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
             totalPoints = await getTotalPointsForGlobalUser(pool, user.global_user_id);
             currentRoundPoints = await getRoundPointsForGlobalUser(pool, user.global_user_id, roundLabel);
         }
+        const guessPointCycle = await getGuessPointCycleConfig(pool);
 
         res.json({
             user: {
@@ -1642,6 +1792,8 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
             current_round_label: roundLabel,
             current_round_progress: currentProgressCount,
             current_round_points: currentRoundPoints,
+            guess_point_cycle_start_date: guessPointCycle.start_date,
+            guess_point_cycle_end_date: guessPointCycle.end_date,
             current_round_guess_credits: getGuessCreditsFromPoints(currentRoundPoints),
             points_needed_for_next_guess: getPointsNeededForNextGuess(currentRoundPoints)
         });
@@ -1671,13 +1823,13 @@ app.post('/api/transactions', upload.single('slip'), async (req, res) => {
     }
 
     const staffIdNum = parseInt(staff_id, 10);
-    const looks = parseInt(looks_score, 10) || 5;
-    const service = parseInt(service_score, 10) || 5;
-    const value = parseInt(value_score, 10) || 5;
+    const looks = parseInt(looks_score, 10) || 3;
+    const service = parseInt(service_score, 10) || 3;
+    const value = parseInt(value_score, 10) || 3;
 
     // Validate score ranges
-    if (looks < 1 || looks > 10 || service < 1 || service > 10 || value < 1 || value > 10) {
-        return res.status(400).json({ error: 'คะแนนต้องอยู่ระหว่าง 1-10' });
+    if (looks < 1 || looks > 5 || service < 1 || service > 5 || value < 1 || value > 5) {
+        return res.status(400).json({ error: 'คะแนนต้องอยู่ระหว่าง 1-5' });
     }
 
     const roundLabel = getCurrentRoundLabel();
@@ -1706,15 +1858,17 @@ app.post('/api/transactions', upload.single('slip'), async (req, res) => {
             return res.status(400).json({ error: 'พนักงานไม่ถูกต้องหรือไม่ได้เข้าร่วมกิจกรรม' });
         }
 
-        // Check duplicate staff in same round (only non-rejected)
+        const currentGuessCycle = await getCurrentGuessCycle(client, userId, roundLabel);
+
+        // Check duplicate staff in the current vote cycle (only non-rejected)
         const dupCheck = await client.query(
             `SELECT id FROM transactions
-             WHERE user_id = $1 AND staff_id = $2 AND round_label = $3 AND status <> 'rejected'`,
-            [userId, staffIdNum, roundLabel]
+             WHERE user_id = $1 AND staff_id = $2 AND round_label = $3 AND guess_cycle = $4 AND status <> 'rejected'`,
+            [userId, staffIdNum, roundLabel, currentGuessCycle]
         );
         if (dupCheck.rows.length > 0) {
             await client.query('ROLLBACK');
-            return res.status(409).json({ error: 'คุณเคยแจ้งใช้บริการพนักงานคนนี้ในรอบนี้แล้ว' });
+            return res.status(409).json({ error: 'คุณได้โหวตพนักงานคนนี้แล้วในชุดโหวตปัจจุบัน กรุณาทายเลขก่อนเพื่อเริ่มโหวตซ้ำรอบใหม่' });
         }
 
         // Upload slip image
@@ -1722,10 +1876,10 @@ app.post('/api/transactions', upload.single('slip'), async (req, res) => {
 
         // Insert transaction
         const txResult = await client.query(
-            `INSERT INTO transactions (user_id, staff_id, slip_image_url, round_label, status, service_date)
-             VALUES ($1, $2, $3, $4, 'pending', $5)
+            `INSERT INTO transactions (user_id, staff_id, slip_image_url, round_label, status, service_date, guess_cycle)
+             VALUES ($1, $2, $3, $4, 'pending', $5, $6)
              RETURNING id`,
-            [userId, staffIdNum, slipUrl, roundLabel, service_date]
+            [userId, staffIdNum, slipUrl, roundLabel, service_date, currentGuessCycle]
         );
         const txId = txResult.rows[0].id;
 
@@ -1749,7 +1903,7 @@ app.post('/api/transactions', upload.single('slip'), async (req, res) => {
         console.error('Transaction submit error:', err);
         // Handle unique constraint violation gracefully
         if (err.code === '23505') {
-            return res.status(409).json({ error: 'คุณเคยแจ้งใช้บริการพนักงานคนนี้ในรอบนี้แล้ว' });
+            return res.status(409).json({ error: 'คุณได้โหวตพนักงานคนนี้แล้วในชุดโหวตปัจจุบัน กรุณาทายเลขก่อนเพื่อเริ่มโหวตซ้ำรอบใหม่' });
         }
         res.status(500).json({ error: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' });
     } finally {
@@ -1862,7 +2016,7 @@ app.post('/api/lottery/guess', async (req, res) => {
 
         if (!isRoundOpen()) {
             await client.query('ROLLBACK');
-            return res.status(403).json({ error: 'รอบนี้ปิดรับทายเลขแล้ว พ้อยที่ไม่ใช้จะรีเซ็ตเมื่อข้ามรอบ' });
+            return res.status(403).json({ error: 'รอบนี้ปิดรับทายเลขแล้ว กรุณารอรอบประกาศถัดไป' });
         }
 
         // Get user
@@ -1986,33 +2140,17 @@ app.post('/api/draw', requireAuth, async (req, res) => {
 
         for (const g of guesses.rows) {
             if (g.guess_number === winningNumber) {
-                // WINNER: Calculate cashback
-                // Sum spending from the 5 approved transactions in this round
-                const spendResult = await client.query(
-                    `SELECT COUNT(*)::int AS bill_count FROM transactions
-                     WHERE user_id = $1 AND round_label = $2 AND status = 'approved'`,
-                    [g.user_id, roundLabel]
-                );
-                // For now, reward_amount = cashback cap = 50,000 (actual spending
-                // tracking would require an amount field on transactions).
-                // Business rule: Cashback 100% capped at 50,000, then minus 7% tax.
-                // We store the GROSS amount; tax is calculated on display.
-                const CASHBACK_CAP = 50000;
-                const grossReward = CASHBACK_CAP; // TODO: replace with actual sum when amount field is added
-
                 await client.query(
                     `UPDATE lottery_guesses SET result = 'won', reward_amount = $1
                      WHERE id = $2`,
-                    [grossReward, g.id]
+                    [CASHBACK_REWARD_AMOUNT, g.id]
                 );
                 winners.push(g.display_name);
             } else {
-                // LOSER: Gets GV 500 baht
-                const GV_AMOUNT = 500;
                 await client.query(
                     `UPDATE lottery_guesses SET result = 'lost', reward_amount = $1
                      WHERE id = $2`,
-                    [GV_AMOUNT, g.id]
+                    [GV_REWARD_AMOUNT, g.id]
                 );
                 losers.push(g.display_name);
             }
@@ -2029,7 +2167,7 @@ app.post('/api/draw', requireAuth, async (req, res) => {
             totalGuesses: guesses.rows.length,
             message: winners.length > 0
                 ? `มีผู้ถูกรางวัล ${winners.length} คน!`
-                : 'ไม่มีผู้ถูกรางวัล — ทุกคนได้รับ GV 500 บาท'
+                : `ไม่มีผู้ถูกรางวัล — ทุกคนได้รับ GV ${GV_REWARD_AMOUNT} บาท`
         });
     } catch (err) {
         await client.query('ROLLBACK');
@@ -2350,12 +2488,14 @@ app.get('/api/stats', async (req, res) => {
 app.get('/api/admin/users', requireAuth, async (req, res) => {
     const search = String(req.query.search || '').trim();
     const platform = String(req.query.platform || 'all').trim().toLowerCase();
+    if (!['all', 'line'].includes(platform)) {
+        return res.status(400).json({ error: 'platform filter ต้องเป็น all หรือ line เท่านั้น' });
+    }
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const offset = (page - 1) * limit;
     const like = `%${search}%`;
     const currentRoundLabel = getCurrentRoundLabel();
-    const currentRoundWindow = getCurrentRoundWindow();
 
     try {
         const [summaryResult, usersResult] = await Promise.all([
@@ -2363,12 +2503,12 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                 `SELECT
                     COUNT(*)::int AS total_accounts,
                     COUNT(*) FILTER (WHERE u.platform = 'line')::int AS line_accounts,
-                    COUNT(*) FILTER (WHERE u.platform = 'telegram')::int AS telegram_accounts,
                     COUNT(*) FILTER (
                         WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.user_id = u.id)
                     )::int AS active_accounts
                  FROM users u
-                 WHERE ($1 = '' OR u.display_name ILIKE $2 OR u.platform_id ILIKE $2 OR COALESCE(u.global_user_id::text, '') ILIKE $2)
+                 WHERE u.platform = 'line'
+                   AND ($1 = '' OR u.display_name ILIKE $2 OR u.platform_id ILIKE $2 OR COALESCE(u.global_user_id::text, '') ILIKE $2)
                    AND ($3 = 'all' OR u.platform = $3)`,
                 [search, like, platform]
             ),
@@ -2395,19 +2535,6 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                             FROM transactions t2
                             WHERE t2.user_id = u.id AND t2.round_label = $6 AND t2.status = 'approved'
                         ), 0) AS current_round_progress,
-                                                COALESCE((
-                                                        SELECT SUM(p.points)::int
-                                                        FROM points p
-                                                        WHERE p.global_user_id = u.global_user_id
-                                                            AND (
-                                                                COALESCE(p.metadata->>'round_label', '') = $6
-                                                                OR (
-                                                                        COALESCE(p.metadata->>'round_label', '') = ''
-                                                                        AND p.created_at >= $7
-                                                                        AND p.created_at < $8
-                                                                )
-                                                            )
-                                                ), 0) AS current_round_points,
                         COUNT(t.id)::int AS transaction_count,
                         COALESCE(SUM(CASE WHEN t.status = 'approved' THEN 1 ELSE 0 END), 0)::int AS approved_count,
                         COALESCE(SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END), 0)::int AS pending_count,
@@ -2429,9 +2556,10 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                             WHERE lg.user_id = u.id AND lg.result = 'lost'
                         ), 0)::numeric(10,2) AS gv_remaining,
                         MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_activity_at
-                    FROM users u
+                                        FROM users u
                     LEFT JOIN transactions t ON t.user_id = u.id
-                    WHERE ($1 = '' OR u.display_name ILIKE $2 OR u.platform_id ILIKE $2 OR COALESCE(u.global_user_id::text, '') ILIKE $2)
+                                        WHERE u.platform = 'line'
+                                            AND ($1 = '' OR u.display_name ILIKE $2 OR u.platform_id ILIKE $2 OR COALESCE(u.global_user_id::text, '') ILIKE $2)
                       AND ($3 = 'all' OR u.platform = $3)
                     GROUP BY u.id, u.global_user_id, u.platform, u.platform_id, u.display_name, u.picture_url, u.created_at, u.updated_at
                 )
@@ -2439,16 +2567,23 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                 FROM user_rows
                 ORDER BY COALESCE(last_activity_at, created_at) DESC, created_at DESC
                 LIMIT $4 OFFSET $5`,
-                [search, like, platform, limit, offset, currentRoundLabel, currentRoundWindow?.startAt, currentRoundWindow?.endAt]
+                [search, like, platform, limit, offset, currentRoundLabel]
             )
         ]);
+
+        const usersWithGuessPoints = await Promise.all(
+            usersResult.rows.map(async (row) => ({
+                ...row,
+                current_round_points: await getRoundPointsForGlobalUser(pool, row.global_user_id)
+            }))
+        );
 
         const totalItems = summaryResult.rows[0]?.total_accounts || 0;
         const totalPages = totalItems > 0 ? Math.ceil(totalItems / limit) : 1;
 
         res.json({
             summary: summaryResult.rows[0],
-            users: usersResult.rows,
+            users: usersWithGuessPoints,
             pagination: {
                 page,
                 limit,
@@ -2485,6 +2620,7 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
                 `SELECT id, global_user_id, platform, platform_id, display_name, picture_url, progress_count, created_at, updated_at
                  FROM users
                  WHERE global_user_id = $1
+                   AND platform = 'line'
                  ORDER BY created_at ASC`,
                 [user.global_user_id]
             );
@@ -2536,6 +2672,7 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
             rewardLimit: 30,
             claimLimit: 20
         });
+        const guessPointCycle = await getGuessPointCycleConfig(client);
 
         let totalPoints = 0;
         let recentPoints = [];
@@ -2558,6 +2695,8 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
                 lottery_guess_count: lotteryResult.rows[0]?.lottery_guess_count || 0,
                 total_points: totalPoints,
                 current_round_points: currentRoundPoints,
+                guess_point_cycle_start_date: guessPointCycle.start_date,
+                guess_point_cycle_end_date: guessPointCycle.end_date,
                 current_round_guess_credits: getGuessCreditsFromPoints(currentRoundPoints),
                 redeemable_points: currentRoundPoints,
                 reward_open_count: rewardSnapshot.summary.open_rewards,
@@ -2577,6 +2716,37 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
         res.status(500).json({ error: 'ไม่สามารถโหลดรายละเอียดผู้ใช้ได้' });
     } finally {
         client.release();
+    }
+});
+
+app.get('/api/admin/guess-points/cycle', requireAuth, async (req, res) => {
+    try {
+        const cycle = await getGuessPointCycleConfig(pool);
+        res.json(cycle);
+    } catch (err) {
+        console.error('Get guess point cycle error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดรอบสะสมแต้มทายเลขได้' });
+    }
+});
+
+app.post('/api/admin/guess-points/cycle', requireAuth, async (req, res) => {
+    const { start_date } = req.body || {};
+    if (!start_date || !/^\d{4}-\d{2}-\d{2}$/.test(start_date)) {
+        return res.status(400).json({ error: 'กรุณาระบุวันที่เริ่มนับแต้ม (YYYY-MM-DD)' });
+    }
+
+    try {
+        await pool.query(
+            `INSERT INTO app_settings (key, value, updated_at)
+             VALUES ('guess_points_cycle_start_date', $1, NOW())
+             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+            [start_date]
+        );
+        const cycle = await getGuessPointCycleConfig(pool);
+        res.json({ success: true, ...cycle });
+    } catch (err) {
+        console.error('Save guess point cycle error:', err);
+        res.status(500).json({ error: 'ไม่สามารถบันทึกรอบสะสมแต้มทายเลขได้' });
     }
 });
 
@@ -2742,20 +2912,6 @@ async function upsertUserByLineLogin(client, profile) {
         [profile.userId, profile.displayName || '', profile.pictureUrl || null]
     );
     return result.rows[0];
-}
-
-// Send a Telegram message
-async function sendTelegramMessage(telegramUserId, text) {
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    if (!botToken) throw new Error('TELEGRAM_BOT_TOKEN is not configured');
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: telegramUserId, text })
-    });
-    if (!resp.ok) throw new Error(`Telegram send error: ${await resp.text()}`);
-    return resp.json();
 }
 
 // ============ LINE OAUTH CALLBACK ============
@@ -2936,138 +3092,48 @@ app.post('/api/company/activity', (req, res, next) => {
 }, async (req, res) => {
     const event = req.body;
     try {
-        // Telegram is the only active push-back channel in the current workflow.
-        if (event.globalUserId) {
-            const userResult = await pool.query(
-                `SELECT platform, platform_id FROM users
-                 WHERE global_user_id = $1 AND platform = 'telegram'`,
-                [event.globalUserId]
-            );
-            if (userResult.rows.length > 0 && process.env.TELEGRAM_BOT_TOKEN) {
-                const telegramUserId = userResult.rows[0].platform_id;
-                const text = event.message || `Activity ${event.activityType}: +${event.points} points`;
-                await sendTelegramMessage(telegramUserId, text);
-                return res.json({ success: true, channel: 'telegram' });
-            }
-        }
-
-        res.json({ success: true, channel: 'none', info: 'No delivery target found' });
+        res.json({
+            success: true,
+            channel: 'none',
+            info: 'Customer push-back is disabled in the LINE-only workflow'
+        });
     } catch (error) {
         console.error('Company activity error:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// ============ TELEGRAM MESSAGING ============
+// ============ LEGACY TELEGRAM / UNIFIED ROUTES (DISABLED) ============
 
-// POST /api/telegram/send — ส่งข้อความผ่าน Telegram Bot API
+// POST /api/telegram/send — disabled in LINE-only workflow
 app.post('/api/telegram/send', async (req, res) => {
-    const { telegramUserId, text } = req.body;
-    if (!telegramUserId || !text) {
-        return res.status(400).json({ error: 'telegramUserId and text are required' });
-    }
-    try {
-        const result = await sendTelegramMessage(telegramUserId, text);
-        res.json({ success: true, result });
-    } catch (error) {
-        console.error('Telegram send error:', error);
-        res.status(500).json({ error: error.message });
-    }
+    return res.status(410).json({ error: 'ปิดการทำงาน Telegram ในระบบ LINE-only แล้ว' });
 });
 
 // ============ UNIFIED PROFILE API ============
 
-// GET /api/unified/profile?by=line&id=xxx
-// GET /api/unified/profile?by=telegram&id=xxx
-// GET /api/unified/profile?by=global&id=xxx
+// GET /api/unified/profile — disabled in LINE-only workflow
 app.get('/api/unified/profile', async (req, res) => {
-    const { by, id } = req.query;
-
-    try {
-        let userRow;
-
-        if (by === 'line' && id) {
-            const result = await pool.query(
-                `SELECT * FROM users WHERE platform = 'line' AND platform_id = $1`, [id]
-            );
-            userRow = result.rows[0];
-        } else if (by === 'telegram' && id) {
-            const result = await pool.query(
-                `SELECT * FROM users WHERE platform = 'telegram' AND platform_id = $1`, [id]
-            );
-            userRow = result.rows[0];
-        } else if (by === 'global' && id) {
-            const result = await pool.query(
-                `SELECT * FROM users WHERE global_user_id = $1`, [id]
-            );
-            userRow = result.rows[0];
-        } else {
-            return res.status(400).json({
-                error: 'Specify by=line|telegram|global with matching id params'
-            });
-        }
-
-        if (!userRow) {
-            return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
-        }
-
-        // Fetch total points
-        const pointsResult = await pool.query(
-            `SELECT COALESCE(SUM(points), 0)::int AS total_points
-             FROM points WHERE global_user_id = $1`,
-            [userRow.global_user_id]
-        );
-        const currentProgressCount = await getCurrentRoundApprovedCount(userRow.id);
-
-        // Check if this user has a Telegram identity linked
-        let telegramId = null;
-        if (userRow.platform !== 'telegram') {
-            const tgResult = await pool.query(
-                `SELECT platform_id FROM users
-                 WHERE global_user_id = $1 AND platform = 'telegram'
-                 LIMIT 1`,
-                [userRow.global_user_id]
-            );
-            telegramId = tgResult.rows[0]?.platform_id || null;
-        } else {
-            telegramId = userRow.platform_id;
-        }
-
-        // Check if this user has a LINE identity linked
-        let lineId = null;
-        if (userRow.platform !== 'line') {
-            const lineResult = await pool.query(
-                `SELECT platform_id FROM users
-                 WHERE global_user_id = $1 AND platform = 'line'
-                 LIMIT 1`,
-                [userRow.global_user_id]
-            );
-            lineId = lineResult.rows[0]?.platform_id || null;
-        } else {
-            lineId = userRow.platform_id;
-        }
-
-        res.json({
-            global_user_id: userRow.global_user_id,
-            display_name: userRow.display_name,
-            picture_url: userRow.picture_url,
-            line_login_user_id: lineId,
-            telegram_user_id: telegramId,
-            total_points: pointsResult.rows[0].total_points,
-            progress_count: currentProgressCount,
-            current_round_progress: currentProgressCount,
-            created_at: userRow.created_at
-        });
-    } catch (err) {
-        console.error('Unified profile error:', err);
-        res.status(500).json({ error: 'ไม่สามารถโหลดโปรไฟล์ได้' });
-    }
+    return res.status(410).json({ error: 'ปิด unified profile API ในระบบ LINE-only แล้ว' });
 });
 
 // ============ START SERVER ============
 
 async function startServer() {
     await ensureDatabaseStructure();
+    const migrationStartup = await migrateAssetsToR2OnStartup();
+
+    if (!migrationStartup.skipped) {
+        const movedRows = migrationStartup.migration?.migrated_rows || 0;
+        const uploadedFiles = migrationStartup.migration?.uploaded_files || 0;
+        const remainingLocal = migrationStartup.summary?.counts?.local_existing || 0;
+        const missingLocal = migrationStartup.summary?.counts?.local_missing || 0;
+
+        console.log(
+            `R2 startup migration: migrated_rows=${movedRows}, uploaded_files=${uploadedFiles}, local_remaining=${remainingLocal}, local_missing=${missingLocal}`
+        );
+    }
+
     app.listen(PORT, () => {
         console.log(`Kiss Me Ranking server running at http://localhost:${PORT}`);
     });

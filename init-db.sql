@@ -1,22 +1,24 @@
 -- ============================================
 -- Kiss Me Ranking — Database Initialization
--- ระบบ Gamified Loyalty & CRM (Multi-Platform: LINE / Telegram)
--- รันบน Neon (หรือ PostgreSQL ใดๆ) เพื่อสร้างตาราง
+-- ระบบ Gamified Loyalty & CRM (LINE-only runtime)
+-- รันบน Neon (หรือ PostgreSQL ใดๆ) เพื่อสร้าง schema ตั้งต้นให้ตรงกับโค้ดปัจจุบัน
 -- ============================================
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- ============================================
--- 1. ตาราง users — ข้อมูลลูกค้าจากหลายแพลตฟอร์ม
--- รองรับ LINE, Telegram หรือแพลตฟอร์มอื่นๆ
--- platform_id = User ID ของแต่ละแพลตฟอร์ม
--- platform    = ชื่อแพลตฟอร์ม ('line', 'telegram', ...)
+-- 1. ตาราง users — ข้อมูลลูกค้า
+-- ใช้งานจริงเฉพาะ LINE login
+-- platform_id = LINE User ID
 -- ============================================
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
-    platform VARCHAR(20) NOT NULL DEFAULT 'line'    -- แพลตฟอร์ม: 'line', 'telegram', etc.
-        CHECK (platform IN ('line', 'telegram')),
-    platform_id VARCHAR(64) NOT NULL,               -- User ID ของแพลตฟอร์มนั้นๆ
+    platform VARCHAR(20) NOT NULL DEFAULT 'line'
+        CHECK (platform IN ('line')),
+    platform_id VARCHAR(64) NOT NULL,
     display_name VARCHAR(255) NOT NULL DEFAULT '',   -- ชื่อที่แสดง
     picture_url TEXT,                                -- URL รูปโปรไฟล์
+    global_user_id UUID NOT NULL DEFAULT gen_random_uuid(),
     progress_count INTEGER NOT NULL DEFAULT 0        -- หลอดสะสม 0-5 ในรอบปัจจุบัน
         CHECK (progress_count >= 0 AND progress_count <= 5),
     created_at TIMESTAMP DEFAULT NOW(),
@@ -27,6 +29,9 @@ CREATE TABLE IF NOT EXISTS users (
 -- Index สำหรับค้นหาเร็วตาม platform + platform_id
 CREATE INDEX IF NOT EXISTS idx_users_platform_pid
     ON users (platform, platform_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_global_user_id
+    ON users (global_user_id);
 
 -- ============================================
 -- 2. ตาราง staffs — ข้อมูลพนักงาน (น้องๆ)
@@ -52,6 +57,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     staff_id INTEGER NOT NULL REFERENCES staffs(id) ON DELETE RESTRICT,
     slip_image_url TEXT NOT NULL,                   -- URL รูปสลิปที่อัปโหลด
     service_date DATE,                              -- วันที่ลูกค้ามาใช้บริการจริง
+    guess_cycle INTEGER NOT NULL DEFAULT 0,         -- ล็อกพนักงานซ้ำเฉพาะชุดโหวตก่อนการทายเลขแต่ละครั้ง
     status VARCHAR(20) NOT NULL DEFAULT 'pending'   -- pending / approved / rejected
         CHECK (status IN ('pending', 'approved', 'rejected')),
     reviewed_by INTEGER,                            -- admin_users.id ที่ตรวจสอบ
@@ -61,9 +67,10 @@ CREATE TABLE IF NOT EXISTS transactions (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- ป้องกันลูกค้าแจ้งพนักงานซ้ำในรอบเดียวกัน (เฉพาะรายการที่ยังไม่ถูก reject)
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_staff_round
-    ON transactions (user_id, staff_id, round_label)
+-- ป้องกันลูกค้าแจ้งพนักงานซ้ำในชุดโหวตเดียวกัน
+-- เมื่อลูกค้าทายเลขแล้ว guess_cycle จะเพิ่ม ทำให้เริ่มโหวตซ้ำได้อีก 1 ชุด
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_staff_round_cycle
+    ON transactions (user_id, staff_id, round_label, guess_cycle)
     WHERE status <> 'rejected';
 
 -- ============================================
@@ -74,17 +81,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_user_staff_round
 CREATE TABLE IF NOT EXISTS ratings (
     id SERIAL PRIMARY KEY,
     transaction_id INTEGER NOT NULL UNIQUE REFERENCES transactions(id) ON DELETE CASCADE,
-    looks_score SMALLINT NOT NULL CHECK (looks_score BETWEEN 1 AND 10),    -- คะแนนหน้าตา
-    service_score SMALLINT NOT NULL CHECK (service_score BETWEEN 1 AND 10), -- คะแนนบริการ
-    value_score SMALLINT NOT NULL CHECK (value_score BETWEEN 1 AND 10),     -- คะแนนความคุ้มค่า
+    looks_score SMALLINT NOT NULL CHECK (looks_score BETWEEN 1 AND 5),
+    service_score SMALLINT NOT NULL CHECK (service_score BETWEEN 1 AND 5),
+    value_score SMALLINT NOT NULL CHECK (value_score BETWEEN 1 AND 5),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- ============================================
 -- 5. ตาราง lottery_guesses — ทายเลขท้าย 2 ตัว
--- ปลดล็อกเมื่อหลอดสะสมเต็ม 5/5 (พนักงานไม่ซ้ำ) ในรอบเวลา
--- ผลลัพธ์: pending (รอผล) / won (ถูก → Cashback สูงสุด 50,000 หักภาษี 7%)
---           / lost (ผิด → รับ GV 500 บาท)
+-- ใช้ 5 พ้อยต่อการทาย 1 เลข และหักทันที
+-- ผลลัพธ์: pending (รอผล) / won (ถูก → Cashback 5,000 บาท)
+--           / lost (ผิด → รับ GV 300 บาท)
 -- ============================================
 CREATE TABLE IF NOT EXISTS lottery_guesses (
     id SERIAL PRIMARY KEY,
@@ -94,7 +101,7 @@ CREATE TABLE IF NOT EXISTS lottery_guesses (
     round_label VARCHAR(20) NOT NULL,              -- รอบเดียวกับ transactions.round_label
     result VARCHAR(10) NOT NULL DEFAULT 'pending'  -- pending / won / lost
         CHECK (result IN ('pending', 'won', 'lost')),
-    reward_amount NUMERIC(10,2) DEFAULT 0,         -- จำนวนเงินรางวัลจริงที่ได้รับ (หลังหักภาษี)
+    reward_amount NUMERIC(10,2) DEFAULT 0,         -- มูลค่าสิทธิ์รางวัลเต็มจำนวน (Cashback 5000 / GV 300)
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -113,6 +120,7 @@ CREATE TABLE IF NOT EXISTS lottery_reward_claims (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     reward_type VARCHAR(20) NOT NULL
         CHECK (reward_type IN ('cashback', 'gv')),
+    claim_mode VARCHAR(20),
     amount NUMERIC(10,2) NOT NULL CHECK (amount > 0),
     note TEXT,
     redeemed_by INTEGER REFERENCES admin_users(id) ON DELETE SET NULL,
@@ -146,6 +154,25 @@ CREATE TABLE IF NOT EXISTS app_settings (
     value TEXT,
     updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- ============================================
+-- 7.2 ตาราง points — คะแนนสะสมสำหรับสิทธิ์ทายเลข
+-- รันจริงแบบ LINE-only แต่ยังเก็บ source_oa_id / metadata ไว้รองรับข้อมูลอ้างอิง
+-- ============================================
+CREATE TABLE IF NOT EXISTS points (
+    id BIGSERIAL PRIMARY KEY,
+    global_user_id UUID NOT NULL REFERENCES users(global_user_id) ON DELETE CASCADE,
+    activity_type VARCHAR(50) NOT NULL,
+    points INTEGER NOT NULL,
+    source_platform VARCHAR(20) NOT NULL DEFAULT 'line'
+        CHECK (source_platform IN ('line')),
+    source_oa_id VARCHAR(50),
+    metadata JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_points_user_created
+    ON points(global_user_id, created_at DESC);
 
 -- ============================================
 -- 8. ตาราง admin_users — ผู้ดูแลระบบ (Auditor)

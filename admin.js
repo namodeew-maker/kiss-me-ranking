@@ -112,6 +112,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         return Number(amount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ฿';
     }
 
+    function formatClaimModeLabel(mode) {
+        return mode === 'withdraw' ? 'ถอนเงินสด หัก 10%' : 'ใช้ซ้ำเต็มจำนวน';
+    }
+
+    function formatCashbackBalanceText(amount, netAmount) {
+        return `ใช้ซ้ำ ${formatCurrency(amount)} • ถอนสุทธิ ${formatCurrency(netAmount)}`;
+    }
+
     function formatServiceDate(value) {
         if (!value) return '—';
         const date = new Date(`${value}T00:00:00`);
@@ -138,15 +146,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function formatPlatformBadge(platform) {
-        const normalized = platform === 'telegram' ? 'telegram' : 'line';
-        const label = normalized === 'telegram' ? 'Telegram' : 'LINE';
-        return `<span class="platform-badge platform-badge-${normalized}">${label}</span>`;
+        return `<span class="platform-badge platform-badge-line">LINE</span>`;
     }
 
     function userAvatarSrc(user) {
         if (user.picture_url) return user.picture_url;
         const name = user.display_name || user.platform_id || 'User';
         return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=1a1a2e&color=ff3c3c&size=96`;
+    }
+
+    function staffAvatarSrc(staff) {
+        const displayName = staff.nickname || staff.name || 'Staff';
+        if (staff.avatar_url) return resolveAssetUrl(staff.avatar_url);
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=96`;
     }
 
     function resolveAssetUrl(value) {
@@ -293,6 +305,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userRewardClaims = document.getElementById('user-reward-claims');
     const userRewardClaimTarget = document.getElementById('user-reward-claim-target');
     const userRewardClaimDate = document.getElementById('user-reward-claim-date');
+    const userRewardClaimMode = document.getElementById('user-reward-claim-mode');
     const userRewardClaimAmount = document.getElementById('user-reward-claim-amount');
     const userRewardClaimNote = document.getElementById('user-reward-claim-note');
     const btnUserClaimRemaining = document.getElementById('btn-user-claim-remaining');
@@ -312,11 +325,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rewardClaimsList = document.getElementById('reward-claims-list');
     const btnRefreshRewards = document.getElementById('btn-refresh-rewards');
     const rewardClaimTarget = document.getElementById('reward-claim-target');
+    const rewardClaimMode = document.getElementById('reward-claim-mode');
     const rewardClaimAmount = document.getElementById('reward-claim-amount');
     const rewardClaimNote = document.getElementById('reward-claim-note');
     const btnClaimRemaining = document.getElementById('btn-claim-remaining');
     const btnSaveRewardClaim = document.getElementById('btn-save-reward-claim');
     const btnClearRewardClaim = document.getElementById('btn-clear-reward-claim');
+    const guessPointsCycleStart = document.getElementById('guess-points-cycle-start');
+    const guessPointsCycleCurrent = document.getElementById('guess-points-cycle-current');
+    const guessPointsCycleEnd = document.getElementById('guess-points-cycle-end');
+    const btnSaveGuessPointsCycle = document.getElementById('btn-save-guess-points-cycle');
     let selectedUserId = null;
     let selectedRewardRow = null;
     let rewardLedgerState = { summary: {}, rewards: [], recentClaims: [] };
@@ -404,7 +422,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             document.getElementById('users-total-accounts').textContent = data.summary.total_accounts || 0;
             document.getElementById('users-line-accounts').textContent = data.summary.line_accounts || 0;
-            document.getElementById('users-telegram-accounts').textContent = data.summary.telegram_accounts || 0;
             document.getElementById('users-active-accounts').textContent = data.summary.active_accounts || 0;
             updateUserPagination(data.pagination);
 
@@ -470,7 +487,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function rewardTypeBadge(type) {
         const normalized = type === 'cashback' ? 'cashback' : 'gv';
-        const label = normalized === 'cashback' ? 'Cashback' : 'GV 500';
+        const label = normalized === 'cashback' ? 'Cashback' : 'GV 300';
         const icon = normalized === 'cashback' ? '💰' : '🎁';
         return `<span class="reward-type-badge reward-type-badge-${normalized}">${icon} ${label}</span>`;
     }
@@ -485,18 +502,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (row.reward_type === 'cashback') {
             return `
                 <span class="reward-value-strong ${emphasisClass}">${formatCurrency(amount)}</span>
-                <span class="reward-value-meta">สุทธิ ${formatCurrency(netAmount)} หลังหักภาษี</span>
+                <span class="reward-value-meta">ถอนสุทธิ ${formatCurrency(netAmount)} หรือใช้ซ้ำเต็มจำนวน</span>
             `;
         }
         return `
             <span class="reward-value-strong ${emphasisClass}">${formatCurrency(amount)}</span>
-            <span class="reward-value-meta">Gift Voucher</span>
+            <span class="reward-value-meta">Gift Voucher 300 บาท</span>
         `;
     }
 
     function formatRewardClaimItem(claim, allowDelete = true) {
         const amountHtml = claim.reward_type === 'cashback'
-            ? `${formatCurrency(claim.amount)} <span class="reward-value-meta">ก่อนภาษี</span>`
+            ? `${formatCurrency(claim.amount)} <span class="reward-value-meta">${formatClaimModeLabel(claim.claim_mode)}</span><span class="reward-value-meta"> • รับจริง ${formatCurrency(claim.net_amount || 0)}</span>`
             : formatCurrency(claim.amount);
         return `
             <div class="user-activity-item reward-claim-entry">
@@ -512,14 +529,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateUserRewardClaimSelection(row) {
         selectedUserRewardRow = row || null;
-        if (!userRewardClaimTarget || !userRewardClaimDate || !userRewardClaimAmount || !userRewardClaimNote) return;
+        if (!userRewardClaimTarget || !userRewardClaimDate || !userRewardClaimAmount || !userRewardClaimNote || !userRewardClaimMode) return;
 
         if (!row) {
             userRewardClaimTarget.innerHTML = 'ยังไม่ได้เลือกรายการสิทธิ์';
             userRewardClaimDate.value = getTodayDateInputValue();
+            userRewardClaimMode.value = 'reuse';
             userRewardClaimAmount.value = '';
             userRewardClaimNote.value = '';
             userRewardClaimDate.disabled = true;
+            userRewardClaimMode.disabled = true;
             userRewardClaimAmount.disabled = true;
             userRewardClaimNote.disabled = true;
             if (btnSaveUserRewardClaim) btnSaveUserRewardClaim.disabled = true;
@@ -530,13 +549,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         userRewardClaimTarget.innerHTML = `
             <div><strong>${escapeHtml(rewardOwnerLabel(row))}</strong> • ${rewardTypeBadge(row.reward_type)}</div>
             <div class="reward-round-meta">งวด ${escapeHtml(row.round_label || '—')} • ใช้ไปแล้ว ${Number(row.claim_count || 0)} ครั้ง</div>
-            <div class="reward-round-meta">ใช้ได้อีก ${formatCurrency(row.remaining_amount || 0)}${row.reward_type === 'cashback' ? ` • สุทธิ ${formatCurrency(row.remaining_net_amount || 0)}` : ''}</div>
+            <div class="reward-round-meta">${row.reward_type === 'cashback' ? formatCashbackBalanceText(row.remaining_amount || 0, row.remaining_net_amount || 0) : `ใช้ได้อีก ${formatCurrency(row.remaining_amount || 0)}`}</div>
         `;
         userRewardClaimDate.value = getTodayDateInputValue();
+        userRewardClaimMode.value = row.last_claim_mode === 'withdraw' ? 'withdraw' : 'reuse';
         userRewardClaimAmount.value = '';
         userRewardClaimNote.value = '';
         const disabled = Number(row.remaining_amount || 0) <= 0;
         userRewardClaimDate.disabled = disabled;
+        userRewardClaimMode.disabled = disabled || row.reward_type !== 'cashback';
         userRewardClaimAmount.disabled = disabled;
         userRewardClaimNote.disabled = disabled;
         if (btnSaveUserRewardClaim) btnSaveUserRewardClaim.disabled = disabled;
@@ -548,7 +569,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const summary = data.rewardSummary || {};
             userRewardSummary.innerHTML = [
                 { value: `${Number(summary.open_rewards || 0)} รายการ`, label: 'สิทธิ์คงค้าง' },
-                { value: formatCurrency(summary.cashback_remaining || 0), label: 'Cashback คงเหลือ' },
+                { value: formatCashbackBalanceText(summary.cashback_remaining || 0, summary.cashback_remaining_net || 0), label: 'Cashback คงเหลือ' },
                 { value: formatCurrency(summary.gv_remaining || 0), label: 'GV คงเหลือ' },
                 { value: `${Number(summary.claim_count || 0)} ครั้ง`, label: 'ใช้สิทธิ์แล้ว' }
             ].map((item) => `
@@ -563,7 +584,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="user-activity-item">
                 <div class="user-activity-title">${rewardTypeBadge(row.reward_type)} งวด ${escapeHtml(row.round_label || '—')}</div>
                 <div class="user-activity-meta">ได้รับ ${formatCurrency(row.total_amount)} • ใช้แล้ว ${formatCurrency(row.redeemed_amount)} • คงเหลือ ${formatCurrency(row.remaining_amount)} • ${Number(row.claim_count || 0)} ครั้ง</div>
-                ${row.reward_type === 'cashback' ? `<div class="user-activity-meta">ยอดสุทธิคงเหลือ ${formatCurrency(row.remaining_net_amount || 0)}</div>` : ''}
+                ${row.reward_type === 'cashback' ? `<div class="user-activity-meta">${formatCashbackBalanceText(row.remaining_amount || 0, row.remaining_net_amount || 0)}</div>` : ''}
                 <div class="user-reward-actions">
                     <button type="button" class="btn-small" data-select-user-reward="${row.lottery_guess_id}" ${Number(row.remaining_amount || 0) <= 0 ? 'disabled' : ''}>${Number(row.remaining_amount || 0) > 0 ? 'เลือกใช้สิทธิ์นี้' : 'ใช้ครบแล้ว'}</button>
                 </div>
@@ -613,9 +634,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (userPointsSummary) {
             userPointsSummary.innerHTML = [
-                { value: `${selectedUserPointBalance.toLocaleString('th-TH')} แต้ม`, label: 'พ้อยรอบนี้' },
+                { value: `${selectedUserPointBalance.toLocaleString('th-TH')} แต้ม`, label: 'พ้อยทายเลขคงเหลือ' },
                 { value: `${currentRoundGuessCredits.toLocaleString('th-TH')} เลข`, label: 'ทายได้ตอนนี้' },
-                { value: `${Number(data.recentPoints?.length || 0)} รายการ`, label: 'ประวัติพ้อยล่าสุด' }
+                { value: `${escapeHtml(data.stats?.guess_point_cycle_start_date || '—')} → ${escapeHtml(data.stats?.guess_point_cycle_end_date || '—')}`, label: 'รอบสะสมปัจจุบัน' }
             ].map((item) => `
                 <div class="user-reward-chip">
                     <strong>${item.value}</strong>
@@ -629,12 +650,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateRewardClaimSelection(row) {
         selectedRewardRow = row || null;
-        if (!rewardClaimTarget || !rewardClaimAmount || !rewardClaimNote) return;
+        if (!rewardClaimTarget || !rewardClaimAmount || !rewardClaimNote || !rewardClaimMode) return;
 
         if (!row) {
             rewardClaimTarget.innerHTML = 'ยังไม่ได้เลือกรายการ';
+            rewardClaimMode.value = 'reuse';
             rewardClaimAmount.value = '';
             rewardClaimNote.value = '';
+            rewardClaimMode.disabled = true;
             rewardClaimAmount.disabled = true;
             rewardClaimNote.disabled = true;
             if (btnSaveRewardClaim) btnSaveRewardClaim.disabled = true;
@@ -645,11 +668,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         rewardClaimTarget.innerHTML = `
             <div><strong>${escapeHtml(rewardOwnerLabel(row))}</strong> • ${rewardTypeBadge(row.reward_type)}</div>
             <div class="reward-round-meta">งวด ${escapeHtml(row.round_label || '—')} • ใช้ไปแล้ว ${Number(row.claim_count || 0)} ครั้ง</div>
-            <div class="reward-round-meta">กำลังตัดจาก ${row.reward_type === 'cashback' ? 'Cashback' : 'Gift Voucher'} คงเหลือ ${formatCurrency(row.remaining_amount || 0)}${row.reward_type === 'cashback' ? ` • สุทธิ ${formatCurrency(row.remaining_net_amount || 0)}` : ''}</div>
+            <div class="reward-round-meta">${row.reward_type === 'cashback' ? formatCashbackBalanceText(row.remaining_amount || 0, row.remaining_net_amount || 0) : `กำลังตัดจาก Gift Voucher คงเหลือ ${formatCurrency(row.remaining_amount || 0)}`}</div>
         `;
+        rewardClaimMode.value = row.last_claim_mode === 'withdraw' ? 'withdraw' : 'reuse';
         rewardClaimAmount.value = '';
         rewardClaimNote.value = '';
         const disabled = Number(row.remaining_amount || 0) <= 0;
+        rewardClaimMode.disabled = disabled || row.reward_type !== 'cashback';
         rewardClaimAmount.disabled = disabled;
         rewardClaimNote.disabled = disabled;
         if (btnSaveRewardClaim) btnSaveRewardClaim.disabled = disabled;
@@ -685,7 +710,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (rewardOpenCount) rewardOpenCount.textContent = `${Number(summary.open_rewards || 0)} รายการ`;
         if (rewardCashbackRemaining) rewardCashbackRemaining.textContent = formatCurrency(summary.cashback_remaining || 0);
-        if (rewardCashbackRemainingNet) rewardCashbackRemainingNet.textContent = `สุทธิ ${formatCurrency(summary.cashback_remaining_net || 0)}`;
+        if (rewardCashbackRemainingNet) rewardCashbackRemainingNet.textContent = `ถอนสุทธิ ${formatCurrency(summary.cashback_remaining_net || 0)} • ใช้ซ้ำเต็มจำนวน`;
         if (rewardGvRemaining) rewardGvRemaining.textContent = formatCurrency(summary.gv_remaining || 0);
         if (rewardClaimCount) rewardClaimCount.textContent = `${Number(summary.claim_count || 0)} ครั้ง`;
 
@@ -769,9 +794,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             userEditPictureUrl.value = data.user.picture_url || '';
 
             userDetailTags.innerHTML = [
-                `<span class="user-tag">พ้อยรอบนี้ ${Number(data.stats?.current_round_points || 0).toLocaleString('th-TH')}</span>`,
+                `<span class="user-tag">พ้อยทายเลข ${Number(data.stats?.current_round_points || 0).toLocaleString('th-TH')}</span>`,
                 `<span class="user-tag">ทายได้ ${Number(data.stats?.current_round_guess_credits || 0).toLocaleString('th-TH')} เลข</span>`,
-                `<span class="user-tag">เชื่อม ${data.user.linked_account_count || 1} บัญชี</span>`,
+                `<span class="user-tag">รอบแต้ม ${escapeHtml(data.stats?.guess_point_cycle_start_date || '—')} ถึง ${escapeHtml(data.stats?.guess_point_cycle_end_date || '—')}</span>`,
+                `<span class="user-tag">เชื่อม ${data.user.linked_account_count || 1} บัญชี LINE</span>`,
                 data.user.global_user_id ? `<span class="user-tag">Global ${escapeHtml(String(data.user.global_user_id))}</span>` : ''
             ].filter(Boolean).join('');
 
@@ -781,7 +807,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 { label: 'รอตรวจ', value: data.stats.pending_count || 0 },
                 { label: 'ไม่อนุมัติ', value: data.stats.rejected_count || 0 },
                 { label: 'ทายเลข', value: data.stats.lottery_guess_count || 0 },
-                { label: 'พ้อยรอบนี้', value: data.stats.current_round_points || 0 },
+                { label: 'พ้อยทายเลข', value: data.stats.current_round_points || 0 },
                 { label: 'แต้มสะสม', value: data.stats.total_points || 0 }
             ].map((item) => `
                 <div class="user-detail-stat">
@@ -799,7 +825,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             renderUserActivityList(userAdminSearchKeys, [
                 ...(data.linkedAccounts || []).map((account) => ({
-                    label: account.platform === 'telegram' ? 'Telegram User ID' : 'LINE User ID',
+                    label: 'LINE User ID',
                     value: account.platform_id
                 })),
                 ...(data.user?.global_user_id ? [{ label: 'Global User ID', value: String(data.user.global_user_id) }] : [])
@@ -886,14 +912,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (h.lottery_result === 'won') {
                     resultBadge = '<span class="badge badge-won">🎯 ถูกรางวัล!</span>';
-                    // Calculate cashback: 100% of spending, max 50,000, minus 7% tax
                     const grossAmount = h.reward_amount || 0;
-                    const tax = grossAmount * 0.07;
+                    const tax = grossAmount * 0.10;
                     const netAmount = grossAmount - tax;
-                    cashbackCell = `<span class="cashback-won">${formatCurrency(netAmount)}</span><br><span class="cashback-detail">ก่อนภาษี: ${formatCurrency(grossAmount)}</span>`;
+                    cashbackCell = `<span class="cashback-won">${formatCurrency(netAmount)}</span><br><span class="cashback-detail">ถอนสุทธิหลังหัก 10% • ใช้ซ้ำได้ ${formatCurrency(grossAmount)}</span>`;
                 } else if (h.lottery_result === 'lost') {
                     resultBadge = '<span class="badge badge-lost">ไม่ถูก</span>';
-                    cashbackCell = '<span class="cashback-gv">GV 500 ฿</span>';
+                    cashbackCell = '<span class="cashback-gv">GV 300 ฿</span>';
                 } else if (h.lottery_result === 'pending') {
                     resultBadge = '<span class="badge badge-pending">รอผล</span>';
                 }
@@ -1131,6 +1156,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     lottery_guess_id: selectedRewardRow.lottery_guess_id,
+                    claim_mode: selectedRewardRow.reward_type === 'cashback' ? rewardClaimMode?.value || 'reuse' : null,
                     amount,
                     note: rewardClaimNote?.value || ''
                 })
@@ -1178,6 +1204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     lottery_guess_id: selectedUserRewardRow.lottery_guess_id,
+                    claim_mode: selectedUserRewardRow.reward_type === 'cashback' ? userRewardClaimMode?.value || 'reuse' : null,
                     amount,
                     redeemed_at: redeemedAt,
                     note: userRewardClaimNote?.value || ''
@@ -1261,13 +1288,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('กรุณากรอกเลข 00-99');
             return;
         }
-        await authFetch(`${API_BASE}/sold-out`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ number: num })
-        });
-        renderSoldOut();
-        input.value = '';
+        try {
+            const res = await authFetch(`${API_BASE}/sold-out`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number: num })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'add-sold-out-failed');
+            await renderSoldOut();
+            input.value = '';
+            showToast(`เพิ่มเลข ${String(num).padStart(2, '0')} เป็น Sold Out แล้ว`, 'success');
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถเพิ่มเลข Sold Out ได้', 'error');
+        }
     });
 
     document.getElementById('btn-remove-soldout').addEventListener('click', async () => {
@@ -1277,9 +1311,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('กรุณากรอกเลข 00-99');
             return;
         }
-        await authFetch(`${API_BASE}/sold-out/${num}`, { method: 'DELETE' });
-        renderSoldOut();
-        input.value = '';
+        try {
+            const res = await authFetch(`${API_BASE}/sold-out/${num}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'remove-sold-out-failed');
+            await renderSoldOut();
+            input.value = '';
+            showToast(`ปลดเลข ${String(num).padStart(2, '0')} ออกจาก Sold Out แล้ว`, 'success');
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถปลด Sold Out ได้', 'error');
+        }
     });
 
     // --- Announce Draw ---
@@ -1316,7 +1357,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (result.winners.length > 0) {
                 showToast(`🎉 มีผู้ถูกรางวัล ${result.winners.length} คน! Cashback จะถูกคำนวณอัตโนมัติ`, 'success');
             } else {
-                showToast('ประกาศผลเรียบร้อย — ไม่มีผู้ถูกรางวัล (ทุกคนได้ GV 500 ฿)', 'info');
+                showToast('ประกาศผลเรียบร้อย — ไม่มีผู้ถูกรางวัล (ทุกคนได้ GV 300 ฿)', 'info');
             }
 
             renderHistory();
@@ -1508,6 +1549,92 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    async function loadGuessPointsCycle() {
+        if (!guessPointsCycleCurrent || !guessPointsCycleEnd || !guessPointsCycleStart) return;
+        try {
+            const res = await authFetch(`${API_BASE}/admin/guess-points/cycle`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'load-guess-cycle-failed');
+            guessPointsCycleStart.value = data.start_date || '';
+            guessPointsCycleCurrent.textContent = data.start_date ? formatServiceDate(data.start_date) : 'ยังไม่ได้ตั้งค่า';
+            guessPointsCycleEnd.textContent = data.end_date ? formatServiceDate(data.end_date) : '—';
+        } catch (err) {
+            guessPointsCycleCurrent.textContent = 'โหลดไม่สำเร็จ';
+            guessPointsCycleEnd.textContent = 'โหลดไม่สำเร็จ';
+        }
+    }
+
+    async function renderStaffRanking() {
+        const highlightGrid = document.getElementById('staff-ranking-highlight-grid');
+        const tbody = document.getElementById('staff-ranking-body');
+        const emptyMessage = document.getElementById('no-staff-ranking');
+
+        if (!highlightGrid || !tbody || !emptyMessage) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/ranking/staff`);
+            const staffs = await res.json();
+
+            if (!Array.isArray(staffs) || !staffs.length) {
+                highlightGrid.innerHTML = '<div class="staff-ranking-loading-card">ยังไม่มีข้อมูลอันดับพนักงาน</div>';
+                tbody.innerHTML = '';
+                emptyMessage.textContent = 'ยังไม่มีข้อมูลอันดับพนักงาน';
+                emptyMessage.classList.remove('hidden');
+                return;
+            }
+
+            emptyMessage.classList.add('hidden');
+
+            highlightGrid.innerHTML = staffs.slice(0, 3).map((staff, index) => {
+                const rank = index + 1;
+                const displayName = staff.nickname || staff.name || '—';
+                const subtitle = staff.name && staff.name !== staff.nickname ? `ชื่อจริง ${staff.name}` : 'พนักงานยอดนิยม';
+                const avatarSrc = staffAvatarSrc(staff);
+                return `<div class="staff-ranking-highlight-card ${rank === 1 ? 'is-first' : ''}">
+                    <div class="staff-ranking-highlight-rank">#${rank}</div>
+                    <button type="button" class="staff-ranking-avatar-btn" data-staff-preview="${avatarSrc}" data-staff-name="${escapeHtml(displayName)}">
+                        <img class="staff-ranking-highlight-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=96';if(this.parentElement){this.parentElement.dataset.staffPreview=this.src;}">
+                    </button>
+                    <div class="staff-ranking-highlight-name">${escapeHtml(displayName)}</div>
+                    <div class="staff-ranking-highlight-sub">${escapeHtml(subtitle)}</div>
+                    <div class="staff-ranking-highlight-meta">ล่าสุด ${staff.last_service_at ? formatDateTime(staff.last_service_at) : 'ยังไม่มีรายการอนุมัติ'}</div>
+                    <div class="staff-ranking-highlight-points">${Number(staff.total_votes || 0).toLocaleString('th-TH')} รายการอนุมัติ</div>
+                </div>`;
+            }).join('');
+
+            tbody.innerHTML = staffs.map((staff, index) => {
+                const displayName = staff.nickname || staff.name || '—';
+                const subtitle = staff.name && staff.name !== staff.nickname ? staff.name : 'พนักงานยอดนิยม';
+                const avatarSrc = staffAvatarSrc(staff);
+                return `<tr>
+                    <td>${index + 1}</td>
+                    <td>
+                        <div class="staff-ranking-user-cell">
+                            <button type="button" class="staff-ranking-avatar-btn" data-staff-preview="${avatarSrc}" data-staff-name="${escapeHtml(displayName)}">
+                                <img class="staff-ranking-table-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=96';if(this.parentElement){this.parentElement.dataset.staffPreview=this.src;}">
+                            </button>
+                            <div>
+                                <div class="staff-ranking-user-name">${escapeHtml(displayName)}</div>
+                                <div class="staff-ranking-user-sub">${escapeHtml(subtitle)}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>${Number(staff.total_votes || 0).toLocaleString('th-TH')}</td>
+                    <td>${staff.last_service_at ? formatDateTime(staff.last_service_at) : '—'}</td>
+                </tr>`;
+            }).join('');
+
+            document.querySelectorAll('#staff-ranking-highlight-grid [data-staff-preview], #staff-ranking-body [data-staff-preview]').forEach((btn) => {
+                btn.addEventListener('click', () => openImageModal(btn.dataset.staffPreview));
+            });
+        } catch (err) {
+            highlightGrid.innerHTML = '<div class="staff-ranking-loading-card">ไม่สามารถโหลดอันดับพนักงานได้</div>';
+            tbody.innerHTML = '';
+            emptyMessage.textContent = 'ไม่สามารถโหลดอันดับพนักงานได้';
+            emptyMessage.classList.remove('hidden');
+        }
+    }
+
     // --- Staff Management ---
     async function renderStaffGrid() {
         const grid = document.getElementById('staff-grid');
@@ -1552,6 +1679,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await authFetch(`${API_BASE}/staffs/${btn.dataset.deactivateStaff}`, { method: 'PUT', body: formData });
                     showToast('ปิดใช้งานพนักงานแล้ว', 'info');
                     renderStaffGrid();
+                    renderStaffRanking();
                 });
             });
             grid.querySelectorAll('[data-activate-staff]').forEach(btn => {
@@ -1561,6 +1689,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await authFetch(`${API_BASE}/staffs/${btn.dataset.activateStaff}`, { method: 'PUT', body: formData });
                     showToast('เปิดใช้งานพนักงานแล้ว', 'success');
                     renderStaffGrid();
+                    renderStaffRanking();
                 });
             });
             grid.querySelectorAll('[data-delete-staff]').forEach(btn => {
@@ -1571,6 +1700,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         await authFetch(`${API_BASE}/staffs/${btn.dataset.deleteStaff}/permanent`, { method: 'DELETE' });
                         showToast('ลบพนักงานถาวรแล้ว', 'success');
                         renderStaffGrid();
+                        renderStaffRanking();
                         renderHistory();
                         renderApproval();
                     } catch (err) {
@@ -1637,6 +1767,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 staffAvatarInput.value = '';
                 resetStaffAvatarPreview();
                 renderStaffGrid();
+                renderStaffRanking();
             } else {
                 showToast(data.error || 'ไม่สามารถเพิ่มพนักงานได้', 'error');
             }
@@ -1644,6 +1775,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             showToast('เกิดข้อผิดพลาดในการเพิ่มพนักงาน', 'error');
         }
     });
+
+    const btnRefreshStaffRanking = document.getElementById('btn-refresh-staff-ranking');
+    if (btnRefreshStaffRanking) {
+        btnRefreshStaffRanking.addEventListener('click', renderStaffRanking);
+    }
 
     const btnSaveRankingReset = document.getElementById('btn-save-ranking-reset');
     if (btnSaveRankingReset) {
@@ -1670,8 +1806,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    btnSaveGuessPointsCycle?.addEventListener('click', async () => {
+        const startDate = guessPointsCycleStart?.value;
+        if (!startDate) {
+            showToast('กรุณาเลือกวันที่เริ่มนับแต้มทายเลข', 'error');
+            return;
+        }
+
+        try {
+            const res = await authFetch(`${API_BASE}/admin/guess-points/cycle`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start_date: startDate })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'save-guess-cycle-failed');
+            showToast(`ตั้งรอบสะสมแต้มทายเลขเริ่ม ${formatServiceDate(startDate)} แล้ว`, 'success');
+            loadGuessPointsCycle();
+            if (selectedUserId) loadUserDetail(selectedUserId);
+            renderUsers(currentUserPage);
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถบันทึกรอบสะสมแต้มทายเลขได้', 'error');
+        }
+    });
+
     renderStaffGrid();
+    renderStaffRanking();
     loadRankingResetDate();
+    loadGuessPointsCycle();
 
     // --- Logout ---
     document.getElementById('btn-logout').addEventListener('click', async () => {

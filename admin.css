@@ -1200,6 +1200,15 @@
     flex: 1 1 auto;
 }
 
+.reward-claim-form-row select {
+    flex: 1 1 auto;
+    border-radius: 10px;
+    border: 1px solid #333;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-silver);
+    padding: 12px 14px;
+}
+
 .reward-claim-note {
     width: 100%;
     border-radius: 10px;
@@ -1288,6 +1297,15 @@
 
 .user-reward-claim-form-row input {
     flex: 1 1 180px;
+}
+
+.user-reward-claim-form-row select {
+    flex: 1 1 100%;
+    border-radius: 10px;
+    border: 1px solid #333;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-silver);
+    padding: 12px 14px;
 }
 
 .user-reward-actions {
@@ -1527,6 +1545,102 @@
     line-height: 1.5;
 }
 
+.staff-ranking-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.staff-ranking-highlight-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+}
+
+.staff-ranking-highlight-card,
+.staff-ranking-loading-card {
+    padding: 18px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(0, 240, 255, 0.12);
+}
+
+.staff-ranking-highlight-card.is-first {
+    border-color: rgba(255, 170, 0, 0.45);
+    box-shadow: 0 0 16px rgba(255, 170, 0, 0.16);
+}
+
+.staff-ranking-loading-card {
+    color: var(--text-muted);
+}
+
+.staff-ranking-highlight-rank {
+    font-family: 'Orbitron', sans-serif;
+    color: var(--gold);
+    font-size: 1rem;
+    margin-bottom: 10px;
+}
+
+.staff-ranking-highlight-avatar,
+.staff-ranking-table-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(0, 240, 255, 0.3);
+}
+
+.staff-ranking-table-avatar {
+    width: 48px;
+    height: 48px;
+}
+
+.staff-ranking-avatar-btn {
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.staff-ranking-avatar-btn:focus-visible {
+    outline: 2px solid rgba(0, 240, 255, 0.45);
+    outline-offset: 4px;
+}
+
+.staff-ranking-highlight-name,
+.staff-ranking-user-name {
+    font-weight: 700;
+    color: var(--text-silver);
+}
+
+.staff-ranking-highlight-sub,
+.staff-ranking-user-sub,
+.staff-ranking-highlight-meta {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+
+.staff-ranking-highlight-points {
+    margin-top: 10px;
+    color: var(--neon-cyan);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.95rem;
+}
+
+.staff-ranking-user-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.admin-table-wrap-staff-ranking #staff-ranking-table {
+    min-width: 760px;
+}
+
 .ranking-reset-row {
     align-items: stretch;
 }
@@ -1576,7 +1690,7 @@
 }
 
 .user-detail-modal-dialog {
-    width: min(1120px, 100%);
+    width: min(1240px, 100%);
     max-height: calc(100vh - 56px);
     overflow: auto;
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
@@ -1850,6 +1964,16 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
+}
+
+@media (max-width: 1180px) {
+    .user-detail-columns {
+        grid-template-columns: 1fr;
+    }
+
+    .reward-claim-card {
+        position: static;
+    }
 }
 
 .user-detail-card {

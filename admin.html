@@ -118,19 +118,19 @@
                             <span class="cashback-value" id="cashback-winners">0 คน</span>
                         </div>
                         <div class="cashback-card">
-                            <span class="cashback-label">💵 ยอด Cashback รวม (ก่อนภาษี)</span>
+                            <span class="cashback-label">💵 ยอด Cashback รวม</span>
                             <span class="cashback-value" id="cashback-total-gross">0 ฿</span>
                         </div>
                         <div class="cashback-card">
-                            <span class="cashback-label">🧾 ภาษี 7%</span>
+                            <span class="cashback-label">💸 ค่าธรรมเนียมถอน 10%</span>
                             <span class="cashback-value cashback-tax" id="cashback-tax">0 ฿</span>
                         </div>
                         <div class="cashback-card cashback-card-net">
-                            <span class="cashback-label">✅ ยอดจ่ายจริง (หลังหักภาษี)</span>
+                            <span class="cashback-label">✅ ถอนสุทธิสูงสุด</span>
                             <span class="cashback-value cashback-net" id="cashback-total-net">0 ฿</span>
                         </div>
                         <div class="cashback-card">
-                            <span class="cashback-label">🎁 GV 500 ฿ (ทายผิด)</span>
+                            <span class="cashback-label">🎁 GV 300 ฿ (ทายผิด)</span>
                             <span class="cashback-value" id="cashback-gv-count">0 คน</span>
                         </div>
                         <div class="cashback-card">
@@ -194,8 +194,14 @@
 
                         <div class="reward-claim-card">
                             <h4>บันทึกการใช้สิทธิ์จากรายการที่เลือก</h4>
-                            <p class="panel-caption reward-claim-copy">เมื่อเลือกแถว ระบบจะระบุทันทีว่ากำลังตัดจาก Cashback หรือ GV คงเหลือ กรณี Cashback ให้กรอกยอดก่อนภาษี ระบบจะแสดงยอดสุทธิประกอบให้</p>
+                            <p class="panel-caption reward-claim-copy">Cashback สามารถเลือกได้ว่าจะถอนเงินสดแบบหัก 10% หรือเก็บไว้ใช้ซ้ำแบบไม่หัก ส่วน GV จะตัดตามยอดเต็ม</p>
                             <div class="reward-claim-target" id="reward-claim-target">ยังไม่ได้เลือกรายการ</div>
+                            <div class="input-row reward-claim-form-row">
+                                <select id="reward-claim-mode" title="เลือกวิธีใช้สิทธิ์ Cashback">
+                                    <option value="reuse">ใช้ซ้ำเต็มจำนวน</option>
+                                    <option value="withdraw">ถอนเงินสด หัก 10%</option>
+                                </select>
+                            </div>
                             <div class="input-row reward-claim-form-row">
                                 <input type="number" id="reward-claim-amount" min="0" step="0.01" placeholder="ยอดที่ใช้สิทธิ์">
                                 <button class="btn-small" id="btn-claim-remaining" type="button">ใส่ยอดคงเหลือ</button>
@@ -262,9 +268,8 @@
                         <div class="input-row user-filter-row">
                             <input type="text" id="user-search-input" placeholder="ค้นหาชื่อ, platform_id หรือ global_user_id">
                             <select id="user-platform-filter" title="กรองแพลตฟอร์มผู้ใช้">
-                                <option value="all">ทุกแพลตฟอร์ม</option>
+                                <option value="all">บัญชี LINE ทั้งหมด</option>
                                 <option value="line">LINE</option>
-                                <option value="telegram">Telegram</option>
                             </select>
                             <button class="btn-action btn-blue" id="btn-user-search">ค้นหา</button>
                             <button class="btn-action" id="btn-user-refresh" type="button">รีเฟรช</button>
@@ -279,10 +284,6 @@
                         <div class="stat-card">
                             <span class="stat-number" id="users-line-accounts">0</span>
                             <span class="stat-label">บัญชี LINE</span>
-                        </div>
-                        <div class="stat-card">
-                            <span class="stat-number" id="users-telegram-accounts">0</span>
-                            <span class="stat-label">บัญชี Telegram</span>
                         </div>
                         <div class="stat-card stat-card-warning">
                             <span class="stat-number" id="users-active-accounts">0</span>
@@ -340,6 +341,35 @@
                     <div class="staff-grid" id="staff-grid">
                         <p class="empty-msg">กำลังโหลด...</p>
                     </div>
+                </section>
+
+                <section class="admin-panel staff-ranking-panel">
+                    <div class="staff-ranking-header">
+                        <div>
+                            <h3>🏆 อันดับพนักงาน</h3>
+                            <p class="panel-caption">ย้ายมาจากหน้าอันดับลูกค้าเพื่อให้ดูผลอันดับพนักงานได้เฉพาะในหน้า Admin</p>
+                                    <th>รายการอนุมัติ</th>
+                                    <th>ใช้งานล่าสุด</th>
+                        <div class="staff-ranking-loading-card">กำลังโหลดอันดับพนักงาน...</div>
+                    </div>
+
+                    <div class="admin-table-wrap admin-table-wrap-staff-ranking">
+                        <table class="admin-table" id="staff-ranking-table">
+                            <thead>
+                                <tr>
+                                    <th>อันดับ</th>
+                                    <th>พนักงาน</th>
+                                    <th>คะแนนเฉลี่ย</th>
+                                    <th>บริการ</th>
+                                    <th>หน้าตา</th>
+                                    <th>ความคุ้มค่า</th>
+                                    <th>โหวตรวม</th>
+                                </tr>
+                            </thead>
+                            <tbody id="staff-ranking-body"></tbody>
+                        </table>
+                    </div>
+                    <p class="empty-msg" id="no-staff-ranking">กำลังโหลดอันดับพนักงาน...</p>
                 </section>
 
                 <section class="admin-panel ranking-reset-panel">
@@ -426,6 +456,22 @@
                         <div class="sold-out-list" id="sold-out-list">
                             <p class="empty-msg">ยังไม่มีเลขที่ปิดขาย</p>
                         </div>
+                    </div>
+                </section>
+
+                <section class="admin-panel">
+                    <h3>🗓️ รอบสะสมแต้มทายเลข</h3>
+                    <p class="panel-caption">แต้มสำหรับทายเลขจะนับจากวันที่เริ่มรอบนี้ไปอีก 1 เดือนเต็ม คะแนนก่อนวันเริ่มรอบจะไม่ถูกนำมาคิดสิทธิ์ทายเลข</p>
+                    <div class="input-row ranking-reset-row">
+                        <label for="guess-points-cycle-start" class="panel-caption ranking-reset-label">วันที่เริ่มนับแต้มทายเลข</label>
+                        <input type="date" id="guess-points-cycle-start" title="เลือกวันที่เริ่มนับแต้มทายเลข">
+                        <button class="btn-action btn-gold" id="btn-save-guess-points-cycle">บันทึกรอบแต้มทายเลข</button>
+                    </div>
+                    <div class="ranking-reset-meta guess-cycle-meta">
+                        <span>เริ่มนับปัจจุบัน:</span>
+                        <strong id="guess-points-cycle-current">กำลังโหลด...</strong>
+                        <span>ครบกำหนด:</span>
+                        <strong id="guess-points-cycle-end">กำลังโหลด...</strong>
                     </div>
                 </section>
 
@@ -545,7 +591,7 @@
                     <div class="user-detail-card">
                         <h4>พ้อยสำหรับทายเลข</h4>
                         <div id="user-points-summary" class="user-reward-summary"></div>
-                        <p class="panel-caption">ระบบใช้พ้อยนี้สำหรับทายเลขอัตโนมัติ 5 พ้อยต่อ 1 เลข และพ้อยที่ไม่ใช้จะรีเซ็ตเมื่อข้ามรอบ</p>
+                        <p class="panel-caption">ระบบใช้พ้อยนี้สำหรับทายเลขอัตโนมัติ 5 พ้อยต่อ 1 เลข โดยจะนับเฉพาะแต้มในรอบสะสมปัจจุบันที่แอดมินกำหนด</p>
                     </div>
                     <div class="user-detail-card">
                         <h4>ประวัติพ้อยย้อนหลัง</h4>
@@ -561,9 +607,15 @@
                         <div class="user-reward-claim-card">
                             <div class="user-reward-claim-header">
                                 <strong>บันทึกการใช้สิทธิ์ของ user นี้</strong>
-                                <p class="panel-caption">เลือกสิทธิ์จากรายการด้านล่างเพื่อตรวจสอบยอดคงเหลือ ระบุวันที่ใช้ และกรอกยอดที่จะใช้ก่อนบันทึกตัดยอด</p>
+                                <p class="panel-caption">Cashback เลือกได้ว่าจะถอนเงินสดหัก 10% หรือเก็บไว้ใช้ซ้ำเต็มจำนวน ส่วน GV จะตัดตามยอดเต็ม</p>
                             </div>
                             <div id="user-reward-claim-target" class="reward-claim-target">ยังไม่ได้เลือกรายการสิทธิ์</div>
+                            <div class="input-row reward-claim-form-row user-reward-claim-form-row">
+                                <select id="user-reward-claim-mode" title="เลือกวิธีใช้สิทธิ์ Cashback">
+                                    <option value="reuse">ใช้ซ้ำเต็มจำนวน</option>
+                                    <option value="withdraw">ถอนเงินสด หัก 10%</option>
+                                </select>
+                            </div>
                             <div class="input-row reward-claim-form-row user-reward-claim-form-row">
                                 <input type="date" id="user-reward-claim-date">
                                 <input type="number" id="user-reward-claim-amount" min="0" step="0.01" placeholder="ยอดที่จะใช้">

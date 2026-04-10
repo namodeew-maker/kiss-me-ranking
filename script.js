@@ -6,8 +6,6 @@ const API_ROOT = API_BASE.replace(/\/api$/, '');
 // ==================== GLOBAL STATE ====================
 let currentUser = null; // { id, platform, platform_id, display_name, picture_url, progress_count }
 let currentVisitedStaffIds = new Set();
-let telegramWidgetLoadedFor = null;
-let telegramLoginConfig = null;
 let mainUserIdCopyResetTimer = null;
 let currentProgressData = null;
 let currentLottoSelection = '';
@@ -311,7 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!mainUserIdCard || !mainUserIdValue || !mainUserIdHelp || !btnCopyMainUserId) return;
 
         const userId = currentUser?.platform_id || currentUser?.id || '';
-        const platformLabel = currentUser?.platform === 'telegram' ? 'Telegram User ID' : 'LINE User ID';
+        const platformLabel = 'LINE User ID';
 
         if (!userId) {
             mainUserIdValue.textContent = '-';
@@ -353,7 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (progressHintEl) {
             if (!currentProgressData?.is_round_open) {
                 progressHintEl.textContent = normalizedPoints > 0
-                    ? 'รอบนี้ปิดรับแล้ว พ้อยที่ยังไม่ใช้จะรีเซ็ตเมื่อข้ามรอบ'
+                    ? 'รอบนี้ปิดรับแล้ว แต้มทายเลขจะยังอยู่จนกว่าจะครบกำหนดรอบสะสมปัจจุบัน'
                     : 'รอรอบถัดไปเพื่อเริ่มสะสมพ้อยและทายเลข';
                 progressHintEl.classList.remove('unlocked');
             } else if (availableGuessCredits > 0) {
@@ -512,132 +510,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Telegram Login ---
-    const btnLoginTelegram = document.getElementById('btn-login-telegram');
-    const telegramWidgetShell = document.getElementById('telegram-widget-shell');
-    const telegramWidgetContainer = document.getElementById('telegram-widget-container');
-    const telegramWidgetNote = document.getElementById('telegram-widget-note');
-
-    async function getTelegramLoginConfig(force = false) {
-        if (telegramLoginConfig && !force) return telegramLoginConfig;
-
-        const res = await fetch(`${API_BASE}/auth/telegram/config`, {
-            cache: 'no-store'
-        });
-        const data = await res.json();
-        if (!res.ok) {
-            throw new Error(data.error || 'ไม่สามารถโหลดการตั้งค่า Telegram Login ได้');
-        }
-
-        telegramLoginConfig = data;
-        return data;
-    }
-
-    async function ensureTelegramWidget() {
-        const config = await getTelegramLoginConfig();
-        if (!config.enabled || !config.botUsername) {
-            throw new Error('ระบบ Telegram Login ยังไม่ได้ตั้งค่า bot username หรือ bot token');
-        }
-
-        if (!telegramWidgetContainer || !telegramWidgetShell) {
-            throw new Error('ไม่พบพื้นที่สำหรับ Telegram Widget');
-        }
-
-        telegramWidgetShell.hidden = false;
-
-        if (telegramWidgetLoadedFor === config.botUsername) {
-            return config;
-        }
-
-        telegramWidgetContainer.innerHTML = '';
-        if (telegramWidgetNote) {
-            telegramWidgetNote.textContent = 'แตะปุ่ม Telegram ด้านล่างเพื่อยืนยันการเข้าสู่ระบบ';
-        }
-        const widgetScript = document.createElement('script');
-        widgetScript.async = true;
-        widgetScript.src = 'https://telegram.org/js/telegram-widget.js?22';
-        widgetScript.setAttribute('data-telegram-login', config.botUsername);
-        widgetScript.setAttribute('data-size', 'large');
-        widgetScript.setAttribute('data-onauth', 'onTelegramAuth(user)');
-        widgetScript.setAttribute('data-request-access', 'write');
-        widgetScript.setAttribute('data-userpic', 'true');
-        widgetScript.setAttribute('data-radius', '12');
-        telegramWidgetContainer.appendChild(widgetScript);
-        telegramWidgetLoadedFor = config.botUsername;
-        return config;
-    }
-
-    async function prepareTelegramLogin() {
-        if (!btnLoginTelegram) return;
-
-        try {
-            const config = await getTelegramLoginConfig();
-            if (!config.enabled || !config.botUsername) {
-                btnLoginTelegram.style.display = '';
-                if (telegramWidgetShell) telegramWidgetShell.hidden = true;
-                return;
-            }
-
-            await ensureTelegramWidget();
-            btnLoginTelegram.style.display = 'none';
-        } catch (err) {
-            console.error('Telegram pre-init error:', err);
-            btnLoginTelegram.style.display = '';
-            if (telegramWidgetShell) telegramWidgetShell.hidden = true;
-            if (telegramWidgetNote) {
-                telegramWidgetNote.textContent = 'หากปุ่ม Telegram ไม่ขึ้น ให้ตรวจว่าตั้งค่า bot username และ domain ของ widget ถูกต้องแล้ว';
-            }
-        }
-    }
-
-    if (btnLoginTelegram) {
-        btnLoginTelegram.addEventListener('click', async () => {
-            const originalHtml = btnLoginTelegram.innerHTML;
-            btnLoginTelegram.disabled = true;
-            btnLoginTelegram.textContent = 'กำลังโหลด Telegram...';
-            try {
-                await ensureTelegramWidget();
-                btnLoginTelegram.style.display = 'none';
-            } catch (err) {
-                console.error('Telegram widget init error:', err);
-                alert(err.message || 'ไม่สามารถเปิด Telegram Login ได้');
-                if (telegramWidgetNote) {
-                    telegramWidgetNote.textContent = 'หากปุ่ม Telegram ไม่ขึ้น ให้ตรวจว่าตั้งค่า bot username และ domain ของ widget ถูกต้องแล้ว';
-                }
-            } finally {
-                btnLoginTelegram.disabled = false;
-                btnLoginTelegram.innerHTML = originalHtml;
-            }
-        });
-
-        prepareTelegramLogin();
-    }
-
-    /** Telegram Widget callback — attached to window for the widget's data-onauth */
-    window.onTelegramAuth = async function(user) {
-        try {
-            const res = await fetch(`${API_BASE}/auth/telegram`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(user)
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                throw new Error(data.error || 'เข้าสู่ระบบ Telegram ไม่สำเร็จ');
-            }
-            finalizeLogin(data.user);
-        } catch (err) {
-            console.error('Telegram login error:', err);
-            alert(err.message || 'เข้าสู่ระบบ Telegram ล้มเหลว');
-            if (btnLoginTelegram) {
-                btnLoginTelegram.style.display = '';
-            }
-            if (telegramWidgetShell) {
-                telegramWidgetShell.hidden = true;
-            }
-        }
-    };
-
     // ==================== IMAGE MODAL ====================
     const staffImgModal = document.getElementById('staff-img-modal');
     const staffImgModalImg = document.getElementById('staff-img-modal-img');
@@ -679,35 +551,35 @@ document.addEventListener('DOMContentLoaded', () => {
         const month = now.getMonth(); // 0-indexed
         const year = now.getFullYear();
 
-        if (day >= 2 && day <= 14) {
+        if (day >= 1 && day <= 14) {
             return {
                 round: 1,
                 label: 'รอบที่ 1',
-                period: `วันที่ 2 – 14 ${getThaiMonth(month)} ${year + 543}`,
+                period: `วันที่ 1 – 14 ${getThaiMonth(month)} ${year + 543}`,
                 drawDate: `16 ${getThaiMonth(month)} ${year + 543}`,
                 open: true
             };
-        } else if (day >= 17 && day <= 29) {
+        } else if (day >= 16 && day <= 29) {
             return {
                 round: 2,
                 label: 'รอบที่ 2',
-                period: `วันที่ 17 – 29 ${getThaiMonth(month)} ${year + 543}`,
+                period: `วันที่ 16 – 29 ${getThaiMonth(month)} ${year + 543}`,
                 drawDate: getNextDrawDate(month, year),
                 open: true
             };
         } else {
             // Outside active period
             let nextRound, nextPeriod, nextDraw;
-            if (day === 1 || day >= 30) {
+            if (day >= 30) {
                 nextRound = 'รอบถัดไป: รอบ 1';
-                const nm = day === 1 ? month : (month + 1) % 12;
-                const ny = day === 1 ? year : (month === 11 ? year + 1 : year);
-                nextPeriod = `เปิดรับ: วันที่ 2 – 14 ${getThaiMonth(nm)} ${ny + 543}`;
+                const nm = (month + 1) % 12;
+                const ny = month === 11 ? year + 1 : year;
+                nextPeriod = `เปิดรับ: วันที่ 1 – 14 ${getThaiMonth(nm)} ${ny + 543}`;
                 nextDraw = `16 ${getThaiMonth(nm)} ${ny + 543}`;
             } else {
-                // day 15 or 16
+                // day 15
                 nextRound = 'รอบถัดไป: รอบ 2';
-                nextPeriod = `เปิดรับ: วันที่ 17 – 29 ${getThaiMonth(month)} ${year + 543}`;
+                nextPeriod = `เปิดรับ: วันที่ 16 – 29 ${getThaiMonth(month)} ${year + 543}`;
                 nextDraw = getNextDrawDate(month, year);
             }
             return {
@@ -797,9 +669,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             };
 
-            container.innerHTML = Array.from({ length: 10 }, (_, index) => {
+            container.innerHTML = Array.from({ length: 5 }, (_, index) => {
                 const score = index + 1;
-                return `<button type="button" class="star-rating-btn" data-value="${score}" aria-label="ให้คะแนน ${score} จาก 10">
+                return `<button type="button" class="star-rating-btn" data-value="${score}" aria-label="ให้คะแนน ${score} จาก 5">
                     <span class="star-rating-icon">★</span>
                     <span class="star-rating-score">${score}</span>
                 </button>`;
@@ -809,7 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.addEventListener('click', () => setValue(Number(btn.dataset.value)));
             });
 
-            setValue(Number(input.value || 5));
+            setValue(Number(input.value || 3));
         });
     }
 

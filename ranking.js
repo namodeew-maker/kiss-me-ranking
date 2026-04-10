@@ -6,19 +6,19 @@ const LATIN_NUMBER_FORMATTER = new Intl.NumberFormat('en-US');
 
 // ==================== RANK TIERS (same as profile.js) ====================
 const RANK_TIERS = [
-    { name: 'Unranked',  icon: '🔘', color: '#888888', minApproved: 0,  minPoints: 0    },
-    { name: 'Bronze',    icon: '🥉', color: '#cd7f32', minApproved: 3,  minPoints: 0    },
-    { name: 'Silver',    icon: '🥈', color: '#c0c0c0', minApproved: 10, minPoints: 50   },
-    { name: 'Gold',      icon: '🥇', color: '#ffd700', minApproved: 25, minPoints: 150  },
-    { name: 'Platinum',  icon: '💎', color: '#00f0ff', minApproved: 50, minPoints: 400  },
-    { name: 'Diamond',   icon: '👑', color: '#b44aff', minApproved: 100,minPoints: 1000 },
-    { name: 'Master',    icon: '🏆', color: '#ff3c3c', minApproved: 200,minPoints: 2500 },
+    { name: 'Unranked', icon: '🔘', color: '#888888', minApproved: 0 },
+    { name: 'Bronze', icon: '🥉', color: '#cd7f32', minApproved: 3 },
+    { name: 'Silver', icon: '🥈', color: '#c0c0c0', minApproved: 10 },
+    { name: 'Gold', icon: '🥇', color: '#ffd700', minApproved: 25 },
+    { name: 'Platinum', icon: '💎', color: '#00f0ff', minApproved: 50 },
+    { name: 'Diamond', icon: '👑', color: '#b44aff', minApproved: 100 },
+    { name: 'Master', icon: '🏆', color: '#ff3c3c', minApproved: 200 },
 ];
 
-function getCustomerRank(totalApproved, totalPoints) {
+function getCustomerRank(totalApproved) {
     let rank = RANK_TIERS[0];
     for (let i = RANK_TIERS.length - 1; i >= 0; i--) {
-        if (totalApproved >= RANK_TIERS[i].minApproved && totalPoints >= RANK_TIERS[i].minPoints) {
+        if (totalApproved >= RANK_TIERS[i].minApproved) {
             rank = RANK_TIERS[i];
             break;
         }
@@ -70,7 +70,7 @@ const rankingImgModal = document.getElementById('ranking-img-modal');
 const rankingImgModalImg = document.getElementById('ranking-img-modal-img');
 const rankingImgModalClose = document.getElementById('ranking-img-modal-close');
 
-function openRankingImageModal(src, alt = 'รูปพนักงาน') {
+function openRankingImageModal(src, alt = 'รูปโปรไฟล์') {
     if (!rankingImgModal || !rankingImgModalImg) return;
     rankingImgModalImg.src = src;
     rankingImgModalImg.alt = alt;
@@ -262,51 +262,6 @@ function spawnParticles() {
     }
 }
 
-// ==================== TABS ====================
-function initTabs() {
-    document.querySelectorAll('.rank-tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.rank-tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.rank-tab-content').forEach(c => c.classList.add('rank-tab-hidden'));
-            btn.classList.add('active');
-            const target = document.getElementById('tab-' + btn.dataset.tab);
-            if (target) target.classList.remove('rank-tab-hidden');
-        });
-    });
-}
-
-// ==================== STAFF RANKING ====================
-async function loadStaffRanking() {
-    const list = document.getElementById('staff-ranking-list');
-    try {
-        const res = await fetch(`${API_BASE}/ranking/staff`);
-        const staffs = await res.json();
-        if (!staffs.length) {
-            list.innerHTML = '<div class="ranking-loading">ยังไม่มีข้อมูลอันดับ</div>';
-            return;
-        }
-        list.innerHTML = renderLeaderboardBoard(staffs, {
-            boardLabel: 'Staff Leaderboard',
-            metricHeader: 'Votes',
-            getAvatar: (staff) => getAvatarSrc(staff, staff.nickname || staff.name),
-            getDisplayName: (staff) => staff.nickname || staff.name || '—',
-            getSubtitle: (staff) => {
-                const realName = staff.name && staff.name !== staff.nickname ? `ชื่อจริง ${staff.name}` : 'พนักงานยอดนิยม';
-                return `${realName} • เรต ${Number(staff.avg_overall || 0).toFixed(1)}/10`;
-            },
-            getMetric: (staff) => formatMetricNumber(staff.total_votes || 0),
-            getBestMeta: (staff) => [
-                { label: 'Votes', value: formatMetricNumber(staff.total_votes || 0) },
-                { label: 'Avg Score', value: `${Number(staff.avg_overall || 0).toFixed(1)}/10` },
-                { label: 'Service', value: `${Number(staff.avg_service || 0).toFixed(1)}/10` }
-            ]
-        });
-        bindRankingImagePreview(list);
-    } catch (err) {
-        list.innerHTML = '<div class="ranking-loading">ไม่สามารถโหลดอันดับได้</div>';
-    }
-}
-
 // ==================== CUSTOMER RANKING ====================
 async function loadCustomerRanking() {
     const list = document.getElementById('customer-ranking-list');
@@ -319,20 +274,20 @@ async function loadCustomerRanking() {
         }
         list.innerHTML = renderLeaderboardBoard(customers, {
             boardLabel: 'Customer Leaderboard',
-            metricHeader: 'Points',
+            metricHeader: 'Approved',
             getAvatar: (customer) => getAvatarSrc(customer, customer.display_name || 'U'),
             getDisplayName: (customer) => customer.display_name || '—',
             getSubtitle: (customer) => {
-                const tierInfo = getCustomerRank(customer.total_approved, customer.total_points);
+                const tierInfo = getCustomerRank(customer.total_approved);
                 return `${tierInfo.icon} ${tierInfo.name} • อนุมัติ ${formatMetricNumber(customer.total_approved || 0)} ครั้ง`;
             },
-            getMetric: (customer) => formatMetricNumber(customer.total_points || 0),
+            getMetric: (customer) => formatMetricNumber(customer.total_approved || 0),
             getBestMeta: (customer) => {
-                const tierInfo = getCustomerRank(customer.total_approved, customer.total_points);
+                const tierInfo = getCustomerRank(customer.total_approved);
                 return [
                     { label: 'Approved', value: formatMetricNumber(customer.total_approved || 0) },
                     { label: 'Tier', value: tierInfo.name },
-                    { label: 'Points', value: formatMetricNumber(customer.total_points || 0) }
+                    { label: 'Last Active', value: customer.last_service_at ? new Date(customer.last_service_at).toLocaleDateString('th-TH') : '—' }
                 ];
             }
         });
@@ -345,7 +300,5 @@ async function loadCustomerRanking() {
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', () => {
     spawnParticles();
-    initTabs();
-    loadStaffRanking();
     loadCustomerRanking();
 });
