@@ -451,7 +451,16 @@
 
                     <div class="input-group service-date-group">
                         <label for="service-date">📅 วันที่มาใช้บริการ</label>
-                        <input type="date" id="service-date" name="service_date" required>
+                        <div class="service-date-shell">
+                            <input type="date" id="service-date" name="service_date" required>
+                            <button type="button" class="date-picker-trigger" id="service-date-trigger">เปิดปฏิทิน</button>
+                        </div>
+                        <div class="service-date-shortcuts" aria-label="ตัวเลือกวันที่แบบด่วน">
+                            <button type="button" class="date-shortcut-btn" data-date-offset="0">วันนี้</button>
+                            <button type="button" class="date-shortcut-btn" data-date-offset="1">เมื่อวาน</button>
+                            <button type="button" class="date-shortcut-btn" data-date-offset="3">3 วันที่แล้ว</button>
+                            <button type="button" class="date-shortcut-btn" data-date-offset="7">7 วันที่แล้ว</button>
+                        </div>
                         <p class="input-help">ใช้สำหรับช่วยตรวจสอบรายการกับสลิปและข้อมูลรอบกิจกรรม</p>
                     </div>
 
@@ -462,31 +471,31 @@
                         <div class="slider-group star-rating-group">
                             <label for="score-looks">
                                 <span class="slider-label-text">💄 หน้าตา / รูปร่าง</span>
-                                <span class="slider-value" id="score-looks-val">3</span>
+                                <span class="slider-value" id="score-looks-val">5</span>
                             </label>
-                            <input type="hidden" id="score-looks" name="looks_score" value="3">
-                            <div class="star-rating" data-target="score-looks" data-output="score-looks-val"></div>
-                            <div class="slider-range-labels"><span>1</span><span>5</span></div>
+                            <input type="hidden" id="score-looks" name="looks_score" value="5">
+                            <div class="star-rating" data-target="score-looks" data-output="score-looks-val" data-max="10"></div>
+                            <div class="slider-range-labels"><span>1</span><span>10</span></div>
                         </div>
 
                         <div class="slider-group star-rating-group">
                             <label for="score-service">
                                 <span class="slider-label-text">💆 การบริการ</span>
-                                <span class="slider-value" id="score-service-val">3</span>
+                                <span class="slider-value" id="score-service-val">5</span>
                             </label>
-                            <input type="hidden" id="score-service" name="service_score" value="3">
-                            <div class="star-rating" data-target="score-service" data-output="score-service-val"></div>
-                            <div class="slider-range-labels"><span>1</span><span>5</span></div>
+                            <input type="hidden" id="score-service" name="service_score" value="5">
+                            <div class="star-rating" data-target="score-service" data-output="score-service-val" data-max="10"></div>
+                            <div class="slider-range-labels"><span>1</span><span>10</span></div>
                         </div>
 
                         <div class="slider-group star-rating-group">
                             <label for="score-value">
                                 <span class="slider-label-text">💰 ความคุ้มค่า</span>
-                                <span class="slider-value" id="score-value-val">3</span>
+                                <span class="slider-value" id="score-value-val">5</span>
                             </label>
-                            <input type="hidden" id="score-value" name="value_score" value="3">
-                            <div class="star-rating" data-target="score-value" data-output="score-value-val"></div>
-                            <div class="slider-range-labels"><span>1</span><span>5</span></div>
+                            <input type="hidden" id="score-value" name="value_score" value="5">
+                            <div class="star-rating" data-target="score-value" data-output="score-value-val" data-max="10"></div>
+                            <div class="slider-range-labels"><span>1</span><span>10</span></div>
                         </div>
                     </div>
 

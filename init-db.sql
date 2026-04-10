@@ -76,14 +76,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_user_staff_round_cycle
 -- ============================================
 -- 4. ตาราง ratings — คะแนนลับ 3 ด้าน
 -- Admin จะมองไม่เห็นคะแนนเหล่านี้
--- คะแนน 1-5 ต่อด้าน: หน้าตา / บริการ / ความคุ้มค่า
+-- คะแนน 1-10 ต่อด้าน: หน้าตา / บริการ / ความคุ้มค่า
 -- ============================================
 CREATE TABLE IF NOT EXISTS ratings (
     id SERIAL PRIMARY KEY,
     transaction_id INTEGER NOT NULL UNIQUE REFERENCES transactions(id) ON DELETE CASCADE,
-    looks_score SMALLINT NOT NULL CHECK (looks_score BETWEEN 1 AND 5),
-    service_score SMALLINT NOT NULL CHECK (service_score BETWEEN 1 AND 5),
-    value_score SMALLINT NOT NULL CHECK (value_score BETWEEN 1 AND 5),
+    looks_score SMALLINT NOT NULL CHECK (looks_score BETWEEN 1 AND 10),
+    service_score SMALLINT NOT NULL CHECK (service_score BETWEEN 1 AND 10),
+    value_score SMALLINT NOT NULL CHECK (value_score BETWEEN 1 AND 10),
     created_at TIMESTAMP DEFAULT NOW()
 );
 

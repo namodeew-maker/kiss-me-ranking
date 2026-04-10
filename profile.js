@@ -71,6 +71,20 @@ const profileImgModalImg = document.getElementById('profile-img-modal-img');
 const profileImgModalClose = document.getElementById('profile-img-modal-close');
 const userIdValueEl = document.getElementById('user-id-value');
 const copyUserIdBtn = document.getElementById('btn-copy-user-id');
+const userAvatarInput = document.getElementById('user-avatar-input');
+const userAvatarStatus = document.getElementById('user-avatar-status');
+
+function persistCurrentUser() {
+    if (!currentUser) return;
+    sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+}
+
+function setAvatarUploadStatus(message, state = '') {
+    if (!userAvatarStatus) return;
+    userAvatarStatus.textContent = message;
+    userAvatarStatus.classList.remove('is-error', 'is-success');
+    if (state) userAvatarStatus.classList.add(state);
+}
 
 async function copyTextToClipboard(text) {
     if (!text) return false;
@@ -270,10 +284,14 @@ function renderRewardSummary(guesses) {
 
 function renderUserCard(user, stats) {
     const avatar = document.getElementById('user-avatar');
-    if (user.picture_url) {
-        avatar.src = user.picture_url;
-    } else {
-        avatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.display_name || 'U')}&background=1a1a2e&color=00f0ff&size=80`;
+    avatar.src = user.picture_url
+        ? resolveAssetUrl(user.picture_url)
+        : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.display_name || 'U')}&background=1a1a2e&color=00f0ff&size=80`;
+
+    if (currentUser) {
+        currentUser.display_name = user.display_name || currentUser.display_name;
+        currentUser.picture_url = user.picture_url || null;
+        persistCurrentUser();
     }
 
     document.getElementById('user-display-name').textContent = user.display_name || '—';
@@ -591,6 +609,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         hideEl('profile-loading');
         showEl('profile-not-logged-in');
         return;
+    }
+
+    if (userAvatarInput) {
+        userAvatarInput.addEventListener('change', async () => {
+            const file = userAvatarInput.files?.[0];
+            if (!file || !currentUser?.platform_id) return;
+
+            const formData = new FormData();
+            formData.append('platform', currentUser.platform || 'line');
+            formData.append('avatar', file);
+
+            try {
+                setAvatarUploadStatus('กำลังอัปโหลดรูปโปรไฟล์...', '');
+                const res = await fetch(`${API_BASE}/users/${encodeURIComponent(currentUser.platform_id)}/avatar`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.error || 'ไม่สามารถอัปโหลดรูปโปรไฟล์ได้');
+                }
+
+                currentUser.picture_url = data.picture_url;
+                persistCurrentUser();
+                setAvatarUploadStatus('อัปโหลดรูปโปรไฟล์สำเร็จ', 'is-success');
+                await loadProfileData(currentUser.platform_id, currentUser.platform || 'line');
+            } catch (error) {
+                console.error('Avatar upload error:', error);
+                setAvatarUploadStatus(error.message || 'ไม่สามารถอัปโหลดรูปโปรไฟล์ได้', 'is-error');
+            } finally {
+                userAvatarInput.value = '';
+            }
+        });
     }
 
     await loadProfileData(currentUser.platform_id, currentUser.platform || 'line');

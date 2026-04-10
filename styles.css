@@ -1214,15 +1214,28 @@ header h1 {
     background: linear-gradient(135deg, rgba(20, 20, 50, 0.95), rgba(30, 25, 60, 0.9));
     border: 2px solid rgba(0, 240, 255, 0.35);
     color: #fff;
-    padding: 14px 16px;
+    padding: 16px 18px;
     margin: 5px 0 8px;
     border-radius: 12px;
-    font-size: 1.05rem;
+    font-size: 1.2rem;
     font-family: 'Kanit', sans-serif;
-    font-weight: 600;
-    letter-spacing: 0.5px;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+    text-align: center;
     transition: border-color 0.3s, box-shadow 0.3s;
     box-shadow: 0 0 12px rgba(0, 240, 255, 0.1);
+}
+
+.submission-panel input[type="date"]::-webkit-datetime-edit {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    text-align: center;
+}
+
+.submission-panel input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    filter: invert(89%) sepia(56%) saturate(1193%) hue-rotate(143deg) brightness(104%) contrast(104%);
 }
 
 .submission-panel input[type="date"]:hover {
@@ -1235,6 +1248,72 @@ header h1 {
     font-weight: 700 !important;
     color: var(--neon-cyan) !important;
     text-shadow: 0 0 8px rgba(0, 240, 255, 0.25);
+}
+
+.service-date-group {
+    padding: 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(0, 240, 255, 0.18);
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.06), rgba(122, 66, 255, 0.03));
+}
+
+.service-date-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+}
+
+.date-picker-trigger {
+    border: 1px solid rgba(0, 240, 255, 0.26);
+    background: rgba(0, 240, 255, 0.08);
+    color: var(--neon-cyan);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-family: 'Kanit', sans-serif;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.date-picker-trigger:hover {
+    transform: translateY(-1px);
+    background: rgba(0, 240, 255, 0.14);
+    box-shadow: 0 0 18px rgba(0, 240, 255, 0.16);
+}
+
+.service-date-shortcuts {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.date-shortcut-btn {
+    min-width: 88px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-silver);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-family: 'Kanit', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.date-shortcut-btn:hover,
+.date-shortcut-btn.is-active {
+    transform: translateY(-1px);
+    border-color: rgba(0, 240, 255, 0.38);
+    background: rgba(0, 240, 255, 0.12);
+    color: var(--neon-cyan);
+}
+
+.service-date-group .input-help {
+    margin-top: 10px;
+    text-align: center;
 }
 
 .submission-panel input[type="text"]:focus,
@@ -2010,9 +2089,9 @@ header h1 {
 }
 
 .star-rating {
-    display: flex;
-    justify-content: center;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 6px;
     margin-top: 10px;
 }
 
@@ -2020,6 +2099,7 @@ header h1 {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 100%;
     padding: 0;
     border: none;
     background: transparent;
@@ -2035,7 +2115,7 @@ header h1 {
 }
 
 .star-rating-btn .star-rating-icon {
-    font-size: 2.6rem;
+    font-size: 1.8rem;
     color: #555;
     transition: color 0.18s ease, text-shadow 0.18s ease;
 }
@@ -2050,12 +2130,17 @@ header h1 {
 }
 
 @media (max-width: 480px) {
+    .service-date-shell {
+        grid-template-columns: 1fr;
+    }
+
     .star-rating {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         gap: 4px;
     }
 
     .star-rating-btn .star-rating-icon {
-        font-size: 2.1rem;
+        font-size: 1.55rem;
     }
 }
 

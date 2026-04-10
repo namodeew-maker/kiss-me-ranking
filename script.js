@@ -10,6 +10,17 @@ let mainUserIdCopyResetTimer = null;
 let currentProgressData = null;
 let currentLottoSelection = '';
 
+function getTodayDateInputValue(baseDate = new Date()) {
+    const tzOffset = baseDate.getTimezoneOffset() * 60000;
+    return new Date(baseDate.getTime() - tzOffset).toISOString().slice(0, 10);
+}
+
+function getOffsetDateInputValue(dayOffset = 0) {
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() - dayOffset);
+    return getTodayDateInputValue(targetDate);
+}
+
 function setElementVisible(element, isVisible, displayValue = '') {
     if (!element) return;
     element.style.display = isVisible ? displayValue : 'none';
@@ -293,10 +304,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (avatar && currentUser.picture_url) {
-            avatar.src = currentUser.picture_url;
-        } else if (avatar) {
-            avatar.style.display = 'none';
+        if (avatar) {
+            avatar.style.display = '';
+            avatar.src = currentUser.picture_url
+                ? resolveAssetUrl(currentUser.picture_url)
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.display_name || currentUser.platform_id || 'User')}&background=1a1a2e&color=00f0ff&size=80`;
         }
         if (nameEl) {
             nameEl.textContent = currentUser.display_name || currentUser.platform_id;
@@ -656,22 +668,24 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.star-rating').forEach(container => {
             const targetId = container.dataset.target;
             const outputId = container.dataset.output;
+            const maxScore = Math.max(1, Number(container.dataset.max || 10));
             const input = document.getElementById(targetId);
             const output = document.getElementById(outputId);
             if (!input || !output) return;
 
             const setValue = (value) => {
-                input.value = String(value);
-                output.textContent = String(value);
+                const normalizedValue = Math.min(maxScore, Math.max(1, Number(value) || 1));
+                input.value = String(normalizedValue);
+                output.textContent = String(normalizedValue);
                 container.querySelectorAll('.star-rating-btn').forEach(btn => {
-                    btn.classList.toggle('is-active', Number(btn.dataset.value) <= value);
-                    btn.setAttribute('aria-pressed', Number(btn.dataset.value) === value ? 'true' : 'false');
+                    btn.classList.toggle('is-active', Number(btn.dataset.value) <= normalizedValue);
+                    btn.setAttribute('aria-pressed', Number(btn.dataset.value) === normalizedValue ? 'true' : 'false');
                 });
             };
 
-            container.innerHTML = Array.from({ length: 5 }, (_, index) => {
+            container.innerHTML = Array.from({ length: maxScore }, (_, index) => {
                 const score = index + 1;
-                return `<button type="button" class="star-rating-btn" data-value="${score}" aria-label="ให้คะแนน ${score} จาก 5">
+                return `<button type="button" class="star-rating-btn" data-value="${score}" aria-label="ให้คะแนน ${score} จาก ${maxScore}">
                     <span class="star-rating-icon">★</span>
                     <span class="star-rating-score">${score}</span>
                 </button>`;
@@ -681,15 +695,58 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.addEventListener('click', () => setValue(Number(btn.dataset.value)));
             });
 
-            setValue(Number(input.value || 3));
+            setValue(Number(input.value || Math.max(1, Math.floor(maxScore / 2))));
         });
     }
 
     renderStarRatings();
 
     const serviceDateInput = document.getElementById('service-date');
+    const serviceDateTrigger = document.getElementById('service-date-trigger');
+    const serviceDateShortcutButtons = Array.from(document.querySelectorAll('.date-shortcut-btn'));
+
+    function updateServiceDateShortcutState() {
+        if (!serviceDateInput) return;
+        serviceDateShortcutButtons.forEach((button) => {
+            const offset = Number(button.dataset.dateOffset || 0);
+            button.classList.toggle('is-active', serviceDateInput.value === getOffsetDateInputValue(offset));
+        });
+    }
+
+    function setServiceDateValue(value) {
+        if (!serviceDateInput) return;
+        serviceDateInput.value = value;
+        updateServiceDateShortcutState();
+    }
+
+    if (serviceDateInput) {
+        serviceDateInput.max = getTodayDateInputValue();
+        if (!serviceDateInput.value) {
+            setServiceDateValue(getTodayDateInputValue());
+        } else {
+            updateServiceDateShortcutState();
+        }
+        serviceDateInput.addEventListener('input', updateServiceDateShortcutState);
+    }
+
+    if (serviceDateTrigger && serviceDateInput) {
+        serviceDateTrigger.addEventListener('click', () => {
+            if (typeof serviceDateInput.showPicker === 'function') {
+                serviceDateInput.showPicker();
+                return;
+            }
+            serviceDateInput.focus();
+        });
+    }
+
+    serviceDateShortcutButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            setServiceDateValue(getOffsetDateInputValue(Number(button.dataset.dateOffset || 0)));
+        });
+    });
+
     if (serviceDateInput && !serviceDateInput.value) {
-        serviceDateInput.value = new Date().toISOString().split('T')[0];
+        setServiceDateValue(getTodayDateInputValue());
     }
 
     // --- Load Staff Cards ---
@@ -885,7 +942,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 renderStarRatings();
                 if (serviceDateInput) {
-                    serviceDateInput.value = new Date().toISOString().split('T')[0];
+                    setServiceDateValue(getTodayDateInputValue());
                 }
                 // Reset upload preview
                 const preview = document.getElementById('upload-preview');

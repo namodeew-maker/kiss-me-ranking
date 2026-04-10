@@ -841,32 +841,44 @@
 
 .cashback-summary {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
     gap: 15px;
     margin-top: 15px;
 }
 
 .cashback-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 138px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid #333;
     border-radius: 10px;
     padding: 18px;
     text-align: center;
+    overflow: hidden;
 }
 
 .cashback-value {
     display: block;
-    font-size: 1.8rem;
+    max-width: 100%;
+    font-size: clamp(1.35rem, 2.3vw, 2.1rem);
     font-weight: bold;
     color: #00cc66;
     font-family: 'Orbitron', sans-serif;
-    margin-bottom: 6px;
+    line-height: 1.12;
+    letter-spacing: -0.04em;
+    margin-bottom: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .cashback-label {
     display: block;
     font-size: 0.82rem;
     color: #888;
+    line-height: 1.45;
 }
 
 .cashback-card-tax {
@@ -885,7 +897,7 @@
 
 .cashback-card-net .cashback-value {
     color: #00ff88;
-    font-size: 2rem;
+    font-size: clamp(1.45rem, 2.6vw, 2.35rem);
 }
 
 .cashback-card-gv {

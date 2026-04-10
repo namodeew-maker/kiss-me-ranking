@@ -521,6 +521,20 @@ async function ensureDatabaseStructure() {
         await pool.query('DROP INDEX IF EXISTS uq_user_lottery_round');
         await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_user_lottery_round_number ON lottery_guesses (user_id, round_label, guess_number)');
         await pool.query(`
+            DO $$
+            BEGIN
+                IF to_regclass('public.ratings') IS NOT NULL THEN
+                    ALTER TABLE ratings DROP CONSTRAINT IF EXISTS ratings_looks_score_check;
+                    ALTER TABLE ratings DROP CONSTRAINT IF EXISTS ratings_service_score_check;
+                    ALTER TABLE ratings DROP CONSTRAINT IF EXISTS ratings_value_score_check;
+
+                    ALTER TABLE ratings ADD CONSTRAINT ratings_looks_score_check CHECK (looks_score BETWEEN 1 AND 10);
+                    ALTER TABLE ratings ADD CONSTRAINT ratings_service_score_check CHECK (service_score BETWEEN 1 AND 10);
+                    ALTER TABLE ratings ADD CONSTRAINT ratings_value_score_check CHECK (value_score BETWEEN 1 AND 10);
+                END IF;
+            END $$;
+        `);
+        await pool.query(`
             UPDATE transactions t
             SET guess_cycle = COALESCE((
                 SELECT COUNT(*)::int
@@ -1803,6 +1817,56 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
     }
 });
 
+app.post('/api/users/:platform_id/avatar', upload.single('avatar'), async (req, res) => {
+    const { platform_id } = req.params;
+    const platform = String(req.body.platform || req.query.platform || 'line').trim().toLowerCase();
+
+    if (platform !== 'line') {
+        return res.status(400).json({ error: 'platform ต้องเป็น line เท่านั้น' });
+    }
+    if (!req.file) {
+        return res.status(400).json({ error: 'กรุณาเลือกไฟล์รูปโปรไฟล์' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const userResult = await client.query(
+            'SELECT id, global_user_id FROM users WHERE platform = $1 AND platform_id = $2',
+            [platform, platform_id]
+        );
+        const user = userResult.rows[0];
+        if (!user) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+        }
+
+        const avatarUrl = await resolveSlipUrl(req.file);
+        const idsResult = user.global_user_id
+            ? await client.query('SELECT id FROM users WHERE global_user_id = $1', [user.global_user_id])
+            : { rows: [{ id: user.id }] };
+        const targetIds = idsResult.rows.map((row) => row.id);
+
+        await client.query(
+            `UPDATE users
+             SET picture_url = $1,
+                 updated_at = NOW()
+             WHERE id = ANY($2::int[])`,
+            [avatarUrl, targetIds]
+        );
+
+        await client.query('COMMIT');
+        res.json({ success: true, picture_url: avatarUrl, updated_count: targetIds.length });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('User avatar upload error:', err);
+        res.status(500).json({ error: 'ไม่สามารถอัปโหลดรูปโปรไฟล์ได้' });
+    } finally {
+        client.release();
+    }
+});
+
 // ============ TRANSACTION (SUBMIT BILL) API ============
 
 // POST /api/transactions — customer submits a bill (slip + staff + ratings)
@@ -1823,13 +1887,13 @@ app.post('/api/transactions', upload.single('slip'), async (req, res) => {
     }
 
     const staffIdNum = parseInt(staff_id, 10);
-    const looks = parseInt(looks_score, 10) || 3;
-    const service = parseInt(service_score, 10) || 3;
-    const value = parseInt(value_score, 10) || 3;
+    const looks = parseInt(looks_score, 10) || 5;
+    const service = parseInt(service_score, 10) || 5;
+    const value = parseInt(value_score, 10) || 5;
 
     // Validate score ranges
-    if (looks < 1 || looks > 5 || service < 1 || service > 5 || value < 1 || value > 5) {
-        return res.status(400).json({ error: 'คะแนนต้องอยู่ระหว่าง 1-5' });
+    if (looks < 1 || looks > 10 || service < 1 || service > 10 || value < 1 || value > 10) {
+        return res.status(400).json({ error: 'คะแนนต้องอยู่ระหว่าง 1-10' });
     }
 
     const roundLabel = getCurrentRoundLabel();
