@@ -248,6 +248,10 @@
 }
 
 .podium-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
     color: rgba(255, 244, 217, 0.72);
     font-size: 0.78rem;
 }
@@ -392,9 +396,17 @@
 }
 
 .leaderboard-row-sub {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
     color: rgba(255, 242, 213, 0.66);
     font-size: 0.72rem;
     margin-top: 2px;
+}
+
+.leaderboard-row-sub > span:last-child {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -510,6 +522,70 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 2rem;
     font-weight: 900;
+}
+
+.best-player-tier {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+.customer-tier-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    max-width: 100%;
+    min-width: 0;
+    padding: 5px 9px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--tier-color, #888) 14%, rgba(255, 255, 255, 0.1));
+    border: 1px solid color-mix(in srgb, var(--tier-color, #888) 38%, rgba(255, 255, 255, 0.12));
+    color: #fff8df;
+    font-family: 'Kanit', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 1.1;
+    box-shadow: 0 0 16px color-mix(in srgb, var(--tier-color, #888) 16%, transparent);
+}
+
+.customer-tier-badge span:last-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.customer-tier-logo {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--tier-color, #888) 38%, transparent));
+}
+
+.customer-tier-logo.customer-rank-logo-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
+
+.podium-tier-badge {
+    justify-content: center;
+}
+
+.podium-tier-badge .customer-tier-logo {
+    width: 34px;
+    height: 34px;
+}
+
+.best-player-tier-badge {
+    padding: 7px 12px;
+    font-size: 0.88rem;
+}
+
+.best-player-tier-badge .customer-tier-logo {
+    width: 38px;
+    height: 38px;
 }
 
 .best-player-name {
@@ -664,6 +740,7 @@
     }
 
     .podium-meta {
+        gap: 5px;
         font-size: 0.72rem;
     }
 
@@ -699,6 +776,27 @@
 
     .leaderboard-row-sub {
         font-size: 0.66rem;
+    }
+
+    .customer-tier-badge {
+        gap: 5px;
+        padding: 4px 7px;
+        font-size: 0.66rem;
+    }
+
+    .customer-tier-logo {
+        width: 22px;
+        height: 22px;
+    }
+
+    .podium-tier-badge .customer-tier-logo {
+        width: 28px;
+        height: 28px;
+    }
+
+    .best-player-tier-badge .customer-tier-logo {
+        width: 30px;
+        height: 30px;
     }
 
     .best-player-top {

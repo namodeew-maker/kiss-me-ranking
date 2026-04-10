@@ -612,6 +612,16 @@
     50% { box-shadow: 0 0 30px color-mix(in srgb, var(--rank-color, #888) 60%, transparent); }
 }
 .rank-icon {
+    display: block;
+    width: 58px;
+    height: 58px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 10px color-mix(in srgb, var(--rank-color, #888) 44%, transparent));
+}
+.rank-icon.rank-visual-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 2rem;
 }
 .rank-info {
@@ -660,6 +670,18 @@
 .rank-tier-dot span {
     font-size: 1rem;
 }
+.rank-tier-logo {
+    display: block;
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+}
+.rank-tier-logo.rank-visual-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
 .rank-tier-dot.achieved {
     opacity: 1;
     border-color: var(--tier-color);
@@ -676,6 +698,23 @@
     font-size: 0.8rem;
     color: var(--text-muted);
     margin-bottom: 8px;
+}
+.rank-next-tier {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 700;
+}
+.rank-inline-logo {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+}
+.rank-inline-logo.rank-visual-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
 }
 .rank-progress-bar {
     width: 100%;
@@ -1063,6 +1102,10 @@
         border-width: 2px;
     }
     .rank-icon {
+        width: 40px;
+        height: 40px;
+    }
+    .rank-icon.rank-visual-fallback {
         font-size: 1.35rem;
     }
     .rank-label {
@@ -1089,6 +1132,13 @@
     .rank-tier-dot span {
         font-size: 0.78rem;
     }
+    .rank-tier-logo {
+        width: 20px;
+        height: 20px;
+    }
+    .rank-tier-logo.rank-visual-fallback {
+        font-size: 0.78rem;
+    }
     .rank-progress-section {
         padding-top: 10px;
     }
@@ -1097,6 +1147,7 @@
         font-size: 0.72rem;
     }
     .rank-progress-details {
+        gap: 8px;
         font-size: 0.68rem;
     }
     .reward-summary-header {

@@ -7,12 +7,13 @@ const LATIN_NUMBER_FORMATTER = new Intl.NumberFormat('en-US');
 // ==================== RANK TIERS (same as profile.js) ====================
 const RANK_TIERS = [
     { name: 'Unranked', icon: '🔘', color: '#888888', minApproved: 0 },
-    { name: 'Bronze', icon: '🥉', color: '#cd7f32', minApproved: 3 },
-    { name: 'Silver', icon: '🥈', color: '#c0c0c0', minApproved: 10 },
-    { name: 'Gold', icon: '🥇', color: '#ffd700', minApproved: 25 },
-    { name: 'Platinum', icon: '💎', color: '#00f0ff', minApproved: 50 },
-    { name: 'Diamond', icon: '👑', color: '#b44aff', minApproved: 100 },
-    { name: 'Master', icon: '🏆', color: '#ff3c3c', minApproved: 200 },
+    { name: 'Bronze', icon: '🥉', color: '#cd7f32', minApproved: 3, image: 'Logo%20Ranking/Bronze.png' },
+    { name: 'Silver', icon: '🥈', color: '#c0c0c0', minApproved: 6, image: 'Logo%20Ranking/Silver.png' },
+    { name: 'Gold', icon: '🥇', color: '#ffd700', minApproved: 12, image: 'Logo%20Ranking/Gold.png' },
+    { name: 'Platinum', icon: '💎', color: '#00f0ff', minApproved: 24, image: 'Logo%20Ranking/Platinum.png' },
+    { name: 'Diamond', icon: '👑', color: '#b44aff', minApproved: 48, image: 'Logo%20Ranking/Diamon.png' },
+    { name: 'Master', icon: '🏆', color: '#ff3c3c', minApproved: 90, image: 'Logo%20Ranking/Master.png' },
+    { name: 'Grandmaster', icon: '🏆', color: '#ffd166', minApproved: 150, image: 'Logo%20Ranking/Grandmaster.png' },
 ];
 
 function getCustomerRank(totalApproved) {
@@ -30,6 +31,21 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.appendChild(document.createTextNode(text ?? ''));
     return div.innerHTML;
+}
+
+function renderRankLogo(rank, className) {
+    if (rank?.image) {
+        return `<img class="${className}" src="${rank.image}" alt="${escapeHtml(rank.name)} rank" loading="lazy">`;
+    }
+    return `<span class="${className} customer-rank-logo-fallback" aria-hidden="true">${rank?.icon || '🔘'}</span>`;
+}
+
+function renderCustomerTierBadge(tierInfo, className = '') {
+    if (!tierInfo) return '';
+    return `<span class="customer-tier-badge ${className}" style="--tier-color:${tierInfo.color}">
+        ${renderRankLogo(tierInfo, 'customer-tier-logo')}
+        <span>${escapeHtml(tierInfo.name)}</span>
+    </span>`;
 }
 
 function resolveAssetUrl(value) {
@@ -123,6 +139,7 @@ function renderLeaderboardBoard(list, options) {
         const rank = index + 1;
         const avatarSrc = options.getAvatar(entry);
         const displayName = options.getDisplayName(entry);
+        const tierInfo = options.getTier ? options.getTier(entry) : null;
         const avatarNode = avatarSrc
             ? `<button type="button" class="podium-avatar-btn" data-fullimg="${avatarSrc}" data-avatar-name="${escapeHtml(displayName)}" aria-label="ดูรูป ${escapeHtml(displayName)} เต็ม">
                 <img class="podium-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}"
@@ -134,7 +151,10 @@ function renderLeaderboardBoard(list, options) {
             <div class="podium-slot-rank">${formatRank(rank)}</div>
             ${avatarNode}
             <div class="podium-name">${escapeHtml(displayName)}</div>
-            <div class="podium-meta">${escapeHtml(options.getSubtitle(entry))}</div>
+            <div class="podium-meta">
+                ${renderCustomerTierBadge(tierInfo, 'podium-tier-badge')}
+                <span>${escapeHtml(options.getSubtitle(entry))}</span>
+            </div>
             <div class="podium-points">${escapeHtml(options.getMetric(entry))}</div>
         </div>`;
     }).join('');
@@ -143,6 +163,7 @@ function renderLeaderboardBoard(list, options) {
         const rank = index + 1;
         const displayName = options.getDisplayName(entry);
         const avatarSrc = options.getAvatar(entry);
+        const tierInfo = options.getTier ? options.getTier(entry) : null;
         const rowAvatar = avatarSrc
             ? `<button type="button" class="leaderboard-row-avatar-btn" data-fullimg="${avatarSrc}" data-avatar-name="${escapeHtml(displayName)}" aria-label="ดูรูป ${escapeHtml(displayName)} เต็ม">
                 <img class="leaderboard-row-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}"
@@ -156,7 +177,10 @@ function renderLeaderboardBoard(list, options) {
                 ${rowAvatar}
                 <div>
                 <div class="leaderboard-row-name">${escapeHtml(displayName)}</div>
-                <div class="leaderboard-row-sub">${escapeHtml(options.getSubtitle(entry))}</div>
+                <div class="leaderboard-row-sub">
+                    ${renderCustomerTierBadge(tierInfo, 'leaderboard-row-tier-badge')}
+                    <span>${escapeHtml(options.getSubtitle(entry))}</span>
+                </div>
                 </div>
             </div>
             <div class="leaderboard-row-points">${escapeHtml(options.getMetric(entry))}</div>
@@ -165,6 +189,7 @@ function renderLeaderboardBoard(list, options) {
 
     const bestDisplayName = options.getDisplayName(best);
     const bestAvatarSrc = options.getAvatar(best);
+    const bestTierInfo = options.getTier ? options.getTier(best) : null;
     const bestAvatar = bestAvatarSrc
         ? `<button type="button" class="best-player-avatar-btn" data-fullimg="${bestAvatarSrc}" data-avatar-name="${escapeHtml(bestDisplayName)}" aria-label="ดูรูป ${escapeHtml(bestDisplayName)} เต็ม">
             <img class="best-player-avatar" src="${bestAvatarSrc}" alt="${escapeHtml(bestDisplayName)}"
@@ -230,6 +255,7 @@ function renderLeaderboardBoard(list, options) {
             <div class="best-player-score-wrap">
                 <div class="best-player-score-label">${escapeHtml(options.metricHeader)}</div>
                 <div class="best-player-score">${escapeHtml(options.getMetric(best))}</div>
+                <div class="best-player-tier">${renderCustomerTierBadge(bestTierInfo, 'best-player-tier-badge')}</div>
             </div>
             <div class="best-player-name">${escapeHtml(bestDisplayName)}</div>
             <div class="best-player-meta">
@@ -277,10 +303,8 @@ async function loadCustomerRanking() {
             metricHeader: 'Approved',
             getAvatar: (customer) => getAvatarSrc(customer, customer.display_name || 'U'),
             getDisplayName: (customer) => customer.display_name || '—',
-            getSubtitle: (customer) => {
-                const tierInfo = getCustomerRank(customer.total_approved);
-                return `${tierInfo.icon} ${tierInfo.name} • อนุมัติ ${formatMetricNumber(customer.total_approved || 0)} ครั้ง`;
-            },
+            getSubtitle: (customer) => `อนุมัติ ${formatMetricNumber(customer.total_approved || 0)} ครั้ง`,
+            getTier: (customer) => getCustomerRank(customer.total_approved),
             getMetric: (customer) => formatMetricNumber(customer.total_approved || 0),
             getBestMeta: (customer) => {
                 const tierInfo = getCustomerRank(customer.total_approved);

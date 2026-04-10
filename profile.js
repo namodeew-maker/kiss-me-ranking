@@ -179,12 +179,13 @@ function spawnParticles() {
 // ==================== RANK SYSTEM ====================
 const RANK_TIERS = [
     { name: 'Unranked', icon: '🔘', color: '#888888', minApproved: 0 },
-    { name: 'Bronze', icon: '🥉', color: '#cd7f32', minApproved: 3 },
-    { name: 'Silver', icon: '🥈', color: '#c0c0c0', minApproved: 10 },
-    { name: 'Gold', icon: '🥇', color: '#ffd700', minApproved: 25 },
-    { name: 'Platinum', icon: '💎', color: '#00f0ff', minApproved: 50 },
-    { name: 'Diamond', icon: '👑', color: '#b44aff', minApproved: 100 },
-    { name: 'Master', icon: '🏆', color: '#ff3c3c', minApproved: 200 },
+    { name: 'Bronze', icon: '🥉', color: '#cd7f32', minApproved: 3, image: 'Logo%20Ranking/Bronze.png' },
+    { name: 'Silver', icon: '🥈', color: '#c0c0c0', minApproved: 6, image: 'Logo%20Ranking/Silver.png' },
+    { name: 'Gold', icon: '🥇', color: '#ffd700', minApproved: 12, image: 'Logo%20Ranking/Gold.png' },
+    { name: 'Platinum', icon: '💎', color: '#00f0ff', minApproved: 24, image: 'Logo%20Ranking/Platinum.png' },
+    { name: 'Diamond', icon: '👑', color: '#b44aff', minApproved: 48, image: 'Logo%20Ranking/Diamon.png' },
+    { name: 'Master', icon: '🏆', color: '#ff3c3c', minApproved: 90, image: 'Logo%20Ranking/Master.png' },
+    { name: 'Grandmaster', icon: '🏆', color: '#ffd166', minApproved: 150, image: 'Logo%20Ranking/Grandmaster.png' },
 ];
 
 function calculateRank(lifetimeApproved) {
@@ -201,6 +202,13 @@ function calculateRank(lifetimeApproved) {
     return { current: rank, next: nextRank, currentIdx };
 }
 
+function renderRankVisual(rank, className) {
+    if (rank.image) {
+        return `<img class="${className}" src="${rank.image}" alt="${escapeHtml(rank.name)} rank" loading="lazy">`;
+    }
+    return `<span class="${className} rank-visual-fallback" aria-hidden="true">${rank.icon}</span>`;
+}
+
 function renderRankCard(lifetimeApproved) {
     const { current, next, currentIdx } = calculateRank(lifetimeApproved);
     const el = document.getElementById('rank-card');
@@ -209,15 +217,20 @@ function renderRankCard(lifetimeApproved) {
     // Progress to next rank
     let progressHtml = '';
     if (next) {
-        const approvedPct = next.minApproved > 0 ? Math.min(lifetimeApproved / next.minApproved * 100, 100) : 100;
+        const currentMin = Number(current.minApproved) || 0;
+        const nextMin = Number(next.minApproved) || 0;
+        const tierRange = Math.max(1, nextMin - currentMin);
+        const approvedPct = Math.min(Math.max((lifetimeApproved - currentMin) / tierRange * 100, 0), 100);
+        const remainingToNext = Math.max(nextMin - lifetimeApproved, 0);
         progressHtml = `
             <div class="rank-progress-section">
-                <div class="rank-next-label">ถัดไป: <span style="color:${next.color}">${next.icon} ${next.name}</span></div>
+                <div class="rank-next-label">ถัดไป: <span class="rank-next-tier" style="color:${next.color}">${renderRankVisual(next, 'rank-inline-logo')} ${next.name}</span></div>
                 <div class="rank-progress-bar">
                     <div class="rank-progress-fill" style="width:${approvedPct}%; background:linear-gradient(90deg, ${current.color}, ${next.color})"></div>
                 </div>
                 <div class="rank-progress-details">
-                    <span>ใช้บริการ: ${lifetimeApproved}/${next.minApproved} ครั้ง</span>
+                    <span>ใช้บริการ: ${lifetimeApproved.toLocaleString('th-TH')}/${nextMin.toLocaleString('th-TH')} ครั้ง</span>
+                    <span>อีก ${remainingToNext.toLocaleString('th-TH')} ครั้ง</span>
                 </div>
             </div>`;
     } else {
@@ -228,14 +241,14 @@ function renderRankCard(lifetimeApproved) {
     const dotsHtml = RANK_TIERS.slice(1).map((tier, idx) => {
         const achieved = idx + 1 <= currentIdx;
         return `<div class="rank-tier-dot ${achieved ? 'achieved' : ''}" style="--tier-color:${tier.color}" title="${tier.name}">
-            <span>${tier.icon}</span>
+            ${renderRankVisual(tier, 'rank-tier-logo')}
         </div>`;
     }).join('');
 
     el.innerHTML = `
         <div class="rank-display">
             <div class="rank-icon-wrap" style="--rank-color:${current.color}">
-                <span class="rank-icon">${current.icon}</span>
+                ${renderRankVisual(current, 'rank-icon')}
             </div>
             <div class="rank-info">
                 <div class="rank-label">แรงค์ปัจจุบัน</div>
