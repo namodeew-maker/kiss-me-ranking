@@ -970,6 +970,16 @@
         padding: 14px;
     }
 
+    .leaderboard-card-title {
+        font-size: 0.94rem;
+    }
+
+    .leaderboard-card-subtitle,
+    .leaderboard-mini-label {
+        font-size: 0.62rem;
+        letter-spacing: 0.08em;
+    }
+
     .leaderboard-trophy-row {
         gap: 6px;
     }

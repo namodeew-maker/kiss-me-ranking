@@ -570,6 +570,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    min-height: 48px;
     padding: 14px 20px;
     cursor: pointer;
     font-size: 0.9rem;
@@ -1261,6 +1262,7 @@ header h1 {
     background: rgba(0, 240, 255, 0.08);
     color: var(--neon-cyan);
     border-radius: 12px;
+    min-height: 46px;
     padding: 14px 16px;
     font-family: 'Kanit', sans-serif;
     font-weight: 700;
@@ -1282,6 +1284,7 @@ header h1 {
 }
 
 .date-shortcut-btn {
+    min-height: 40px;
     min-width: 88px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     background: rgba(255, 255, 255, 0.04);
@@ -1323,6 +1326,7 @@ header h1 {
 
 .btn-submit {
     width: 100%;
+    min-height: 52px;
     padding: 16px;
     background: linear-gradient(135deg, var(--neon-red), #cc2222);
     border: none;
@@ -1412,7 +1416,10 @@ header h1 {
 }
 
 .btn-status-link {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
     padding: 14px 32px;
     background: linear-gradient(135deg, rgba(255, 60, 60, 0.15), rgba(255, 60, 60, 0.05));
     border: 1px solid var(--neon-red);
@@ -2770,6 +2777,21 @@ header h1 {
 
     .footer-links-centered {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 380px) {
+    .header-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .service-date-shortcuts {
+        grid-template-columns: 1fr;
+    }
+
+    .schedule-toggle {
+        padding: 12px 14px;
+        font-size: 0.84rem;
     }
 }
 

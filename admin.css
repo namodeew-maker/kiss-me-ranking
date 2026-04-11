@@ -19,6 +19,7 @@
     color: var(--text-muted);
     font-size: 0.85rem;
     margin: 4px 0 0;
+    line-height: 1.5;
 }
 
 .admin-header-emphasis {
@@ -212,6 +213,10 @@
 }
 
 .btn-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
     color: var(--neon-red);
     text-decoration: none;
     border: 1px solid var(--neon-red);
@@ -298,6 +303,7 @@
     background: #1a1a1a;
     border: 1px solid #333;
     color: white;
+    min-height: 44px;
     padding: 10px 14px;
     border-radius: 5px;
     font-size: 14px;
@@ -309,6 +315,7 @@
 
 /* Action Buttons */
 .btn-action {
+    min-height: 44px;
     padding: 10px 20px;
     border: none;
     border-radius: 5px;
@@ -316,6 +323,7 @@
     font-weight: bold;
     transition: 0.3s;
     white-space: nowrap;
+    font-family: 'Kanit', sans-serif;
 }
 
 .btn-red {
@@ -570,6 +578,7 @@
 }
 
 .btn-small {
+    min-height: 38px;
     padding: 4px 10px;
     font-size: 0.8rem;
     border: 1px solid #555;
@@ -578,6 +587,7 @@
     cursor: pointer;
     border-radius: 4px;
     transition: 0.2s;
+    font-family: 'Kanit', sans-serif;
 }
 
 .btn-small:hover {
@@ -1546,6 +1556,7 @@
     .admin-tab {
         flex: 0 0 auto;
         min-width: 118px;
+        min-height: 44px;
         padding: 12px 10px;
         font-size: 0.82rem;
         border: 1px solid rgba(255, 60, 60, 0.18);
@@ -1678,6 +1689,18 @@
 
     .ranking-reset-meta strong {
         flex: 1 1 100%;
+    }
+
+    .audit-notice {
+        align-items: flex-start;
+    }
+
+    .user-pagination {
+        justify-content: center;
+    }
+
+    .user-pagination .btn-small {
+        min-width: 108px;
     }
 }
 

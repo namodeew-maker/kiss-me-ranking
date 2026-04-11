@@ -421,6 +421,7 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     animation: fadeInUp 0.4s ease-out both;
     transition: background 0.2s;
+    scroll-margin-top: 16px;
 }
 .list-item:last-child {
     border-bottom: none;
@@ -1225,7 +1226,11 @@
         font-size: 0.8rem;
     }
     .profile-activity-list .list-item {
-        padding: 10px 0;
+        margin-bottom: 8px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.03);
     }
     .list-item {
         padding: 10px 12px;
@@ -1266,6 +1271,14 @@
     .slip-thumb {
         width: 34px;
         height: 34px;
+    }
+
+    .slip-thumb-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 40px;
+        min-height: 40px;
     }
     .item-badge {
         border-radius: 8px;
@@ -1354,6 +1367,17 @@
 
     .reward-summary-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 420px) {
+    .item-right {
+        align-items: flex-start;
+    }
+
+    .item-badge {
+        max-width: 100%;
+        white-space: normal;
     }
 }
 

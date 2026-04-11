@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Login - เข้าสู่ระบบผู้ตรวจสอบ</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20260411c">
     <style>
         .login-wrapper {
             min-height: 100vh;
@@ -147,6 +147,47 @@
 
         .login-footer a:hover {
             color: var(--neon-cyan);
+        }
+
+        @media (max-width: 520px) {
+            .login-wrapper {
+                align-items: flex-start;
+                padding: 14px 12px 20px;
+            }
+
+            .login-header {
+                padding: 28px 20px 20px;
+            }
+
+            .login-header h1 {
+                font-size: 1rem;
+                letter-spacing: 1px;
+            }
+
+            .login-body {
+                padding: 20px 16px;
+            }
+
+            .login-field {
+                margin-bottom: 16px;
+            }
+
+            .login-field input,
+            .btn-login {
+                min-height: 46px;
+            }
+
+            .login-footer {
+                padding: 0 16px 18px;
+            }
+
+            .login-footer a {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 40px;
+                width: 100%;
+            }
         }
 
         @keyframes shake {
