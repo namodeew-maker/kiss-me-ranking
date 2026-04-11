@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login</title>
+    <script>
+        (async function bootstrapAdminLogin() {
+            try {
+                const res = await fetch('../admin-login.html', { cache: 'no-store' });
+                if (!res.ok) throw new Error('load-failed');
+
+                const html = await res.text();
+                const withBase = html.replace('<head>', '<head><base href="../">');
+                document.open();
+                document.write(withBase);
+                document.close();
+            } catch (err) {
+                document.body.innerHTML = `
+                    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#060612;color:#e0e0e0;font-family:Kanit,sans-serif;padding:24px;text-align:center;">
+                        <div>
+                            <h1 style="margin:0 0 12px;color:#ff3c3c;">ไม่สามารถโหลดหน้าแอดมินได้</h1>
+                            <p style="margin:0 0 16px;opacity:.8;">กรุณาลองรีเฟรชหน้าอีกครั้ง</p>
+                            <a href="../admin-login.html" style="color:#00f0ff;">เปิดหน้าเดิม</a>
+                        </div>
+                    </div>
+                `;
+            }
+        })();
+    </script>
+</head>
+<body></body>
+</html>

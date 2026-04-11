@@ -16,6 +16,36 @@ const PORT = process.env.PORT || 3000;
 const CASHBACK_REWARD_AMOUNT = 5000;
 const GV_REWARD_AMOUNT = 300;
 const CASHBACK_WITHDRAWAL_RATE = 0.9;
+const DEFAULT_ADMIN_LOGIN_SLUG = 'admin';
+
+function normalizeAdminLoginSlug(value) {
+    const normalized = String(value || '').trim().replace(/^\/+|\/+$/g, '');
+    if (!normalized) return DEFAULT_ADMIN_LOGIN_SLUG;
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$/.test(normalized)) {
+        console.warn(`Invalid ADMIN_LOGIN_PATH "${value}" - falling back to "${DEFAULT_ADMIN_LOGIN_SLUG}"`);
+        return DEFAULT_ADMIN_LOGIN_SLUG;
+    }
+    return normalized;
+}
+
+const ADMIN_LOGIN_SLUG = normalizeAdminLoginSlug(process.env.ADMIN_LOGIN_PATH || DEFAULT_ADMIN_LOGIN_SLUG);
+const ADMIN_LOGIN_ROUTE = `/${ADMIN_LOGIN_SLUG}`;
+const ADMIN_PANEL_ROUTE = `${ADMIN_LOGIN_ROUTE}/panel`;
+const ADMIN_SHARED_ASSET_PATHS = new Set(['/styles.css', '/admin.css', '/admin.js']);
+
+function normalizeRequestPath(value) {
+    return String(value || '').replace(/\/+$/, '') || '/';
+}
+
+function isAdminRouteRequest(requestPath) {
+    const normalized = normalizeRequestPath(requestPath);
+    return normalized === ADMIN_LOGIN_ROUTE
+        || normalized === ADMIN_PANEL_ROUTE
+        || normalized === `${ADMIN_LOGIN_ROUTE}/styles.css`
+        || normalized === `${ADMIN_LOGIN_ROUTE}/admin.css`
+        || normalized === `${ADMIN_LOGIN_ROUTE}/admin.js`
+        || normalized === `${ADMIN_LOGIN_ROUTE}/index.html`;
+}
 
 // ============ CLOUDFLARE R2 CONFIG ============
 
@@ -454,8 +484,11 @@ app.use((req, res, next) => {
     const isApiRequest = req.path.startsWith('/api');
     const isUploadRequest = req.path.startsWith('/uploads');
     const isLineCallback = req.path.startsWith('/auth/line/callback');
+    const normalizedPath = normalizeRequestPath(req.path);
+    const isAdminRequest = isAdminRouteRequest(normalizedPath);
+    const isSharedAdminAssetRequest = ADMIN_SHARED_ASSET_PATHS.has(normalizedPath);
 
-    if (!isRenderHost || req.method !== 'GET' || isApiRequest || isUploadRequest || isLineCallback) {
+    if (!isRenderHost || req.method !== 'GET' || isApiRequest || isUploadRequest || isLineCallback || isAdminRequest || isSharedAdminAssetRequest) {
         return next();
     }
 
@@ -464,11 +497,58 @@ app.use((req, res, next) => {
     return res.redirect(302, `https://namodeew-maker.github.io/kiss-me-ranking${targetPath}${query}`);
 });
 
+const sendProjectFile = (filename) => (req, res) => res.sendFile(path.join(__dirname, filename));
+
+app.get(ADMIN_LOGIN_ROUTE, sendProjectFile('admin-login.html'));
+app.get(ADMIN_PANEL_ROUTE, sendProjectFile('admin.html'));
+app.get(`${ADMIN_LOGIN_ROUTE}/styles.css`, sendProjectFile('styles.css'));
+app.get(`${ADMIN_LOGIN_ROUTE}/admin.css`, sendProjectFile('admin.css'));
+app.get(`${ADMIN_LOGIN_ROUTE}/admin.js`, sendProjectFile('admin.js'));
+app.get(`${ADMIN_LOGIN_ROUTE}/index.html`, sendProjectFile('index.html'));
+
+const legacyAdminRedirectTarget = ADMIN_LOGIN_ROUTE === '/admin' ? ADMIN_LOGIN_ROUTE : '/index.html';
+const legacyAdminPanelRedirectTarget = ADMIN_LOGIN_ROUTE === '/admin' ? ADMIN_PANEL_ROUTE : '/index.html';
+app.get('/admin-login.html', (req, res) => res.redirect(302, legacyAdminRedirectTarget));
+app.get('/admin.html', (req, res) => res.redirect(302, legacyAdminPanelRedirectTarget));
+
 app.use(express.static(path.join(__dirname)));
 app.use('/uploads', express.static(uploadsDir));
 
 async function ensureDatabaseStructure() {
     try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS admin_users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) NOT NULL UNIQUE,
+                password_hash VARCHAR(255) NOT NULL,
+                role VARCHAR(20) NOT NULL DEFAULT 'admin',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        await pool.query("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'admin'");
+        await pool.query("UPDATE admin_users SET role = 'admin' WHERE role IS NULL OR TRIM(role) = '' OR LOWER(role) NOT IN ('admin', 'editor')");
+        await pool.query(`
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conrelid = 'admin_users'::regclass
+                      AND conname = 'admin_users_role_check'
+                ) THEN
+                    ALTER TABLE admin_users DROP CONSTRAINT admin_users_role_check;
+                END IF;
+
+                ALTER TABLE admin_users
+                    ADD CONSTRAINT admin_users_role_check
+                    CHECK (role IN ('admin', 'editor'));
+            END $$;
+        `);
+        await pool.query(`
+            INSERT INTO admin_users (username, password_hash, role)
+            VALUES ('Kissmy456', '$2b$10$NLGaIVss43MdXEgjmKfN0O0WuaJf4uQWtFtEnvCBz8Y4zbhc4WrvS', 'admin')
+            ON CONFLICT (username) DO NOTHING
+        `);
         await pool.query(`
             CREATE TABLE IF NOT EXISTS app_settings (
                 key VARCHAR(100) PRIMARY KEY,
@@ -701,6 +781,7 @@ async function getGuessPointCycleConfig(queryable = pool) {
 
 const authTokens = new Map();
 const TOKEN_EXPIRY_MS = 8 * 60 * 60 * 1000; // 8 hours
+const ADMIN_ROLES = ['admin', 'editor'];
 
 function cleanExpiredTokens() {
     const now = Date.now();
@@ -722,6 +803,19 @@ function requireAuth(req, res, next) {
     }
     req.adminUser = session.username;
     req.adminUserId = session.userId;
+    req.adminRole = session.role || 'admin';
+    next();
+}
+
+function normalizeAdminRole(role) {
+    const normalized = String(role || '').trim().toLowerCase();
+    return ADMIN_ROLES.includes(normalized) ? normalized : null;
+}
+
+function requireAdminManager(req, res, next) {
+    if (req.adminRole !== 'admin') {
+        return res.status(403).json({ error: 'เฉพาะแอดมินหลักเท่านั้นที่จัดการบัญชีผู้ดูแลได้' });
+    }
     next();
 }
 
@@ -1114,9 +1208,10 @@ app.post('/api/login', async (req, res) => {
         if (!valid) {
             return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
         }
+        const role = normalizeAdminRole(user.role) || 'admin';
         const token = crypto.randomBytes(32).toString('hex');
-        authTokens.set(token, { username: user.username, userId: user.id, createdAt: Date.now() });
-        res.json({ token, username: user.username });
+        authTokens.set(token, { username: user.username, userId: user.id, role, createdAt: Date.now() });
+        res.json({ token, username: user.username, role });
     } catch (err) {
         console.error('Login error:', err);
         res.status(500).json({ error: 'เกิดข้อผิดพลาดในระบบ' });
@@ -1125,7 +1220,222 @@ app.post('/api/login', async (req, res) => {
 
 // GET /api/auth/verify
 app.get('/api/auth/verify', requireAuth, (req, res) => {
-    res.json({ valid: true, username: req.adminUser });
+    res.json({ valid: true, username: req.adminUser, user_id: req.adminUserId, role: req.adminRole });
+});
+
+app.get('/api/admin/accounts', requireAuth, requireAdminManager, async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT id, username, role, created_at
+             FROM admin_users
+             ORDER BY CASE WHEN role = 'admin' THEN 0 ELSE 1 END, username ASC`
+        );
+
+        res.json({
+            accounts: result.rows.map((row) => ({
+                id: row.id,
+                username: row.username,
+                role: normalizeAdminRole(row.role) || 'admin',
+                created_at: row.created_at,
+                is_current: row.id === req.adminUserId
+            })),
+            current: {
+                id: req.adminUserId,
+                username: req.adminUser,
+                role: req.adminRole
+            }
+        });
+    } catch (err) {
+        console.error('Admin accounts fetch error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดรายชื่อผู้ดูแลได้' });
+    }
+});
+
+app.post('/api/admin/accounts', requireAuth, requireAdminManager, async (req, res) => {
+    const username = String(req.body?.username || '').trim();
+    const password = String(req.body?.password || '');
+    const role = normalizeAdminRole(req.body?.role);
+
+    if (!/^[A-Za-z0-9._-]{3,50}$/.test(username)) {
+        return res.status(400).json({ error: 'Username ต้องยาว 3-50 ตัว และใช้ได้เฉพาะ a-z, A-Z, 0-9, จุด, ขีดกลาง หรือ _' });
+    }
+    if (password.length < 8) {
+        return res.status(400).json({ error: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' });
+    }
+    if (!role) {
+        return res.status(400).json({ error: 'กรุณาเลือก role ของผู้ดูแล' });
+    }
+
+    try {
+        const duplicateResult = await pool.query(
+            'SELECT id FROM admin_users WHERE LOWER(username) = LOWER($1) LIMIT 1',
+            [username]
+        );
+        if (duplicateResult.rows.length > 0) {
+            return res.status(409).json({ error: 'Username นี้ถูกใช้แล้ว' });
+        }
+
+        const passwordHash = await bcrypt.hash(password, 10);
+        const result = await pool.query(
+            `INSERT INTO admin_users (username, password_hash, role)
+             VALUES ($1, $2, $3)
+             RETURNING id, username, role, created_at`,
+            [username, passwordHash, role]
+        );
+
+        res.status(201).json({
+            success: true,
+            account: {
+                ...result.rows[0],
+                role: normalizeAdminRole(result.rows[0].role) || 'admin',
+                is_current: false
+            }
+        });
+    } catch (err) {
+        console.error('Admin account create error:', err);
+        res.status(500).json({ error: 'ไม่สามารถสร้างผู้ดูแลใหม่ได้' });
+    }
+});
+
+app.put('/api/admin/accounts/:id', requireAuth, requireAdminManager, async (req, res) => {
+    const accountId = parseInt(req.params.id, 10);
+    const username = String(req.body?.username || '').trim();
+    const password = String(req.body?.password || '');
+    const role = normalizeAdminRole(req.body?.role);
+
+    if (Number.isNaN(accountId)) {
+        return res.status(400).json({ error: 'ไม่พบบัญชีผู้ดูแลที่ต้องการแก้ไข' });
+    }
+    if (!/^[A-Za-z0-9._-]{3,50}$/.test(username)) {
+        return res.status(400).json({ error: 'Username ต้องยาว 3-50 ตัว และใช้ได้เฉพาะ a-z, A-Z, 0-9, จุด, ขีดกลาง หรือ _' });
+    }
+    if (password && password.length < 8) {
+        return res.status(400).json({ error: 'ถ้าจะเปลี่ยนรหัสผ่าน ต้องมีอย่างน้อย 8 ตัวอักษร' });
+    }
+    if (!role) {
+        return res.status(400).json({ error: 'กรุณาเลือก role ของผู้ดูแล' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const targetResult = await client.query(
+            'SELECT id, username, role FROM admin_users WHERE id = $1 LIMIT 1',
+            [accountId]
+        );
+        const target = targetResult.rows[0];
+        if (!target) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'ไม่พบบัญชีผู้ดูแล' });
+        }
+
+        const duplicateResult = await client.query(
+            'SELECT id FROM admin_users WHERE LOWER(username) = LOWER($1) AND id <> $2 LIMIT 1',
+            [username, accountId]
+        );
+        if (duplicateResult.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ error: 'Username นี้ถูกใช้แล้ว' });
+        }
+
+        if ((normalizeAdminRole(target.role) || 'admin') === 'admin' && role !== 'admin') {
+            const adminCountResult = await client.query(
+                "SELECT COUNT(*)::int AS total FROM admin_users WHERE role = 'admin'"
+            );
+            const adminCount = Number(adminCountResult.rows[0]?.total || 0);
+            if (adminCount <= 1) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ error: 'ต้องมีบัญชี role admin อย่างน้อย 1 บัญชีเสมอ' });
+            }
+        }
+
+        if (password) {
+            const passwordHash = await bcrypt.hash(password, 10);
+            await client.query(
+                `UPDATE admin_users
+                 SET username = $1, role = $2, password_hash = $3
+                 WHERE id = $4`,
+                [username, role, passwordHash, accountId]
+            );
+        } else {
+            await client.query(
+                `UPDATE admin_users
+                 SET username = $1, role = $2
+                 WHERE id = $3`,
+                [username, role, accountId]
+            );
+        }
+
+        await client.query('COMMIT');
+
+        for (const [token, session] of authTokens.entries()) {
+            if (session.userId === accountId) {
+                authTokens.set(token, { ...session, username, role });
+            }
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Admin account update error:', err);
+        res.status(500).json({ error: 'ไม่สามารถอัปเดตผู้ดูแลได้' });
+    } finally {
+        client.release();
+    }
+});
+
+app.delete('/api/admin/accounts/:id', requireAuth, requireAdminManager, async (req, res) => {
+    const accountId = parseInt(req.params.id, 10);
+    if (Number.isNaN(accountId)) {
+        return res.status(400).json({ error: 'ไม่พบบัญชีผู้ดูแลที่ต้องการลบ' });
+    }
+    if (accountId === req.adminUserId) {
+        return res.status(400).json({ error: 'ไม่สามารถลบบัญชีที่กำลังใช้งานอยู่ได้' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const targetResult = await client.query(
+            'SELECT id, role FROM admin_users WHERE id = $1 LIMIT 1',
+            [accountId]
+        );
+        const target = targetResult.rows[0];
+        if (!target) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'ไม่พบบัญชีผู้ดูแล' });
+        }
+
+        if ((normalizeAdminRole(target.role) || 'admin') === 'admin') {
+            const adminCountResult = await client.query(
+                "SELECT COUNT(*)::int AS total FROM admin_users WHERE role = 'admin'"
+            );
+            const adminCount = Number(adminCountResult.rows[0]?.total || 0);
+            if (adminCount <= 1) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ error: 'ต้องมีบัญชี role admin อย่างน้อย 1 บัญชีเสมอ' });
+            }
+        }
+
+        await client.query('DELETE FROM admin_users WHERE id = $1', [accountId]);
+        await client.query('COMMIT');
+
+        for (const [token, session] of authTokens.entries()) {
+            if (session.userId === accountId) {
+                authTokens.delete(token);
+            }
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Admin account delete error:', err);
+        res.status(500).json({ error: 'ไม่สามารถลบผู้ดูแลได้' });
+    } finally {
+        client.release();
+    }
 });
 
 app.get('/api/admin/storage/status', requireAuth, async (req, res) => {
@@ -3381,6 +3691,7 @@ async function startServer() {
 
     app.listen(PORT, () => {
         console.log(`Kiss Me Ranking server running at http://localhost:${PORT}`);
+        console.log(`Admin login route: ${ADMIN_LOGIN_ROUTE} (panel: ${ADMIN_PANEL_ROUTE})`);
     });
 }
 

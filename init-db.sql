@@ -182,6 +182,8 @@ CREATE TABLE IF NOT EXISTS admin_users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'admin'
+        CHECK (role IN ('admin', 'editor')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -189,6 +191,6 @@ CREATE TABLE IF NOT EXISTS admin_users (
 -- 9. Seed ข้อมูลเริ่มต้น — Admin User
 -- username: Kissmy456 / password: Kiss@456789
 -- ============================================
-INSERT INTO admin_users (username, password_hash)
-VALUES ('Kissmy456', '$2b$10$NLGaIVss43MdXEgjmKfN0O0WuaJf4uQWtFtEnvCBz8Y4zbhc4WrvS')
+INSERT INTO admin_users (username, password_hash, role)
+VALUES ('Kissmy456', '$2b$10$NLGaIVss43MdXEgjmKfN0O0WuaJf4uQWtFtEnvCBz8Y4zbhc4WrvS', 'admin')
 ON CONFLICT (username) DO NOTHING;

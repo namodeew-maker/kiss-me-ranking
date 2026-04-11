@@ -715,9 +715,14 @@
     display: flex;
     gap: 10px;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .header-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     color: var(--neon-cyan);
     text-decoration: none;
     border: 1px solid var(--neon-cyan);
@@ -726,6 +731,8 @@
     transition: all 0.3s;
     font-size: 0.85rem;
     font-weight: 600;
+    min-height: 46px;
+    line-height: 1;
 }
 
 .header-link:hover {
@@ -878,24 +885,6 @@ header h1 {
     color: var(--text-muted);
     font-size: 0.85rem;
     margin: 4px 0 0;
-}
-
-.admin-link {
-    color: var(--neon-red);
-    text-decoration: none;
-    border: 1px solid var(--neon-red);
-    padding: 10px 20px;
-    border-radius: 8px;
-    transition: all 0.3s;
-    font-size: 0.85rem;
-    font-weight: 600;
-}
-
-.admin-link:hover {
-    background: var(--neon-red);
-    color: white;
-    box-shadow: 0 0 20px var(--neon-red-glow);
-    transform: translateY(-2px);
 }
 
 /* Steps Progress Bar */
@@ -1668,29 +1657,33 @@ header h1 {
 .liff-profile {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 6px 14px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 30px;
+    gap: 12px;
+    min-height: 46px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.12), rgba(255, 60, 60, 0.05));
+    border: 1px solid rgba(0, 240, 255, 0.28);
+    border-radius: 12px;
+    box-shadow: 0 0 18px rgba(0, 240, 255, 0.12);
 }
 
 .liff-avatar {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     border: 2px solid var(--neon-cyan);
     object-fit: cover;
+    box-shadow: 0 0 14px rgba(0, 240, 255, 0.2);
 }
 
 .liff-name {
     font-size: 0.85rem;
     color: var(--text-silver);
     font-weight: 600;
-    max-width: 120px;
+    max-width: 132px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    line-height: 1.1;
 }
 
 /* ==================== PROGRESS BAR (หลอดสะสม) ==================== */
@@ -2731,23 +2724,24 @@ header h1 {
 
 /* ==================== PROFILE BUTTON ==================== */
 .profile-btn {
-    background: none;
-    border: 1px solid rgba(0, 240, 255, 0.25);
+    background: rgba(0, 240, 255, 0.08);
+    border: 1px solid rgba(0, 240, 255, 0.38);
     color: var(--neon-cyan);
-    padding: 6px 14px;
+    padding: 10px 16px;
     border-radius: 8px;
     font-family: 'Kanit', sans-serif;
-    font-size: 0.82rem;
-    font-weight: 500;
+    font-size: 0.85rem;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.3s;
     white-space: nowrap;
+    box-shadow: 0 0 14px rgba(0, 240, 255, 0.12);
 }
 
 .profile-btn:hover {
-    background: rgba(0, 240, 255, 0.1);
+    background: rgba(0, 240, 255, 0.18);
     border-color: var(--neon-cyan);
-    box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+    box-shadow: 0 0 18px rgba(0, 240, 255, 0.24);
 }
 
 /* ==================== PROFILE MODAL ==================== */

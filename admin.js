@@ -2,11 +2,30 @@ const API_BASE = window.location.hostname === 'namodeew-maker.github.io'
     ? 'https://kiss-me-ranking.onrender.com/api'
     : '/api';
 const API_ROOT = API_BASE.replace(/\/api$/, '');
+const currentAdminPath = (window.location.pathname || '/').replace(/\/+$/, '') || '/';
+
+function deriveAdminPanelPath(pathname) {
+    if (pathname.endsWith('/admin.html')) {
+        return `${pathname.slice(0, -'/admin.html'.length) || ''}/admin/panel`;
+    }
+    if (pathname.endsWith('/panel/index.html')) {
+        return pathname.slice(0, -'/index.html'.length);
+    }
+    if (pathname.endsWith('/panel')) {
+        return pathname;
+    }
+    return '/admin/panel';
+}
+
+const ADMIN_PANEL_PATH = deriveAdminPanelPath(currentAdminPath);
+const ADMIN_LOGIN_PATH = ADMIN_PANEL_PATH.endsWith('/panel')
+    ? (ADMIN_PANEL_PATH.slice(0, -'/panel'.length) || '/admin')
+    : '/admin';
 
 // --- Auth Guard ---
 const adminToken = sessionStorage.getItem('admin_token');
 if (!adminToken) {
-    window.location.href = 'admin-login.html';
+    window.location.href = ADMIN_LOGIN_PATH;
 }
 
 function authHeaders(extra = {}) {
@@ -19,7 +38,8 @@ async function authFetch(url, options = {}) {
     if (res.status === 401) {
         sessionStorage.removeItem('admin_token');
         sessionStorage.removeItem('admin_user');
-        window.location.href = 'admin-login.html';
+        sessionStorage.removeItem('admin_role');
+        window.location.href = ADMIN_LOGIN_PATH;
         throw new Error('Unauthorized');
     }
     return res;
@@ -43,17 +63,35 @@ function showToast(message, type = 'success') {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    let currentAdminSession = {
+        username: sessionStorage.getItem('admin_user') || '',
+        role: sessionStorage.getItem('admin_role') || 'admin',
+        userId: null
+    };
+
     // Verify token is still valid
     try {
         const verifyRes = await fetch(`${API_BASE}/auth/verify`, { headers: authHeaders() });
         if (!verifyRes.ok) {
             sessionStorage.removeItem('admin_token');
             sessionStorage.removeItem('admin_user');
-            window.location.href = 'admin-login.html';
+            sessionStorage.removeItem('admin_role');
+            window.location.href = ADMIN_LOGIN_PATH;
             return;
         }
+        const verifyData = await verifyRes.json();
+        currentAdminSession = {
+            username: verifyData.username || currentAdminSession.username,
+            role: verifyData.role || currentAdminSession.role || 'admin',
+            userId: verifyData.user_id || null
+        };
+        sessionStorage.setItem('admin_user', currentAdminSession.username);
+        sessionStorage.setItem('admin_role', currentAdminSession.role);
     } catch {
-        window.location.href = 'admin-login.html';
+        sessionStorage.removeItem('admin_token');
+        sessionStorage.removeItem('admin_user');
+        sessionStorage.removeItem('admin_role');
+        window.location.href = ADMIN_LOGIN_PATH;
         return;
     }
 
@@ -74,6 +112,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const div = document.createElement('div');
         div.appendChild(document.createTextNode(text));
         return div.innerHTML;
+    }
+
+    function formatBreakableIdentifier(value) {
+        const normalized = String(value || '').trim();
+        if (!normalized) return '—';
+
+        return normalized
+            .split(/([\-_.:@/])/g)
+            .map((part) => (/^[\-_.:@/]$/.test(part) ? `${escapeHtml(part)}<wbr>` : escapeHtml(part)))
+            .join('');
     }
 
     // --- Image Modal ---
@@ -330,6 +378,165 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    const adminAccountPanel = document.getElementById('admin-account-panel');
+    const adminAccountSession = document.getElementById('admin-account-session');
+    const adminAccountSelect = document.getElementById('admin-account-select');
+    const adminAccountRole = document.getElementById('admin-account-role');
+    const adminAccountUsername = document.getElementById('admin-account-username');
+    const adminAccountPassword = document.getElementById('admin-account-password');
+    const adminAccountHelp = document.getElementById('admin-account-help');
+    const adminAccountList = document.getElementById('admin-account-list');
+    const adminAccountCount = document.getElementById('admin-account-count');
+    const btnRefreshAdminAccounts = document.getElementById('btn-refresh-admin-accounts');
+    const btnSaveAdminAccount = document.getElementById('btn-save-admin-account');
+    const btnResetAdminPassword = document.getElementById('btn-reset-admin-password');
+    const btnDeleteAdminAccount = document.getElementById('btn-delete-admin-account');
+    const ADMIN_ROLE_LABELS = { admin: 'Admin', editor: 'Editor' };
+    let adminAccounts = [];
+    let selectedAdminAccountId = '';
+
+    function renderAdminRoleBadge(role) {
+        const normalized = role === 'admin' ? 'admin' : 'editor';
+        return `<span class="admin-role-badge admin-role-badge-${normalized}">${escapeHtml(ADMIN_ROLE_LABELS[normalized])}</span>`;
+    }
+
+    function getSelectedAdminAccount() {
+        return adminAccounts.find((account) => String(account.id) === String(selectedAdminAccountId)) || null;
+    }
+
+    function syncAdminAccountForm() {
+        const selectedAccount = getSelectedAdminAccount();
+
+        if (adminAccountSelect) {
+            adminAccountSelect.value = selectedAccount ? String(selectedAccount.id) : '';
+        }
+
+        if (selectedAccount) {
+            if (adminAccountUsername) adminAccountUsername.value = selectedAccount.username || '';
+            if (adminAccountRole) adminAccountRole.value = selectedAccount.role || 'editor';
+            if (adminAccountPassword) {
+                adminAccountPassword.value = '';
+                adminAccountPassword.placeholder = 'เว้นว่างหากไม่ต้องการเปลี่ยนรหัสผ่าน';
+            }
+            if (adminAccountHelp) {
+                adminAccountHelp.textContent = selectedAccount.is_current
+                    ? 'กำลังแก้ไขบัญชีที่ล็อกอินอยู่ สามารถเปลี่ยนชื่อ/role/รหัสผ่านได้ แต่จะลบบัญชีนี้ไม่ได้'
+                    : 'โหมดแก้ไขผู้ดูแล: เปลี่ยน username, role และใส่รหัสผ่านใหม่เฉพาะเมื่ออยากรีเซ็ต';
+            }
+            if (btnSaveAdminAccount) btnSaveAdminAccount.textContent = 'อัปเดตผู้ดูแล';
+            if (btnResetAdminPassword) btnResetAdminPassword.disabled = false;
+            if (btnDeleteAdminAccount) btnDeleteAdminAccount.disabled = !!selectedAccount.is_current;
+            return;
+        }
+
+        if (adminAccountUsername) adminAccountUsername.value = '';
+        if (adminAccountRole) adminAccountRole.value = 'editor';
+        if (adminAccountPassword) {
+            adminAccountPassword.value = '';
+            adminAccountPassword.placeholder = 'รหัสผ่านอย่างน้อย 8 ตัวอักษร';
+        }
+        if (adminAccountHelp) {
+            adminAccountHelp.textContent = 'โหมดสร้างผู้ดูแลใหม่: ถ้าเลือกบัญชีเดิม ระบบจะเปลี่ยนเป็นโหมดแก้ไขและช่องรหัสผ่านจะเป็นทางเลือก';
+        }
+        if (btnSaveAdminAccount) btnSaveAdminAccount.textContent = 'สร้างผู้ดูแล';
+        if (btnResetAdminPassword) btnResetAdminPassword.disabled = true;
+        if (btnDeleteAdminAccount) btnDeleteAdminAccount.disabled = true;
+    }
+
+    function renderAdminAccountSession() {
+        if (!adminAccountSession) return;
+        adminAccountSession.innerHTML = `ล็อกอินเป็น <strong>${escapeHtml(currentAdminSession.username || '—')}</strong> ${renderAdminRoleBadge(currentAdminSession.role || 'admin')} <span class="admin-account-session-tag">• path ${escapeHtml(ADMIN_LOGIN_PATH)}</span>`;
+    }
+
+    function renderAdminAccountSelectOptions() {
+        if (!adminAccountSelect) return;
+        adminAccountSelect.innerHTML = `
+            <option value="">-- สร้างผู้ดูแลใหม่ --</option>
+            ${adminAccounts.map((account) => `<option value="${account.id}">${escapeHtml(account.username)} (${escapeHtml(account.role)})</option>`).join('')}
+        `;
+    }
+
+    function renderAdminAccountList() {
+        if (!adminAccountList) return;
+        if (!adminAccounts.length) {
+            adminAccountList.innerHTML = '<p class="empty-msg">ยังไม่มีบัญชีผู้ดูแล</p>';
+            return;
+        }
+
+        adminAccountList.innerHTML = adminAccounts.map((account) => `
+            <button type="button" class="admin-account-item ${String(account.id) === String(selectedAdminAccountId) ? 'is-selected' : ''}" data-admin-account-id="${account.id}">
+                <div class="admin-account-item-top">
+                    <span class="admin-account-item-name">${escapeHtml(account.username)}</span>
+                    ${renderAdminRoleBadge(account.role)}
+                </div>
+                <div class="admin-account-item-meta">
+                    สร้างเมื่อ ${formatDateTime(account.created_at)}
+                    ${account.is_current ? `<span class="admin-account-session-tag"> • current session</span>` : ''}
+                </div>
+            </button>
+        `).join('');
+
+        adminAccountList.querySelectorAll('[data-admin-account-id]').forEach((button) => {
+            button.addEventListener('click', () => {
+                selectedAdminAccountId = button.dataset.adminAccountId || '';
+                syncAdminAccountForm();
+                renderAdminAccountList();
+            });
+        });
+    }
+
+    async function loadAdminAccounts() {
+        if (!adminAccountPanel) return;
+
+        renderAdminAccountSession();
+
+        if ((currentAdminSession.role || 'admin') !== 'admin') {
+            adminAccountPanel.hidden = true;
+            return;
+        }
+
+        adminAccountPanel.hidden = false;
+        if (adminAccountList) adminAccountList.innerHTML = '<p class="empty-msg">กำลังโหลดรายชื่อผู้ดูแล...</p>';
+
+        try {
+            const res = await authFetch(`${API_BASE}/admin/accounts`);
+            const data = await res.json();
+            if (res.status === 403) {
+                adminAccountPanel.hidden = true;
+                return;
+            }
+            if (!res.ok) throw new Error(data.error || 'load-admin-accounts-failed');
+
+            adminAccounts = Array.isArray(data.accounts) ? data.accounts : [];
+            if (data.current) {
+                currentAdminSession = {
+                    username: data.current.username || currentAdminSession.username,
+                    role: data.current.role || currentAdminSession.role || 'admin',
+                    userId: data.current.id || currentAdminSession.userId
+                };
+                sessionStorage.setItem('admin_user', currentAdminSession.username || '');
+                sessionStorage.setItem('admin_role', currentAdminSession.role || 'admin');
+            }
+
+            if (!adminAccounts.some((account) => String(account.id) === String(selectedAdminAccountId))) {
+                selectedAdminAccountId = '';
+            }
+
+            renderAdminAccountSession();
+            renderAdminAccountSelectOptions();
+            syncAdminAccountForm();
+            renderAdminAccountList();
+            if (adminAccountCount) {
+                adminAccountCount.textContent = `${adminAccounts.length.toLocaleString('th-TH')} บัญชี`;
+            }
+        } catch (err) {
+            if (adminAccountList) {
+                adminAccountList.innerHTML = '<p class="empty-msg">ไม่สามารถโหลดรายชื่อผู้ดูแลได้</p>';
+            }
+            if (adminAccountCount) adminAccountCount.textContent = 'โหลดไม่สำเร็จ';
+        }
+    }
+
     const userSearchInput = document.getElementById('user-search-input');
     const userPlatformFilter = document.getElementById('user-platform-filter');
     const userBody = document.getElementById('users-body');
@@ -506,7 +713,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                     </td>
                     <td>${formatPlatformBadge(user.platform)}</td>
-                    <td class="user-platform-id-cell">${escapeHtml(user.platform_id || '—')}</td>
+                    <td class="user-platform-id-cell"><code class="user-platform-id-text">${formatBreakableIdentifier(user.platform_id)}</code></td>
                     <td>
                         <div class="user-reward-balance-cell">
                             <div><strong>${Number(user.current_round_points || 0).toLocaleString('th-TH')}</strong> แต้ม</div>
@@ -1965,6 +2172,156 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    adminAccountSelect?.addEventListener('change', () => {
+        selectedAdminAccountId = adminAccountSelect.value || '';
+        syncAdminAccountForm();
+        renderAdminAccountList();
+    });
+
+    btnRefreshAdminAccounts?.addEventListener('click', loadAdminAccounts);
+
+    btnSaveAdminAccount?.addEventListener('click', async () => {
+        const username = adminAccountUsername?.value?.trim() || '';
+        const password = adminAccountPassword?.value || '';
+        const role = adminAccountRole?.value || 'editor';
+        const selectedAccount = getSelectedAdminAccount();
+
+        if (!username) {
+            showToast('กรุณากรอก username ของผู้ดูแล', 'error');
+            return;
+        }
+        if (!selectedAccount && password.length < 8) {
+            showToast('รหัสผ่านผู้ดูแลใหม่ต้องมีอย่างน้อย 8 ตัวอักษร', 'error');
+            return;
+        }
+        if (selectedAccount && password && password.length < 8) {
+            showToast('ถ้าจะเปลี่ยนรหัสผ่าน ต้องมีอย่างน้อย 8 ตัวอักษร', 'error');
+            return;
+        }
+
+        const originalText = btnSaveAdminAccount.textContent;
+        btnSaveAdminAccount.disabled = true;
+        btnSaveAdminAccount.textContent = selectedAccount ? 'กำลังอัปเดต...' : 'กำลังสร้าง...';
+
+        try {
+            const payload = { username, role };
+            if (password) payload.password = password;
+
+            const res = await authFetch(
+                selectedAccount
+                    ? `${API_BASE}/admin/accounts/${selectedAccount.id}`
+                    : `${API_BASE}/admin/accounts`,
+                {
+                    method: selectedAccount ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }
+            );
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'save-admin-account-failed');
+
+            if (selectedAccount) {
+                showToast(`อัปเดตผู้ดูแล "${username}" แล้ว`, 'success');
+                if (selectedAccount.is_current) {
+                    currentAdminSession = {
+                        ...currentAdminSession,
+                        username,
+                        role
+                    };
+                    sessionStorage.setItem('admin_user', currentAdminSession.username || '');
+                    sessionStorage.setItem('admin_role', currentAdminSession.role || 'admin');
+                    renderAdminAccountSession();
+                }
+            } else {
+                showToast(`สร้างผู้ดูแล "${username}" แล้ว`, 'success');
+                selectedAdminAccountId = '';
+            }
+
+            await loadAdminAccounts();
+            if (!selectedAccount) syncAdminAccountForm();
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถบันทึกผู้ดูแลได้', 'error');
+        } finally {
+            btnSaveAdminAccount.disabled = false;
+            btnSaveAdminAccount.textContent = originalText;
+        }
+    });
+
+    btnResetAdminPassword?.addEventListener('click', async () => {
+        const selectedAccount = getSelectedAdminAccount();
+        const password = adminAccountPassword?.value || '';
+
+        if (!selectedAccount) {
+            showToast('กรุณาเลือกบัญชีผู้ดูแลก่อนรีเซ็ตรหัสผ่าน', 'error');
+            return;
+        }
+        if (password.length < 8) {
+            showToast('รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร', 'error');
+            return;
+        }
+
+        const originalText = btnResetAdminPassword.textContent;
+        btnResetAdminPassword.disabled = true;
+        btnResetAdminPassword.textContent = 'กำลังรีเซ็ต...';
+
+        try {
+            const res = await authFetch(`${API_BASE}/admin/accounts/${selectedAccount.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: selectedAccount.username,
+                    role: selectedAccount.role,
+                    password
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'reset-admin-password-failed');
+
+            if (adminAccountPassword) adminAccountPassword.value = '';
+            showToast(`รีเซ็ตรหัสผ่านของ "${selectedAccount.username}" แล้ว`, 'success');
+            syncAdminAccountForm();
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถรีเซ็ตรหัสผ่านได้', 'error');
+        } finally {
+            btnResetAdminPassword.textContent = originalText;
+            btnResetAdminPassword.disabled = !getSelectedAdminAccount();
+        }
+    });
+
+    btnDeleteAdminAccount?.addEventListener('click', async () => {
+        const selectedAccount = getSelectedAdminAccount();
+        if (!selectedAccount) {
+            showToast('กรุณาเลือกบัญชีผู้ดูแลก่อนลบ', 'error');
+            return;
+        }
+
+        const confirmed = window.confirm(`ลบบัญชีผู้ดูแล "${selectedAccount.username}" ใช่หรือไม่?`);
+        if (!confirmed) return;
+
+        const originalText = btnDeleteAdminAccount.textContent;
+        btnDeleteAdminAccount.disabled = true;
+        btnDeleteAdminAccount.textContent = 'กำลังลบ...';
+
+        try {
+            const res = await authFetch(`${API_BASE}/admin/accounts/${selectedAccount.id}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'delete-admin-account-failed');
+
+            showToast(`ลบผู้ดูแล "${selectedAccount.username}" แล้ว`, 'success');
+            selectedAdminAccountId = '';
+            await loadAdminAccounts();
+            syncAdminAccountForm();
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถลบผู้ดูแลได้', 'error');
+            btnDeleteAdminAccount.disabled = !!getSelectedAdminAccount()?.is_current;
+        } finally {
+            btnDeleteAdminAccount.textContent = originalText;
+        }
+    });
+
+    loadAdminAccounts();
     renderStaffGrid();
     renderStaffRanking();
     loadRankingResetDate();
@@ -1981,6 +2338,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch { /* ignore */ }
         sessionStorage.removeItem('admin_token');
         sessionStorage.removeItem('admin_user');
-        window.location.href = 'admin-login.html';
+        sessionStorage.removeItem('admin_role');
+        window.location.href = ADMIN_LOGIN_PATH;
     });
 });

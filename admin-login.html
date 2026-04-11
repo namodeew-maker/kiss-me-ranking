@@ -194,6 +194,20 @@
         const API = window.location.hostname === 'namodeew-maker.github.io'
             ? 'https://kiss-me-ranking.onrender.com/api'
             : '/api';
+        const normalizedPath = (window.location.pathname || '/').replace(/\/+$/, '') || '/';
+
+        function deriveAdminLoginPath(pathname) {
+            if (pathname.endsWith('/admin-login.html')) {
+                return `${pathname.slice(0, -'/admin-login.html'.length) || ''}/admin`;
+            }
+            if (pathname.endsWith('/admin/index.html')) {
+                return pathname.slice(0, -'/index.html'.length);
+            }
+            return pathname;
+        }
+
+        const ADMIN_LOGIN_PATH = deriveAdminLoginPath(normalizedPath);
+        const ADMIN_PANEL_PATH = `${ADMIN_LOGIN_PATH}/panel`;
 
         // If already logged in, go to admin
         (function checkExisting() {
@@ -201,8 +215,12 @@
             if (token) {
                 fetch(`${API}/auth/verify`, {
                     headers: { 'Authorization': `Bearer ${token}` }
-                }).then(r => {
-                    if (r.ok) window.location.href = 'admin.html';
+                }).then(async (r) => {
+                    if (!r.ok) return;
+                    const data = await r.json();
+                    sessionStorage.setItem('admin_user', data.username || '');
+                    sessionStorage.setItem('admin_role', data.role || 'admin');
+                    window.location.href = ADMIN_PANEL_PATH;
                 });
             }
         })();
@@ -236,7 +254,8 @@
 
                 sessionStorage.setItem('admin_token', data.token);
                 sessionStorage.setItem('admin_user', data.username);
-                window.location.href = 'admin.html';
+                sessionStorage.setItem('admin_role', data.role || 'admin');
+                window.location.href = ADMIN_PANEL_PATH;
             } catch (err) {
                 errBox.textContent = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้';
                 errBox.classList.add('visible');
