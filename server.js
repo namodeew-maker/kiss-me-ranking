@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { Pool } = require('pg');
 const path = require('path');
 const multer = require('multer');
@@ -12,6 +14,7 @@ const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 try { require('dotenv').config(); } catch { /* dotenv optional locally */ }
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (Nginx/Cloudflare)
 const PORT = process.env.PORT || 3000;
 const CASHBACK_REWARD_AMOUNT = 5000;
 const GV_REWARD_AMOUNT = 300;
@@ -461,9 +464,15 @@ const pool = process.env.DATABASE_URL
         port: parseInt(process.env.DB_PORT, 10) || 5432,
     });
 
+// ============ SECURITY HEADERS ============
+app.use(helmet({
+    contentSecurityPolicy: false, // managed by Cloudflare
+    crossOriginEmbedderPolicy: false, // LINE LIFF compatibility
+}));
 app.use(cors({
     origin: [
         'https://namodeew-maker.github.io',
+        'https://ranking.kissme-vip.com',
         'http://localhost:3000',
         /\.trycloudflare\.com$/,
         /\.ngrok-free\.dev$/
@@ -472,15 +481,39 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// ============ RATE LIMITING ============
+const globalLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,   // 1 minute
+    max: 120,                   // 120 requests per minute per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'คำขอมากเกินไป กรุณารอสักครู่' },
+});
+app.use('/api/', globalLimiter);
+
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,  // 15 minutes
+    max: 5,                     // 5 login attempts per 15 min per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'พยายามเข้าสู่ระบบมากเกินไป กรุณารอ 15 นาที' },
+    skipSuccessfulRequests: true,
+});
+
 // Skip ngrok browser warning for all requests (especially LIFF redirects)
 app.use((req, res, next) => {
     res.setHeader('ngrok-skip-browser-warning', 'true');
     next();
 });
 
+// Render-only: redirect frontend to GitHub Pages (not needed on VPS)
 app.use((req, res, next) => {
     const host = req.get('host') || '';
     const isRenderHost = host.includes('kiss-me-ranking.onrender.com');
+
+    // Skip redirect on VPS / custom domain — serve files directly
+    if (!isRenderHost) return next();
+
     const isApiRequest = req.path.startsWith('/api');
     const isUploadRequest = req.path.startsWith('/uploads');
     const isLineCallback = req.path.startsWith('/auth/line/callback');
@@ -488,7 +521,7 @@ app.use((req, res, next) => {
     const isAdminRequest = isAdminRouteRequest(normalizedPath);
     const isSharedAdminAssetRequest = ADMIN_SHARED_ASSET_PATHS.has(normalizedPath);
 
-    if (!isRenderHost || req.method !== 'GET' || isApiRequest || isUploadRequest || isLineCallback || isAdminRequest || isSharedAdminAssetRequest) {
+    if (req.method !== 'GET' || isApiRequest || isUploadRequest || isLineCallback || isAdminRequest || isSharedAdminAssetRequest) {
         return next();
     }
 
@@ -780,7 +813,11 @@ async function getGuessPointCycleConfig(queryable = pool) {
 // ============ AUTH ============
 
 const authTokens = new Map();
+const failedLoginAttempts = new Map(); // IP -> { count, firstAttempt, lockedUntil }
 const TOKEN_EXPIRY_MS = 8 * 60 * 60 * 1000; // 8 hours
+const LOCKOUT_THRESHOLD = 10;         // lock after 10 failed attempts
+const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minute lockout
+const FAILED_ATTEMPT_WINDOW_MS = 15 * 60 * 1000; // 15 minute window
 const ADMIN_ROLES = ['admin', 'editor'];
 
 function cleanExpiredTokens() {
@@ -1192,8 +1229,58 @@ async function getRewardRowByGuessId(client, lotteryGuessId) {
     return result.rows[0] ? formatRewardSnapshotRow(result.rows[0]) : null;
 }
 
+// ============ BRUTE FORCE PROTECTION ============
+function getClientIP(req) {
+    return req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip;
+}
+
+function checkAccountLockout(ip) {
+    const record = failedLoginAttempts.get(ip);
+    if (!record) return null;
+    const now = Date.now();
+    // Clear expired records
+    if (now - record.firstAttempt > FAILED_ATTEMPT_WINDOW_MS && !record.lockedUntil) {
+        failedLoginAttempts.delete(ip);
+        return null;
+    }
+    // Check if currently locked
+    if (record.lockedUntil && now < record.lockedUntil) {
+        const remainMin = Math.ceil((record.lockedUntil - now) / 60000);
+        return `บัญชีถูกล็อกชั่วคราว กรุณารอ ${remainMin} นาที`;
+    }
+    // Lockout expired
+    if (record.lockedUntil && now >= record.lockedUntil) {
+        failedLoginAttempts.delete(ip);
+        return null;
+    }
+    return null;
+}
+
+function recordFailedLogin(ip) {
+    const now = Date.now();
+    const record = failedLoginAttempts.get(ip);
+    if (!record || now - record.firstAttempt > FAILED_ATTEMPT_WINDOW_MS) {
+        failedLoginAttempts.set(ip, { count: 1, firstAttempt: now, lockedUntil: null });
+        return;
+    }
+    record.count++;
+    if (record.count >= LOCKOUT_THRESHOLD) {
+        record.lockedUntil = now + LOCKOUT_DURATION_MS;
+        console.warn(`[SECURITY] IP ${ip} locked out after ${record.count} failed login attempts`);
+    }
+}
+
+function clearFailedLogin(ip) {
+    failedLoginAttempts.delete(ip);
+}
+
 // POST /api/login
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', loginLimiter, async (req, res) => {
+    const clientIP = getClientIP(req);
+    const lockoutMsg = checkAccountLockout(clientIP);
+    if (lockoutMsg) {
+        return res.status(429).json({ error: lockoutMsg });
+    }
     const { username, password } = req.body;
     if (!username || !password) {
         return res.status(400).json({ error: 'กรุณากรอก username และ password' });
@@ -1201,16 +1288,20 @@ app.post('/api/login', async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM admin_users WHERE username = $1', [username]);
         if (result.rows.length === 0) {
+            recordFailedLogin(clientIP);
             return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
         }
         const user = result.rows[0];
         const valid = await bcrypt.compare(password, user.password_hash);
         if (!valid) {
+            recordFailedLogin(clientIP);
             return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
         }
+        clearFailedLogin(clientIP);
         const role = normalizeAdminRole(user.role) || 'admin';
         const token = crypto.randomBytes(32).toString('hex');
         authTokens.set(token, { username: user.username, userId: user.id, role, createdAt: Date.now() });
+        console.log(`[AUTH] Admin login: ${user.username} from ${clientIP}`);
         res.json({ token, username: user.username, role });
     } catch (err) {
         console.error('Login error:', err);

@@ -67,7 +67,8 @@
                API (OA)
 ```
 
-**Admin** เข้าผ่าน `admin-login.html` → `admin.html` ใช้ Token-based auth
+**Admin** เข้าผ่าน `/admin` → `/admin/panel` ใช้ Token-based auth  
+legacy path `admin-login.html` และ `admin.html` ยัง redirect มา path ใหม่ได้
 
 ---
 
@@ -90,6 +91,11 @@ Kiss Me Ranking/
 ├── admin.css                       ← CSS ของ admin dashboard
 ├── admin.html                      ← หน้า dashboard admin
 ├── admin.js                        ← JS ของ admin dashboard
+├── deploy/                         ← ไฟล์ช่วย deploy ขึ้น VPS / Nginx / PM2
+│   ├── .env.production             ← template env สำหรับ production บน VPS
+│   ├── ecosystem.config.js         ← PM2 config สำหรับ production
+│   ├── nginx-ranking.conf          ← Nginx reverse proxy config สำหรับ ranking.kissme-vip.com
+│   └── setup-vps.sh                ← shell script ช่วย setup Ubuntu VPS เบื้องต้น
 ├── examples/                       ← ตัวอย่างโค้ด integration / legacy reference
 │   ├── company-callback.js         ← Webhook receiver ฝั่งบริษัท
 │   ├── line-points-gateway.js      ← Gateway: LINE OAuth + points forward
@@ -142,6 +148,8 @@ Kiss Me Ranking/
 | **dotenv** | ^17.4.0 | อ่าน .env |
 | **bcryptjs** | ^3.0.3 | Hash password admin |
 | **multer** | ^2.1.1 | Upload รูปสลิป |
+| **helmet** | ^8.1.0 | Security headers ฝั่ง Express |
+| **express-rate-limit** | ^8.3.2 | Rate limit และช่วยกัน brute force |
 | **@aws-sdk/client-s3** | ^3.1023.0 | Cloudflare R2 storage |
 
 **Runtime:** Node.js (CommonJS, ไม่ใช้ TypeScript)  
@@ -153,6 +161,9 @@ Kiss Me Ranking/
 ## 5. Environment Variables
 
 ```env
+# Server
+NODE_ENV=production
+
 # PostgreSQL
 DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
 PORT=3000
@@ -163,6 +174,10 @@ R2_ACCESS_KEY=
 R2_SECRET_KEY=
 R2_BUCKET=lotto-uploads
 R2_PUBLIC_URL=https://pub-xxxxx.r2.dev
+REQUIRE_R2_STORAGE=true
+
+# Admin path
+ADMIN_LOGIN_PATH=admin
 
 # LINE Login — สำหรับ server-side OAuth callback (ยังไม่ได้ตั้งค่า)
 LINE_LOGIN_CHANNEL_ID=
@@ -391,7 +406,7 @@ value_score: 8
 
 **เข้าถึง:** ปุ่ม profile บน index.html → `<a href="profile.html">`
 
-### 8.3 admin-login.html → admin.html — หน้า Admin
+### 8.3 /admin → /admin/panel — หน้า Admin
 
 **Login:** username + password → admin token (เก็บใน `sessionStorage`)
 
@@ -915,9 +930,31 @@ ngrok http 3000
 
 ### 14.3 หมายเหตุการ deploy ปัจจุบัน
 
-- Frontend production ปัจจุบันอยู่บน GitHub Pages: `https://namodeew-maker.github.io/kiss-me-ranking/`
-- Backend production ปัจจุบันชี้ไปที่ Render: `https://kiss-me-ranking.onrender.com/api`
-- ถ้ามีการเปลี่ยน domain หรือ backend host ต้องอัปเดต LIFF Endpoint URL และจุด auto-detect ของ `API_BASE` ใน frontend ให้สอดคล้องกัน
+- Public production ปัจจุบัน: `https://ranking.kissme-vip.com`
+- Origin production ปัจจุบัน: `VPS + Nginx + PM2` โดย Node/Express เสิร์ฟทั้ง frontend และ `/api` จาก origin เดียว
+- DNS production ปัจจุบันใช้ `A record` ชื่อ `ranking` → `185.182.184.180` บน Cloudflare
+- TLS production ปัจจุบันใช้ `Let's Encrypt` บน VPS และ Cloudflare ควรตั้ง `SSL/TLS = Full (strict)` เมื่อเปิด proxy
+- Legacy deployment เดิมยังเก็บไว้เป็น reference/rollback path: Frontend `https://namodeew-maker.github.io/kiss-me-ranking/` และ Backend `https://kiss-me-ranking.onrender.com/api`
+- ถ้ามีการเปลี่ยน domain หรือ backend host ต้องอัปเดต LIFF Endpoint URL, `LINE_REDIRECT_URI`, และจุด auto-detect ของ `API_BASE` ใน frontend ให้สอดคล้องกัน
+
+### 14.4 บันทึกงานวันที่ 11 เมษายน 2569
+
+สิ่งที่ทำวันนี้บน production:
+- ตรวจและแก้ปัญหา Cloudflare `521` โดยพบว่า `Nginx` ขึ้นปกติ แต่ origin app ยังไม่ถูก reverse proxy ถึงเพราะ process ไม่ได้รันตรง port ที่ Nginx ใช้
+- ยกแอป `kiss-me-ranking` ขึ้นบน VPS ด้วย `PM2` และปรับ production `.env` ให้ใช้ `PORT=3000` ให้ตรงกับ Nginx
+- ตรวจและยืนยันว่า `Nginx -> 127.0.0.1:3000 -> Node/Express` ตอบ `200 OK` ได้จริง
+- ติดตั้ง `certbot` และออกใบรับรอง `Let's Encrypt` ให้ `ranking.kissme-vip.com`
+- ตั้ง `HTTP -> HTTPS` บน origin และทดสอบว่า `https://ranking.kissme-vip.com` ตอบ `200 OK`
+- ตรวจ Cloudflare DNS/SSL จนได้ flow ที่ถูกต้องสำหรับ VPS: `A record + DNS only` ตอนออก cert และค่อยกลับไป `Proxied + Full (strict)` หลัง origin พร้อม
+
+จุดที่ปรับแก้ใน repo รอบนี้:
+- [server.js](/c:/Users/Dewkiad/Kiss Me Ranking/server.js:1): เพิ่ม `helmet`, `express-rate-limit`, `trust proxy`, login rate limit / lockout, เพิ่ม CORS ให้ `https://ranking.kissme-vip.com`, และข้าม Render redirect เมื่อรันบน custom domain / VPS
+- [package.json](/c:/Users/Dewkiad/Kiss Me Ranking/package.json:1), [package-lock.json](/c:/Users/Dewkiad/Kiss Me Ranking/package-lock.json:1): เพิ่ม dependency สำหรับ security middleware (`helmet`, `express-rate-limit`)
+- [deploy/.env.production](/c:/Users/Dewkiad/Kiss Me Ranking/deploy/.env.production:1): เพิ่ม template env สำหรับ production บน VPS ให้ตรงกับ flow จริง
+- [deploy/ecosystem.config.js](/c:/Users/Dewkiad/Kiss Me Ranking/deploy/ecosystem.config.js:1): ใช้เป็น baseline สำหรับรันแอปผ่าน PM2 ใน production
+- [deploy/nginx-ranking.conf](/c:/Users/Dewkiad/Kiss Me Ranking/deploy/nginx-ranking.conf:1): template Nginx reverse proxy สำหรับ `ranking.kissme-vip.com`
+- [deploy/setup-vps.sh](/c:/Users/Dewkiad/Kiss Me Ranking/deploy/setup-vps.sh:1): shell script ช่วย setup Ubuntu VPS เบื้องต้น
+- [PROJECT_DOCS.md](/c:/Users/Dewkiad/Kiss Me Ranking/PROJECT_DOCS.md:1): อัปเดตเอกสารให้สะท้อน deployment ใหม่, path admin ใหม่, dependency ใหม่, และบันทึกงานวันนี้
 
 ---
 
@@ -928,8 +965,8 @@ ngrok http 3000
 | LINE Login Channel ID/Secret | ❌ รอตั้งค่า | ได้จาก LINE Developers Console |
 | Telegram Bot Token (legacy) | ⏸️ ไม่จำเป็นต่อ flow หลัก | ใช้เฉพาะกรณีต้องคง integration เก่าไว้ |
 | Company Webhook URL | ❌ รอตั้งค่า | URL ระบบฝั่งบริษัท |
-| Production frontend/backend | ✅ มีแล้ว | Frontend ใช้ GitHub Pages, Backend ใช้ Render |
+| Production frontend/backend | ✅ มีแล้ว | Public production ปัจจุบันใช้ `ranking.kissme-vip.com` บน VPS + Cloudflare; legacy GitHub Pages + Render ยังเก็บไว้เป็น reference |
 
 ---
 
-> **Last updated:** 10 เมษายน 2569 (2026) — อัปเดตหลังแยกพ้อยทายเลขกับ Rank EXP, เพิ่มรีแรงค์ลูกค้า, เพิ่มรีเช็คพ้อยทายเลข, ซ่อมอันดับพนักงานใน Admin, ปรับ Admin responsive, ปรับ rank/logo ให้เด่นขึ้น และย้ายปุ่มทายเลขบนมือถือไปข้างปุ่มกติกา
+> **Last updated:** 11 เมษายน 2569 (2026) — อัปเดตเอกสารหลัง deploy ขึ้น VPS ที่ `ranking.kissme-vip.com`, ตั้ง Cloudflare + Nginx + PM2 + Let's Encrypt, เพิ่ม deploy templates, และบันทึกการ harden ฝั่ง Express (`helmet`, `rate limit`, login lockout, custom-domain CORS)
