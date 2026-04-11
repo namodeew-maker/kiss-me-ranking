@@ -937,6 +937,7 @@
         padding: 10px 12px 18px;
     }
     .profile-page header {
+        align-items: flex-start;
         gap: 8px;
         margin-bottom: 14px;
         padding-bottom: 12px;
@@ -1058,7 +1059,7 @@
     .user-stats {
         width: 100%;
         min-width: 0;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 6px;
         padding-top: 10px;
         border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -1200,7 +1201,8 @@
         font-size: 0.72rem;
     }
     .profile-section-header {
-        align-items: center;
+        align-items: flex-start;
+        flex-direction: column;
         gap: 8px;
         margin-bottom: 10px;
     }
@@ -1213,6 +1215,7 @@
     .profile-section-meta {
         padding: 5px 8px;
         font-size: 0.68rem;
+        align-self: flex-start;
     }
     .profile-list {
         min-height: 56px;
@@ -1229,10 +1232,12 @@
     }
     .item-main {
         align-items: flex-start;
+        flex-direction: column;
         gap: 8px;
     }
     .item-info {
         gap: 8px;
+        width: 100%;
     }
     .item-number {
         display: none;
@@ -1251,9 +1256,12 @@
         line-height: 1.35;
     }
     .item-right {
-        align-items: flex-end;
+        align-items: center;
+        flex-direction: row;
+        justify-content: space-between;
         gap: 6px;
-        max-width: 82px;
+        max-width: none;
+        width: 100%;
     }
     .slip-thumb {
         width: 34px;
@@ -1266,7 +1274,7 @@
         line-height: 1.2;
         letter-spacing: 0;
         text-align: center;
-        white-space: normal;
+        white-space: nowrap;
     }
     .activity-type-pill {
         gap: 4px;
@@ -1282,9 +1290,70 @@
     .reward-gv {
         font-size: 0.72rem;
     }
-    .profile-tabs,
+
+    .profile-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin: 14px 0 10px;
+        border-bottom: none;
+    }
+
+    .tab-btn {
+        margin-bottom: 0;
+        min-height: 44px;
+        padding: 10px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.03);
+        font-size: 0.82rem;
+        line-height: 1.25;
+    }
+
+    .tab-btn.active {
+        border-color: rgba(0, 240, 255, 0.3);
+        border-bottom-color: rgba(0, 240, 255, 0.3);
+        background: rgba(0, 240, 255, 0.08);
+        box-shadow: 0 0 14px rgba(0, 240, 255, 0.12);
+    }
+
     .tab-content {
-        display: none !important;
+        display: block;
+    }
+}
+
+@media (max-width: 520px) {
+    .profile-header-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .profile-tabs {
+        grid-template-columns: 1fr;
+    }
+
+    .user-id-row {
+        grid-template-columns: 1fr;
+    }
+
+    .copy-user-id-btn {
+        width: 100%;
+        min-height: 40px;
+    }
+
+    .profile-avatar-tools {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .avatar-upload-btn {
+        width: 100%;
+        min-height: 40px;
+    }
+
+    .reward-summary-grid {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -1306,7 +1375,7 @@
         font-size: 0.92rem;
     }
     .stat-label {
-        font-size: 0.58rem;
+        font-size: 0.62rem;
     }
     .profile-progress-card .progress-dot {
         width: 24px;

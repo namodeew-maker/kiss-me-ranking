@@ -389,49 +389,101 @@
 
 .admin-table-wrap-users #users-table,
 .admin-table-wrap-history #history-table {
-    min-width: 1120px;
+    min-width: 980px;
+    table-layout: fixed;
 }
 
 .admin-table-wrap-users #users-table {
-    min-width: 1320px;
+    min-width: 1100px;
 }
 
 .admin-table-wrap-users #users-table th:nth-child(2),
 .admin-table-wrap-users #users-table td:nth-child(2) {
-    min-width: 190px;
+    width: 220px;
+    min-width: 220px;
 }
 
 .admin-table-wrap-users #users-table th:nth-child(4),
 .admin-table-wrap-users #users-table td:nth-child(4) {
-    width: 240px;
-    min-width: 240px;
+    width: 200px;
+    min-width: 200px;
 }
 
 .admin-table-wrap-users #users-table th:nth-child(5),
 .admin-table-wrap-users #users-table td:nth-child(5) {
-    min-width: 130px;
+    width: 118px;
+    min-width: 118px;
 }
 
 .admin-table-wrap-users #users-table th:nth-child(7),
 .admin-table-wrap-users #users-table td:nth-child(7) {
-    min-width: 130px;
+    width: 112px;
+    min-width: 112px;
 }
 
 .admin-table-wrap-users #users-table th:nth-child(8),
 .admin-table-wrap-users #users-table td:nth-child(8) {
-    min-width: 170px;
+    width: 150px;
+    min-width: 150px;
 }
 
 .admin-table-wrap-users #users-table th:nth-child(10),
 .admin-table-wrap-users #users-table td:nth-child(10) {
-    min-width: 140px;
+    width: 126px;
+    min-width: 126px;
+}
+
+.admin-table-wrap-history #history-table th:nth-child(2),
+.admin-table-wrap-history #history-table td:nth-child(2) {
+    width: 142px;
+}
+
+.admin-table-wrap-history #history-table th:nth-child(3),
+.admin-table-wrap-history #history-table td:nth-child(3) {
+    width: 128px;
+}
+
+.admin-table-wrap-history #history-table th:nth-child(4),
+.admin-table-wrap-history #history-table td:nth-child(4) {
+    width: 190px;
+}
+
+.admin-table-wrap-history #history-table th:nth-child(6),
+.admin-table-wrap-history #history-table td:nth-child(6) {
+    width: 92px;
+}
+
+.admin-table-wrap-history #history-table th:nth-child(7),
+.admin-table-wrap-history #history-table td:nth-child(7) {
+    width: 108px;
+}
+
+.admin-table-wrap-history #history-table th:nth-child(8),
+.admin-table-wrap-history #history-table td:nth-child(8) {
+    width: 88px;
+}
+
+.admin-table-wrap-history #history-table th:nth-child(9),
+.admin-table-wrap-history #history-table td:nth-child(9) {
+    width: 100px;
+}
+
+.admin-table-wrap-history #history-table th:nth-child(10),
+.admin-table-wrap-history #history-table td:nth-child(10) {
+    width: 160px;
+}
+
+.admin-table-wrap-history #history-table th:nth-child(11),
+.admin-table-wrap-history #history-table td:nth-child(11) {
+    width: 96px;
 }
 
 .admin-table th,
 .admin-table td {
-    padding: 12px 15px;
+    padding: 12px 10px;
     text-align: left;
     border-bottom: 1px solid #222;
+    vertical-align: top;
 }
 
 .admin-table th {
@@ -445,10 +497,18 @@
 }
 
 .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
     padding: 3px 10px;
     border-radius: 12px;
     font-size: 0.8rem;
     font-weight: bold;
+    line-height: 1.15;
+    text-align: center;
+    white-space: nowrap;
+    word-break: keep-all;
 }
 
 .badge-active {
@@ -1393,6 +1453,70 @@
     }
 }
 
+@media (max-width: 1180px) {
+    .admin-table-wrap-users {
+        overflow-x: visible;
+    }
+
+    .admin-table-wrap-users #users-table {
+        min-width: 0;
+        table-layout: auto;
+    }
+
+    .admin-table-wrap-users #users-table th:nth-child(3),
+    .admin-table-wrap-users #users-table td:nth-child(3),
+    .admin-table-wrap-users #users-table th:nth-child(4),
+    .admin-table-wrap-users #users-table td:nth-child(4),
+    .admin-table-wrap-users #users-table th:nth-child(5),
+    .admin-table-wrap-users #users-table td:nth-child(5),
+    .admin-table-wrap-users #users-table th:nth-child(6),
+    .admin-table-wrap-users #users-table td:nth-child(6),
+    .admin-table-wrap-users #users-table th:nth-child(7),
+    .admin-table-wrap-users #users-table td:nth-child(7),
+    .admin-table-wrap-users #users-table th:nth-child(8),
+    .admin-table-wrap-users #users-table td:nth-child(8),
+    .admin-table-wrap-users #users-table th:nth-child(9),
+    .admin-table-wrap-users #users-table td:nth-child(9),
+    .admin-table-wrap-users #users-table th:nth-child(10),
+    .admin-table-wrap-users #users-table td:nth-child(10) {
+        display: none;
+    }
+
+    .admin-table-wrap-users #users-table th:nth-child(1),
+    .admin-table-wrap-users #users-table td:nth-child(1) {
+        width: 54px;
+        min-width: 54px;
+    }
+
+    .admin-table-wrap-users #users-table th:nth-child(11),
+    .admin-table-wrap-users #users-table td:nth-child(11) {
+        width: 112px;
+        min-width: 112px;
+    }
+
+    .admin-table-wrap-users #users-table td:nth-child(2) {
+        width: auto;
+        min-width: 0;
+    }
+
+    .user-compact-summary {
+        display: block;
+    }
+
+    .admin-table-wrap-users .user-cell {
+        align-items: flex-start;
+    }
+
+    .admin-table-wrap-users .user-cell > div {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .admin-table-wrap-users [data-view-user] {
+        width: 100%;
+    }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .admin-header,
@@ -1510,9 +1634,12 @@
         border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    .admin-table-wrap-users #users-table,
+    .admin-table-wrap-users #users-table {
+        min-width: 0;
+    }
+
     .admin-table-wrap-history #history-table {
-        min-width: 1180px;
+        min-width: 920px;
     }
 
     .admin-table-wrap-staff-ranking #staff-ranking-table {
@@ -1551,6 +1678,28 @@
 
     .ranking-reset-meta strong {
         flex: 1 1 100%;
+    }
+}
+
+@media (max-width: 640px) {
+    .admin-table-wrap-users #users-table th:nth-child(1),
+    .admin-table-wrap-users #users-table td:nth-child(1) {
+        display: none;
+    }
+
+    .admin-table-wrap-users #users-table th:nth-child(11),
+    .admin-table-wrap-users #users-table td:nth-child(11) {
+        width: 98px;
+        min-width: 98px;
+    }
+
+    .user-cell-avatar {
+        width: 38px;
+        height: 38px;
+    }
+
+    .user-compact-grid {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -2229,12 +2378,12 @@
     color: var(--text-muted);
     line-height: 1.45;
     word-break: break-word;
-    max-width: 220px;
+    max-width: none;
 }
 
 .user-platform-id-cell {
-    min-width: 240px;
-    max-width: 240px;
+    min-width: 200px;
+    max-width: 200px;
     line-height: 1.5;
     white-space: normal;
     word-break: normal;
@@ -2277,9 +2426,78 @@
     font-size: 0.76rem;
 }
 
+.user-compact-summary {
+    display: none;
+}
+
+.user-compact-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.user-compact-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    line-height: 1.3;
+}
+
+.user-compact-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.user-compact-field {
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.user-compact-label {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    line-height: 1.35;
+}
+
+.user-compact-field strong {
+    display: block;
+    color: var(--text-silver);
+    font-size: 0.85rem;
+    line-height: 1.35;
+}
+
+.user-compact-field span:last-child {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    line-height: 1.35;
+}
+
+.user-platform-id-text-compact {
+    display: block;
+    max-height: 4.8em;
+    overflow: auto;
+}
+
 .user-last-active-cell {
-    white-space: nowrap;
+    white-space: normal;
     font-size: 0.8rem;
+    line-height: 1.45;
 }
 
 .history-customer-cell {
@@ -2309,11 +2527,25 @@
     flex-wrap: wrap;
 }
 
+.history-status-cell,
+.history-result-cell {
+    text-align: center;
+}
+
+.history-cashback-cell {
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.history-action-group .btn-small {
+    white-space: nowrap;
+}
+
 .user-reward-balance-cell {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    min-width: 160px;
+    min-width: 0;
     font-size: 0.78rem;
     line-height: 1.5;
     color: var(--text-silver);

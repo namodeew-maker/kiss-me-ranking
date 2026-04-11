@@ -182,6 +182,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         return date.toLocaleString('th-TH');
     }
 
+    function formatShortDateTime(value) {
+        if (!value) return '—';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return `${date.toLocaleDateString('th-TH')} ${date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
     function renderUserRewardBalanceCell(user) {
         const cashbackRemaining = Number(user.cashback_remaining || 0);
         const gvRemaining = Number(user.gv_remaining || 0);
@@ -194,6 +201,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function formatPlatformBadge(platform) {
+        const normalized = String(platform || 'line').toLowerCase();
+        if (normalized === 'telegram') {
+            return `<span class="platform-badge platform-badge-telegram">TELEGRAM</span>`;
+        }
         return `<span class="platform-badge platform-badge-line">LINE</span>`;
     }
 
@@ -233,6 +244,53 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="user-rank-cell" style="--user-rank-color:${rank.color}">
                 <strong>${escapeHtml(rank.name)}</strong>
                 <span>${approvedForRank.toLocaleString('th-TH')} EXP</span>
+            </div>
+        `;
+    }
+
+    function renderUserCompactSummary(user) {
+        const currentRoundPoints = Number(user.current_round_points || 0);
+        const guessCredits = Math.max(0, Math.floor(currentRoundPoints / 5));
+        const totalPoints = Number(user.total_points || 0);
+        const approvedForRank = Number(user.rank_approved_count ?? user.approved_count ?? 0);
+        const rank = getCustomerRankInfo(approvedForRank);
+        const cashbackRemaining = Number(user.cashback_remaining || 0);
+        const gvRemaining = Number(user.gv_remaining || 0);
+        const lastActive = formatShortDateTime(user.last_activity_at || user.created_at);
+
+        return `
+            <div class="user-compact-summary">
+                <div class="user-compact-chip-row">
+                    ${formatPlatformBadge(user.platform)}
+                    <span class="user-compact-chip">${Number(user.transaction_count || 0).toLocaleString('th-TH')} รายการ</span>
+                    <span class="user-compact-chip">ล่าสุด ${escapeHtml(lastActive)}</span>
+                </div>
+                <div class="user-compact-field">
+                    <span class="user-compact-label">ID</span>
+                    <code class="user-platform-id-text user-platform-id-text-compact">${formatBreakableIdentifier(user.platform_id)}</code>
+                </div>
+                <div class="user-compact-grid">
+                    <div class="user-compact-field">
+                        <span class="user-compact-label">พ้อยรอบนี้</span>
+                        <strong>${currentRoundPoints.toLocaleString('th-TH')} แต้ม</strong>
+                        <span>${guessCredits.toLocaleString('th-TH')} สิทธิ์ทาย</span>
+                    </div>
+                    <div class="user-compact-field">
+                        <span class="user-compact-label">แรงค์ / EXP</span>
+                        <strong style="color:${rank.color}">${escapeHtml(rank.name)}</strong>
+                        <span>${approvedForRank.toLocaleString('th-TH')} EXP</span>
+                    </div>
+                    <div class="user-compact-field">
+                        <span class="user-compact-label">พ้อยรวม</span>
+                        <strong>${totalPoints.toLocaleString('th-TH')}</strong>
+                        <span>สะสมทั้งหมด</span>
+                    </div>
+                    <div class="user-compact-field">
+                        <span class="user-compact-label">Cashback / GV</span>
+                        <strong>${formatCurrency(cashbackRemaining)}</strong>
+                        <span>GV ${formatCurrency(gvRemaining)}</span>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -709,6 +767,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <div>
                                 <div class="user-cell-name">${escapeHtml(user.display_name || 'ไม่มีชื่อ')}</div>
                                 <div class="user-cell-sub">${user.global_user_id ? `Global: ${escapeHtml(String(user.global_user_id))}` : 'ยังไม่มี global_user_id'}</div>
+                                ${renderUserCompactSummary(user)}
                             </div>
                         </div>
                     </td>
@@ -724,7 +783,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td>${renderUserRankCell(user)}</td>
                     <td>${renderUserRewardBalanceCell(user)}</td>
                     <td>${user.transaction_count || 0}</td>
-                    <td class="user-last-active-cell">${formatDateTime(user.last_activity_at || user.created_at)}</td>
+                    <td class="user-last-active-cell">${formatShortDateTime(user.last_activity_at || user.created_at)}</td>
                     <td><button class="btn-small" data-view-user="${user.id}">ดูรายละเอียด</button></td>
                 </tr>
             `).join('');
@@ -1160,10 +1219,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             noMsg.classList.add('hidden');
             tbody.innerHTML = history.map((h, i) => {
                 let statusClass = 'badge-active';
-                let statusText = 'อนุมัติแล้ว';
+                let statusText = 'อนุมัติ';
                 if (h.history_type === 'guess') {
                     statusClass = 'badge-pending';
-                    statusText = 'บันทึกการทายเลข';
+                    statusText = 'ทายเลขแล้ว';
                 } else if (h.approved === 'rejected') {
                     statusClass = 'badge-revoked';
                     statusText = 'ไม่อนุมัติ';
@@ -1193,7 +1252,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     resultBadge = '<span class="badge badge-pending">รอผล</span>';
                 }
 
-                const dateStr = new Date(h.date || h.created_at).toLocaleString('th-TH');
+                const dateStr = formatShortDateTime(h.date || h.created_at);
                 const serviceDate = formatServiceDate(h.service_date);
                 const customerName = h.customer_name || h.name || '—';
                 const staffName = h.staff_name || '—';
@@ -1215,10 +1274,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </td>
                     <td>${escapeHtml(staffName)}</td>
                     <td>${imageHtml}</td>
-                    <td><span class="badge ${statusClass}">${statusText}</span></td>
+                    <td class="history-status-cell"><span class="badge ${statusClass}">${statusText}</span></td>
                     <td class="lottery-num-cell">${lotteryNum}</td>
-                    <td>${resultBadge || '—'}</td>
-                    <td>${cashbackCell}</td>
+                    <td class="history-result-cell">${resultBadge || '—'}</td>
+                    <td class="history-cashback-cell">${cashbackCell}</td>
                     <td><div class="history-action-group">${actionHtml}</div></td>
                 </tr>`;
             }).join('');

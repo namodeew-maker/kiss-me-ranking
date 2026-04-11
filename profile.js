@@ -535,16 +535,33 @@ function renderActivityFeed(activities) {
 }
 
 // ==================== TABS ====================
+function setActiveProfileTab(tabName) {
+    document.querySelectorAll('.tab-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+
+    document.querySelectorAll('.tab-content').forEach((content) => {
+        content.classList.add('profile-hidden');
+    });
+
+    const target = document.getElementById(`tab-${tabName}`);
+    if (target) {
+        target.classList.remove('profile-hidden');
+    }
+}
+
 function initTabs() {
-    document.querySelectorAll('.tab-btn').forEach(btn => {
+    const buttons = Array.from(document.querySelectorAll('.tab-btn'));
+    buttons.forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => { c.style.display = 'none'; });
-            btn.classList.add('active');
-            const target = document.getElementById('tab-' + btn.dataset.tab);
-            if (target) target.style.display = '';
+            setActiveProfileTab(btn.dataset.tab);
         });
     });
+
+    const activeButton = document.querySelector('.tab-btn.active') || buttons[0];
+    if (activeButton?.dataset?.tab) {
+        setActiveProfileTab(activeButton.dataset.tab);
+    }
 }
 
 // ==================== LOAD DATA ====================
