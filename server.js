@@ -539,8 +539,14 @@ app.get(`${ADMIN_LOGIN_ROUTE}/admin.css`, sendProjectFile('admin.css'));
 app.get(`${ADMIN_LOGIN_ROUTE}/admin.js`, sendProjectFile('admin.js'));
 app.get(`${ADMIN_LOGIN_ROUTE}/index.html`, sendProjectFile('index.html'));
 
-const legacyAdminRedirectTarget = ADMIN_LOGIN_ROUTE === '/admin' ? ADMIN_LOGIN_ROUTE : '/index.html';
-const legacyAdminPanelRedirectTarget = ADMIN_LOGIN_ROUTE === '/admin' ? ADMIN_PANEL_ROUTE : '/index.html';
+const legacyAdminAliases = ['/admin', '/admin/', '/admin/index.html'];
+const legacyAdminPanelAliases = ['/admin/panel', '/admin/panel/', '/admin/panel/index.html'];
+const legacyAdminRedirectTarget = ADMIN_LOGIN_ROUTE;
+const legacyAdminPanelRedirectTarget = ADMIN_PANEL_ROUTE;
+if (ADMIN_LOGIN_ROUTE !== '/admin') {
+    app.get(legacyAdminAliases, (req, res) => res.redirect(302, legacyAdminRedirectTarget));
+    app.get(legacyAdminPanelAliases, (req, res) => res.redirect(302, legacyAdminPanelRedirectTarget));
+}
 app.get('/admin-login.html', (req, res) => res.redirect(302, legacyAdminRedirectTarget));
 app.get('/admin.html', (req, res) => res.redirect(302, legacyAdminPanelRedirectTarget));
 

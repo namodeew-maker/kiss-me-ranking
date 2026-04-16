@@ -956,6 +956,55 @@ ngrok http 3000
 - [deploy/setup-vps.sh](/c:/Users/Dewkiad/Kiss Me Ranking/deploy/setup-vps.sh:1): shell script ช่วย setup Ubuntu VPS เบื้องต้น
 - [PROJECT_DOCS.md](/c:/Users/Dewkiad/Kiss Me Ranking/PROJECT_DOCS.md:1): อัปเดตเอกสารให้สะท้อน deployment ใหม่, path admin ใหม่, dependency ใหม่, และบันทึกงานวันนี้
 
+### 14.5 ชุด config สำหรับแยกจาก `kissme-for-web`
+
+ถ้าต้องรัน `Kiss Me Ranking` คู่กับ `kissme-for-web` บน VPS เดียวกัน ห้ามใช้โฟลเดอร์, port, และ admin path ซ้ำกัน เพราะสองโปรเจกต์มี `server.js`, `index.html`, `admin.html` และ flow login/admin คนละระบบ
+
+ค่าที่แนะนำให้ใช้:
+- `kissme-for-web` คงไว้ที่ `PORT=3000`
+- `Kiss Me Ranking` ย้ายไป `PORT=3010`
+- `Kiss Me Ranking` ใช้ PM2 name เป็น `kiss-me-ranking-prod`
+- `Kiss Me Ranking` ใช้ admin path เป็น `/ranking-admin`
+- แยกโฟลเดอร์เป็น `/opt/kissme-for-web` และ `/var/www/kiss-me-ranking`
+
+ไฟล์ template ที่เพิ่มไว้สำหรับโหมดนี้:
+- [deploy/.env.cohost-kissme-for-web.production](/c:/Users/Dewkiad/Kiss Me Ranking/deploy/.env.cohost-kissme-for-web.production:1)
+- [deploy/ecosystem.cohost-kissme-for-web.config.js](/c:/Users/Dewkiad/Kiss Me Ranking/deploy/ecosystem.cohost-kissme-for-web.config.js:1)
+- [deploy/nginx-ranking.cohost-kissme-for-web.conf](/c:/Users/Dewkiad/Kiss Me Ranking/deploy/nginx-ranking.cohost-kissme-for-web.conf:1)
+
+คำสั่งใช้งานฝั่ง `Kiss Me Ranking`:
+
+```bash
+cp deploy/.env.cohost-kissme-for-web.production /var/www/kiss-me-ranking/.env
+npm install --omit=dev
+pm2 start deploy/ecosystem.cohost-kissme-for-web.config.js
+pm2 save
+sudo cp deploy/nginx-ranking.cohost-kissme-for-web.conf /etc/nginx/sites-available/ranking.kissme-vip.com
+sudo ln -sf /etc/nginx/sites-available/ranking.kissme-vip.com /etc/nginx/sites-enabled/ranking.kissme-vip.com
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+จุดที่ต้องตรวจหลังแยกเสร็จ:
+- `kissme-for-web` ยังฟังที่ `127.0.0.1:3000`
+- `Kiss Me Ranking` ฟังที่ `127.0.0.1:3010`
+- `ranking.kissme-vip.com` proxy ไป `3010`
+- หน้า admin ของ `Kiss Me Ranking` เปิดผ่าน `/ranking-admin`
+
+### 14.6 หมายเหตุ admin path และ PM2 หลังแยกโปรเจกต์
+
+หลังย้าย `Kiss Me Ranking` ไปอยู่ `PORT=3010` และเปลี่ยน admin path เป็น `/ranking-admin` แล้ว มีข้อกำหนดที่ต้องจำเพิ่มดังนี้:
+
+- หน้า login admin ปัจจุบันคือ `https://ranking.kissme-vip.com/ranking-admin`
+- หน้า panel ปัจจุบันคือ `https://ranking.kissme-vip.com/ranking-admin/panel`
+- path เก่า `/admin`, `/admin/`, `/admin/index.html`, `/admin/panel`, `/admin/panel/`, `/admin/panel/index.html` ถูก redirect ไป path ใหม่ เพื่อไม่ให้ลิงก์เก่าหรือ bookmark เก่าหลุดไปหน้า ranking หลัก
+- ปุ่ม `กลับหน้าหลัก` ในหน้า `admin-login.html` และ `admin.html` ชี้กลับไป `https://ranking.kissme-vip.com/` โดยตรง
+
+ข้อจำกัดปัจจุบันของ PM2:
+
+- production ของ `Kiss Me Ranking` ต้องรันแบบ `instances: 1` และ `exec_mode: 'fork'`
+- สาเหตุคือ admin auth token ยังเก็บใน memory ของ Node process ถ้ารันหลาย instance จะมีโอกาส login ผ่าน worker หนึ่ง แต่ request ตรวจ session ไปตกอีก worker แล้วเด้งกลับหน้า login
+- ถ้าต้องการกลับไปใช้หลาย instance ในอนาคต ควรย้าย admin session/token ไปไว้ใน shared store เช่น PostgreSQL หรือ Redis ก่อน
+
 ---
 
 ## สิ่งที่ยังไม่ได้ตั้งค่า (รอข้อมูลจากบริษัท)
@@ -969,4 +1018,4 @@ ngrok http 3000
 
 ---
 
-> **Last updated:** 11 เมษายน 2569 (2026) — อัปเดตเอกสารหลัง deploy ขึ้น VPS ที่ `ranking.kissme-vip.com`, ตั้ง Cloudflare + Nginx + PM2 + Let's Encrypt, เพิ่ม deploy templates, และบันทึกการ harden ฝั่ง Express (`helmet`, `rate limit`, login lockout, custom-domain CORS)
+> **Last updated:** 16 เมษายน 2569 (2026) — อัปเดตเอกสารหลังเพิ่มชุด config สำหรับแยก `Kiss Me Ranking` ออกจาก `kissme-for-web` บน VPS เดียวกัน, ปรับ admin path เป็น `/ranking-admin`, และบันทึกข้อจำกัดการรัน PM2 แบบ single instance ใน production ปัจจุบัน
