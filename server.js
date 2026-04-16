@@ -194,6 +194,50 @@ function isR2ManagedUrl(value) {
     return String(value).trim().startsWith(`${R2_PUBLIC_URL}/`);
 }
 
+function normalizeOptionalUrl(value) {
+    const normalized = String(value || '').trim();
+    return normalized || null;
+}
+
+function isLocalUploadReference(value) {
+    return !!extractLocalUploadFilename(value);
+}
+
+function isManagedUserPictureUrl(value) {
+    return isR2ManagedUrl(value) || isLocalUploadReference(value);
+}
+
+function isLikelyLineProfileUrl(value) {
+    if (!value || !/^https?:\/\//i.test(String(value).trim())) return false;
+    try {
+        const url = new URL(String(value).trim());
+        const host = url.hostname.toLowerCase();
+        return host === 'profile.line-scdn.net'
+            || host === 'obs.line-scdn.net'
+            || host.endsWith('.line-scdn.net');
+    } catch {
+        return false;
+    }
+}
+
+function chooseUserPictureUrl(existingValue, incomingValue) {
+    const existing = normalizeOptionalUrl(existingValue);
+    const incoming = normalizeOptionalUrl(incomingValue);
+
+    if (!incoming) return existing;
+    if (!existing) return incoming;
+    if (existing === incoming) return incoming;
+
+    const existingIsCustom = isManagedUserPictureUrl(existing) || !isLikelyLineProfileUrl(existing);
+    const incomingIsLineProfile = isLikelyLineProfileUrl(incoming);
+
+    if (existingIsCustom && incomingIsLineProfile) {
+        return existing;
+    }
+
+    return incoming;
+}
+
 function extractLocalUploadFilename(value) {
     if (!value) return null;
     const normalized = String(value).trim();
@@ -2063,6 +2107,11 @@ function toAuthenticatedUser(user) {
 }
 
 async function upsertCustomerUser({ platform, platformId, displayName, pictureUrl }) {
+    const existingResult = await pool.query(
+        'SELECT picture_url FROM users WHERE platform = $1 AND platform_id = $2 LIMIT 1',
+        [platform, platformId]
+    );
+    const mergedPictureUrl = chooseUserPictureUrl(existingResult.rows[0]?.picture_url || null, pictureUrl);
     const result = await pool.query(
         `INSERT INTO users (platform, platform_id, display_name, picture_url)
          VALUES ($1, $2, $3, $4)
@@ -2071,13 +2120,13 @@ async function upsertCustomerUser({ platform, platformId, displayName, pictureUr
             picture_url = EXCLUDED.picture_url,
             updated_at = NOW()
          RETURNING *`,
-        [platform, platformId, displayName || '', pictureUrl || null]
+        [platform, platformId, displayName || '', mergedPictureUrl]
     );
 
     return result.rows[0];
 }
 
-// GET /api/auth/telegram/config — login disabled
+// GET /api/auth/telegram/config — disabled permanently
 app.get('/api/auth/telegram/config', (req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
@@ -2085,7 +2134,7 @@ app.get('/api/auth/telegram/config', (req, res) => {
     res.status(410).json({ enabled: false, botUsername: null, error: 'ปิดการเข้าสู่ระบบด้วย Telegram แล้ว กรุณาใช้ LINE เท่านั้น' });
 });
 
-// POST /api/auth/telegram — login disabled
+// POST /api/auth/telegram — disabled permanently
 app.post('/api/auth/telegram', async (req, res) => {
     return res.status(410).json({ error: 'ปิดการเข้าสู่ระบบด้วย Telegram แล้ว กรุณาใช้ LINE เท่านั้น' });
 });
@@ -2203,6 +2252,11 @@ app.post('/api/users/upsert', async (req, res) => {
         return res.status(400).json({ error: 'platform ต้องเป็น line เท่านั้น' });
     }
     try {
+        const existingResult = await pool.query(
+            'SELECT picture_url FROM users WHERE platform = $1 AND platform_id = $2 LIMIT 1',
+            [plat, pid]
+        );
+        const mergedPictureUrl = chooseUserPictureUrl(existingResult.rows[0]?.picture_url || null, picture_url);
         const result = await pool.query(
             `INSERT INTO users (platform, platform_id, display_name, picture_url)
              VALUES ($1, $2, $3, $4)
@@ -2211,7 +2265,7 @@ app.post('/api/users/upsert', async (req, res) => {
                 picture_url = EXCLUDED.picture_url,
                 updated_at = NOW()
              RETURNING *`,
-            [plat, pid, display_name || '', picture_url || null]
+            [plat, pid, display_name || '', mergedPictureUrl]
         );
         res.json(result.rows[0]);
     } catch (err) {
@@ -3515,94 +3569,16 @@ app.delete('/api/admin/users/:id', requireAuth, async (req, res) => {
     }
 });
 
-// ============ UNIFIED IDENTITY HELPERS ============
-// LINE Login OAuth helpers (สำหรับ LIFF callback / server-side OAuth)
+// ============ LEGACY LINE OAUTH CALLBACK (DISABLED) ============
 
-const LINE_OAUTH_TOKEN_URL = 'https://api.line.me/oauth2/v2.1/token';
-const LINE_PROFILE_URL = 'https://api.line.me/v2/profile';
-
-async function exchangeLineCodeForToken(code, redirectUri) {
-    const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
-    const channelSecret = process.env.LINE_LOGIN_CHANNEL_SECRET;
-    if (!channelId || !channelSecret) {
-        throw new Error('LINE_LOGIN_CHANNEL_ID and LINE_LOGIN_CHANNEL_SECRET are required');
-    }
-    const body = new URLSearchParams({
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: redirectUri || process.env.LINE_REDIRECT_URI || '',
-        client_id: channelId,
-        client_secret: channelSecret
-    });
-    const resp = await fetch(LINE_OAUTH_TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body
-    });
-    if (!resp.ok) throw new Error(`LINE token exchange failed: ${await resp.text()}`);
-    return resp.json();
-}
-
-async function fetchLineProfile(accessToken) {
-    const resp = await fetch(LINE_PROFILE_URL, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    if (!resp.ok) throw new Error(`LINE profile fetch failed: ${await resp.text()}`);
-    return resp.json();
-}
-
-// Upsert user by LINE login user id → returns row with global_user_id
-async function upsertUserByLineLogin(client, profile) {
-    const result = await client.query(
-        `INSERT INTO users (platform, platform_id, display_name, picture_url)
-         VALUES ('line', $1, $2, $3)
-         ON CONFLICT (platform, platform_id) DO UPDATE SET
-            display_name = EXCLUDED.display_name,
-            picture_url = EXCLUDED.picture_url,
-            updated_at = NOW()
-         RETURNING *`,
-        [profile.userId, profile.displayName || '', profile.pictureUrl || null]
-    );
-    return result.rows[0];
-}
-
-// ============ LINE OAUTH CALLBACK ============
-
-// GET /auth/line/callback — OAuth2 callback from LINE Login
-// LIFF usually handles this client-side, but this supports server-side flow too.
+// GET /auth/line/callback — disabled permanently
 app.get('/auth/line/callback', async (req, res) => {
-    const { code, state } = req.query;
-    if (!code) return res.status(400).json({ error: 'Missing code' });
-
-    try {
-        const tokenResult = await exchangeLineCodeForToken(code);
-        const profile = await fetchLineProfile(tokenResult.access_token);
-
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-            const user = await upsertUserByLineLogin(client, profile);
-            await client.query('COMMIT');
-            // Redirect back to app with state (or return JSON)
-            if (state === 'json') {
-                return res.json({ success: true, user });
-            }
-            res.redirect(`/?login=success&uid=${encodeURIComponent(profile.userId)}`);
-        } catch (err) {
-            await client.query('ROLLBACK');
-            throw err;
-        } finally {
-            client.release();
-        }
-    } catch (error) {
-        console.error('LINE OAuth callback error:', error);
-        res.status(500).json({ error: error.message });
-    }
+    return res.status(410).json({ error: 'ปิด server-side LINE OAuth callback ถาวรแล้ว — production ใช้ LINE LIFF เท่านั้น' });
 });
 
 // ============ POINTS / ACTIVITY API ============
 
-// POST /api/points/activity — บวกแต้มจากกิจกรรม + forward ไปบริษัท
+// POST /api/points/activity — บวกแต้มจากกิจกรรม (legacy/internal API)
 app.post('/api/points/activity', async (req, res) => {
     const {
         platform_id, platform,
@@ -3621,16 +3597,22 @@ app.post('/api/points/activity', async (req, res) => {
     try {
         await client.query('BEGIN');
 
+        const existingUserResult = await client.query(
+            'SELECT picture_url FROM users WHERE platform = $1 AND platform_id = $2 LIMIT 1',
+            [plat, platform_id]
+        );
+        const mergedPictureUrl = chooseUserPictureUrl(existingUserResult.rows[0]?.picture_url || null, picture_url);
+
         // Upsert user (works with existing schema)
         const userResult = await client.query(
             `INSERT INTO users (platform, platform_id, display_name, picture_url)
              VALUES ($1, $2, $3, $4)
              ON CONFLICT (platform, platform_id) DO UPDATE SET
                 display_name = COALESCE(NULLIF(EXCLUDED.display_name, ''), users.display_name),
-                picture_url = COALESCE(EXCLUDED.picture_url, users.picture_url),
+                picture_url = EXCLUDED.picture_url,
                 updated_at = NOW()
              RETURNING *`,
-            [plat, platform_id, display_name || '', picture_url || null]
+            [plat, platform_id, display_name || '', mergedPictureUrl]
         );
         const user = userResult.rows[0];
 
@@ -3654,29 +3636,6 @@ app.post('/api/points/activity', async (req, res) => {
         );
 
         await client.query('COMMIT');
-
-        // Forward to company webhook (fire-and-forget)
-        const companyWebhookUrl = process.env.COMPANY_WEBHOOK_URL;
-        if (companyWebhookUrl) {
-            const companyPayload = {
-                eventType: 'POINTS_ADDED',
-                globalUserId: user.global_user_id,
-                platformId: user.platform_id,
-                platform: user.platform,
-                activityType,
-                points: pointAmount,
-                pointTxnId: pointResult.rows[0].id,
-                timestamp: new Date().toISOString()
-            };
-            fetch(companyWebhookUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Webhook-Token': process.env.COMPANY_WEBHOOK_TOKEN || ''
-                },
-                body: JSON.stringify(companyPayload)
-            }).catch(err => console.error('Company webhook error:', err.message));
-        }
 
         res.json({
             success: true,
@@ -3728,43 +3687,23 @@ app.get('/api/points/:global_user_id', async (req, res) => {
     }
 });
 
-// ============ COMPANY WEBHOOK RECEIVER ============
+// ============ COMPANY WEBHOOK RECEIVER (DISABLED) ============
 
-// POST /api/company/activity — บริษัทส่ง event กลับมาเพื่อ reply ลูกค้า
-app.post('/api/company/activity', (req, res, next) => {
-    // Verify webhook token
-    const expected = process.env.COMPANY_WEBHOOK_TOKEN || '';
-    if (expected) {
-        const actual = req.headers['x-webhook-token'];
-        if (actual !== expected) {
-            return res.status(401).json({ error: 'Invalid webhook token' });
-        }
-    }
-    next();
-}, async (req, res) => {
-    const event = req.body;
-    try {
-        res.json({
-            success: true,
-            channel: 'none',
-            info: 'Customer push-back is disabled in the LINE-only workflow'
-        });
-    } catch (error) {
-        console.error('Company activity error:', error);
-        res.status(500).json({ error: error.message });
-    }
+// POST /api/company/activity — disabled permanently
+app.post('/api/company/activity', async (req, res) => {
+    return res.status(410).json({ error: 'ปิด Company webhook reply flow ถาวรแล้ว' });
 });
 
 // ============ LEGACY TELEGRAM / UNIFIED ROUTES (DISABLED) ============
 
-// POST /api/telegram/send — disabled in LINE-only workflow
+// POST /api/telegram/send — disabled permanently
 app.post('/api/telegram/send', async (req, res) => {
     return res.status(410).json({ error: 'ปิดการทำงาน Telegram ในระบบ LINE-only แล้ว' });
 });
 
 // ============ UNIFIED PROFILE API ============
 
-// GET /api/unified/profile — disabled in LINE-only workflow
+// GET /api/unified/profile — disabled permanently
 app.get('/api/unified/profile', async (req, res) => {
     return res.status(410).json({ error: 'ปิด unified profile API ในระบบ LINE-only แล้ว' });
 });

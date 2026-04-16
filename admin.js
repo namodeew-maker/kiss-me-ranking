@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function userAvatarSrc(user) {
-        if (user.picture_url) return user.picture_url;
+        if (user.picture_url) return resolveAssetUrl(user.picture_url);
         const name = user.display_name || user.platform_id || 'User';
         return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=1a1a2e&color=ff3c3c&size=96`;
     }

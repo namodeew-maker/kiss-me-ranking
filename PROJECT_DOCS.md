@@ -59,15 +59,12 @@
     │  port 3000      │       └──────────────────┘
     └────────┬────────┘
              │
-     ┌───────┤
-     │       │
-     ▼       ▼
-  Cloudflare   LINE
-  R2 (รูป)     Messaging
-               API (OA)
+             ▼
+      Cloudflare R2
+      (รูปสลิป / avatar)
 ```
 
-**Admin** เข้าผ่าน `/admin` → `/admin/panel` ใช้ Token-based auth  
+**Admin** เข้าผ่าน `/ranking-admin` → `/ranking-admin/panel` ใช้ Token-based auth
 legacy path `admin-login.html` และ `admin.html` ยัง redirect มา path ใหม่ได้
 
 ---
@@ -96,11 +93,11 @@ Kiss Me Ranking/
 │   ├── ecosystem.config.js         ← PM2 config สำหรับ production
 │   ├── nginx-ranking.conf          ← Nginx reverse proxy config สำหรับ ranking.kissme-vip.com
 │   └── setup-vps.sh                ← shell script ช่วย setup Ubuntu VPS เบื้องต้น
-├── examples/                       ← ตัวอย่างโค้ด integration / legacy reference
-│   ├── company-callback.js         ← Webhook receiver ฝั่งบริษัท
-│   ├── line-points-gateway.js      ← Gateway: LINE OAuth + points forward
-│   ├── telegram-messaging.js       ← Service ส่งข้อความ Telegram
-│   └── unified-queries.sql         ← ตัวอย่าง SQL สำหรับ identity lookup
+├── examples/                       ← ตัวอย่างโค้ดเก่า / legacy reference ที่ไม่ใช่ runtime หลัก
+│   ├── company-callback.js         ← ตัวอย่างเก่าของ Company webhook
+│   ├── line-points-gateway.js      ← ตัวอย่างเก่าของ LINE OAuth + points gateway
+│   ├── telegram-messaging.js       ← ตัวอย่างเก่าของ Telegram messaging
+│   └── unified-queries.sql         ← ตัวอย่าง SQL สำหรับ lookup/legacy data
 ├── index.html                      ← หน้าลูกค้า
 ├── init-db-unified.sql             ← Unified schema แบบ standalone
 ├── init-db.sql                     ← Schema ตั้งต้นของระบบหลัก
@@ -172,27 +169,18 @@ PORT=3000
 R2_ACCOUNT_ID=
 R2_ACCESS_KEY=
 R2_SECRET_KEY=
-R2_BUCKET=lotto-uploads
+R2_BUCKET=kissme-ranking
 R2_PUBLIC_URL=https://pub-xxxxx.r2.dev
 REQUIRE_R2_STORAGE=true
 
 # Admin path
 ADMIN_LOGIN_PATH=admin
 
-# LINE Login — สำหรับ server-side OAuth callback (ยังไม่ได้ตั้งค่า)
-LINE_LOGIN_CHANNEL_ID=
-LINE_LOGIN_CHANNEL_SECRET=
-LINE_REDIRECT_URI=
-
-# Company webhook — ส่ง event ไปบริษัท
-COMPANY_WEBHOOK_URL=
-COMPANY_WEBHOOK_TOKEN=
-
-# Telegram Bot (legacy / optional)
-TELEGRAM_BOT_TOKEN=
+# หมายเหตุ: production ปัจจุบันใช้ LINE LIFF ฝั่ง client เพื่อ login/สร้าง user ครั้งแรกเท่านั้น
+# จึงไม่ต้องตั้ง LINE server-side OAuth callback, Company webhook หรือ Telegram bot
 ```
 
-> **หมายเหตุ:** LINE LIFF ID (`2009696727-evibES3H`) ฝังใน script.js / profile.js โดยตรง ไม่ได้อยู่ใน .env และ `TELEGRAM_BOT_TOKEN` ไม่ใช่ค่าที่จำเป็นต่อ customer flow ปัจจุบันแล้ว
+> **หมายเหตุ:** LINE LIFF ID (`2009696727-evibES3H`) ฝังใน `script.js` / `profile.js` โดยตรง ไม่ได้อยู่ใน `.env` และ flow หลักปัจจุบันไม่ต้องใช้ `LINE_LOGIN_CHANNEL_ID`, `LINE_LOGIN_CHANNEL_SECRET`, `LINE_REDIRECT_URI`, `COMPANY_WEBHOOK_URL`, `COMPANY_WEBHOOK_TOKEN` หรือ `TELEGRAM_BOT_TOKEN`
 
 ---
 
@@ -217,7 +205,7 @@ TELEGRAM_BOT_TOKEN=
 |-------|--------|-------------|
 | **points** | คะแนนสะสมจากกิจกรรมต่างๆ | `global_user_id`, `activity_type`, `points`, `source_platform`, `source_oa_id`, `metadata` (JSONB) |
 
-> หมายเหตุ: migration และ setup ปัจจุบันโฟกัสที่ LINE Login + points ledger เป็นหลัก โดยใช้ `platform_id` / `User ID` ที่ลูกค้าคัดลอกจากหน้า profile มาให้แอดมินแทน ส่วนข้อมูล Telegram จัดเป็น legacy compatibility
+> หมายเหตุ: migration และ setup ปัจจุบันโฟกัสที่ LINE LIFF + points ledger เป็นหลัก โดยใช้ `platform_id` / `User ID` ที่ลูกค้าคัดลอกจากหน้า profile มาให้แอดมินแทน ข้อมูล Telegram เก่าถือเป็น legacy data เท่านั้น
 
 ### 6.3 Constraints สำคัญ
 
@@ -249,10 +237,10 @@ TELEGRAM_BOT_TOKEN=
 
 | Method | Path | Auth | หน้าที่ |
 |--------|------|------|--------|
-| `POST` | `/api/auth/login` | — | ล็อกอิน/สมัครลูกค้า (LINE เท่านั้น — Telegram ถูกปิดแล้ว) |
-| `GET` | `/auth/line/callback` | — | OAuth2 callback จาก LINE Login (server-side flow) |
-| `GET` | `/api/auth/telegram/config` | — | ❌ ปิดแล้ว — return 410 |
-| `POST` | `/api/auth/telegram` | — | ❌ ปิดแล้ว — return 410 |
+| `POST` | `/api/auth/login` | — | ล็อกอิน/สมัครลูกค้าจาก LINE LIFF (LINE เท่านั้น) |
+| `GET` | `/auth/line/callback` | — | ❌ ปิดถาวร — production ใช้ LINE LIFF เท่านั้น |
+| `GET` | `/api/auth/telegram/config` | — | ❌ ปิดถาวร — return 410 |
+| `POST` | `/api/auth/telegram` | — | ❌ ปิดถาวร — return 410 |
 
 **Body ตัวอย่าง `/api/auth/login`:**
 ```json
@@ -346,23 +334,18 @@ value_score: 8
 | `GET` | `/api/admin/customers/reset-rank` | Bearer | ดูวันที่เริ่มนับ Rank EXP ลูกค้าปัจจุบัน |
 | `POST` | `/api/admin/customers/reset-rank` | Bearer | ตั้งวันที่เริ่มนับ Rank EXP ลูกค้าใหม่ โดยไม่ลบประวัติสลิปเดิม |
 
-### 7.9 Identity & Points
+### 7.9 Identity & Legacy Points APIs
 
 | Method | Path | Auth | หน้าที่ |
 |--------|------|------|--------|
-| `POST` | `/api/points/activity` | — | บวกแต้ม + forward ไปบริษัท |
+| `POST` | `/api/points/activity` | — | บวกแต้มจากกิจกรรม (legacy/internal API — ไม่ forward ไปบริษัทแล้ว) |
 | `POST` | `/api/admin/points/redeem` | Bearer | ปิดใช้แล้ว — runtime ปัจจุบัน return 409 เพราะพ้อยใช้สำหรับระบบทายเลขอัตโนมัติเท่านั้น |
 | `GET` | `/api/points/:global_user_id` | — | ยอดคะแนนสะสม + ประวัติล่าสุด |
-| `GET` | `/api/unified/profile` | — | Unified profile lookup |
-| `POST` | `/api/company/activity` | Webhook Token | บริษัท ส่ง event กลับ → reply กลับตาม channel ที่ยังเชื่อมอยู่ |
-| `POST` | `/api/telegram/send` | — | ส่งข้อความผ่าน Telegram Bot |
+| `GET` | `/api/unified/profile` | — | ❌ ปิดถาวร — return 410 |
+| `POST` | `/api/company/activity` | — | ❌ ปิดถาวร — Company webhook reply flow ไม่ใช้งานแล้ว |
+| `POST` | `/api/telegram/send` | — | ❌ ปิดถาวร — return 410 |
 
-**Unified profile query params:**
-```
-/api/unified/profile?by=line&id=U1234
-/api/unified/profile?by=telegram&id=123456
-/api/unified/profile?by=global&id=uuid-here
-```
+> หมายเหตุ: กลุ่ม API นี้ไม่ใช่ customer flow หลักแล้ว โดย runtime ปัจจุบันใช้ LINE LIFF เพื่อสร้าง/อัปเดต `users` ครั้งแรก และใช้หน้า Admin + points ledger/rank flow เป็นหลัก
 
 **การใช้งานจริงสำหรับแอดมินตอนนี้:**
 - ลูกค้าเปิดหน้า profile
@@ -731,7 +714,7 @@ Admin token หมดอายุใน 8 ชั่วโมง และจะ�
 
 ระบบปัจจุบันรองรับเฉพาะ **LINE Login** เท่านั้น (Telegram login ถูกปิดแล้ว)
 
-- **LINE Login user ID** — จากการ login ผ่าน LIFF
+- **LINE Login user ID** — จากการ login ผ่าน LINE LIFF
 
 ระบบใช้ `global_user_id` (UUID) เป็นตัวกลาง และใช้ `platform_id` เป็นค่าที่ลูกค้าสามารถก็อปปี้ส่งให้แอดมินเพื่อเช็กสิทธิ์ได้โดยตรง
 
@@ -744,15 +727,15 @@ global_user_id (UUID)
 
 ### 10.2 การส่งข้อความกลับ
 
-1. กรณี LINE/ระบบบริษัท → ใช้ flow ที่ผูกกับ LINE Login / webhook ที่มีอยู่
-2. กรณี Telegram → จัดเป็น legacy integration ที่ยังอาจถูกเรียกใช้จากระบบภายนอกบางส่วน
-3. ถ้าไม่มีช่องทางเลย → return `channel: 'none'`
+- runtime ปัจจุบัน **ไม่มี** ระบบส่งข้อความกลับลูกค้าผ่าน Telegram
+- runtime ปัจจุบัน **ไม่มี** Company webhook reply flow แล้ว
+- LINE ถูกใช้ในระบบนี้เพื่อ **LIFF login / เก็บข้อมูลลูกค้าครั้งแรก** เป็นหลัก ไม่ได้ใช้ LINE Messaging webhook เป็น customer flow หลัก
 
 ### 10.3 หมายเหตุเรื่องโครงสร้างใหม่
 
-โค้ด runtime และ setup หลักของโปรเจกต์ถูกปรับให้ไม่ใช้ OA หลายตัวแล้ว โดยหน้าแอดมินและหน้าโปรไฟล์ใช้ `platform_id` / `User ID` เป็นตัวหลักในการตรวจสอบสิทธิ์, หักพ้อย, และหัก Cashback หรือ Gift Voucher
+โค้ด runtime และ setup หลักของโปรเจกต์ถูกปรับให้เป็น **LINE LIFF only** แล้ว โดยหน้าแอดมินและหน้าโปรไฟล์ใช้ `platform_id` / `User ID` เป็นตัวหลักในการตรวจสอบสิทธิ์, ดูพ้อย, จัดการสิทธิ์ Cashback / Gift Voucher และดู Rank EXP
 
-หน้าแอดมินใน User Detail Modal จะแสดง `ID ที่ใช้ค้นหาในแอดมิน` เพื่อย้ำว่าการทำงานจริงใช้ LINE User ID หรือ Global User ID ของลูกค้าเป็นหลัก ส่วน Telegram จัดเป็นข้อมูล legacy
+หน้าแอดมินใน User Detail Modal จะแสดง `ID ที่ใช้ค้นหาในแอดมิน` เพื่อย้ำว่าการทำงานจริงใช้ LINE User ID หรือ Global User ID ของลูกค้าเป็นหลัก ส่วน Telegram จัดเป็นข้อมูลเก่าเท่านั้น
 
 workflow หลักที่ใช้จริงคือ:
 
@@ -770,7 +753,7 @@ workflow หลักที่ใช้จริงคือ:
 
 ### 10.4 SQL ตัวอย่าง
 
-ดูไฟล์ `examples/unified-queries.sql` เป็น reference สำหรับ query identity/points เพิ่มเติม โดย workflow หลักตอนนี้เน้น lookup ด้วย LINE user ID หรือ `global_user_id`
+ดูไฟล์ `examples/unified-queries.sql` เป็น reference เก่าสำหรับ query identity/points เพิ่มเติม โดย workflow หลักตอนนี้เน้น lookup ด้วย LINE user ID หรือ `global_user_id`
 
 ---
 
@@ -823,16 +806,16 @@ ngrok http 3000
 
 ## 12. ไฟล์ตัวอย่าง (examples/)
 
-ไฟล์ใน `examples/` เป็นโค้ดตัวอย่างสำหรับ reference กรณีต้องการ deploy แยก service
+ไฟล์ใน `examples/` เป็นโค้ดตัวอย่างเก่าเพื่อ reference เท่านั้น ไม่ใช่ runtime หลักของ production ปัจจุบัน
 
 | ไฟล์ | หน้าที่ | Port |
 |------|--------|------|
-| `line-points-gateway.js` | Gateway: LINE OAuth + บวกแต้ม + forward event ไปบริษัท | 3010 |
-| `company-callback.js` | Webhook receiver: บริษัทส่ง event กลับมา → reply ลูกค้าผ่าน Telegram ถ้ามีช่องทาง | 3020 |
-| `telegram-messaging.js` | Service: ส่งข้อความผ่าน Telegram Bot API | 3030 |
+| `line-points-gateway.js` | ตัวอย่างเก่าของ LINE OAuth / points gateway | 3010 |
+| `company-callback.js` | ตัวอย่างเก่าของ Company webhook | 3020 |
+| `telegram-messaging.js` | ตัวอย่างเก่าของ Telegram messaging | 3030 |
 | `unified-queries.sql` | SQL query ตัวอย่างสำหรับ identity / points lookup | — |
 
-> **หมายเหตุ:** Route ทั้งหมดจาก examples/ ถูก**รวมเข้า server.js แล้ว** — ไฟล์ examples/ เก็บไว้เป็น reference เท่านั้น
+> **หมายเหตุ:** กลุ่มตัวอย่างที่อิง Telegram / Company webhook / server-side LINE OAuth ไม่ถือเป็น flow หลักอีกแล้ว ควรมองเป็น archived reference เท่านั้น
 
 ---
 
@@ -892,6 +875,7 @@ ngrok http 3000
 - บนมือถือ ปุ่มทายเลขถูกย้ายไปอยู่ข้างปุ่มกติกาใน footer เพื่อลดการบังข้อมูลหน้าแรก
 - เพิ่มปุ่ม `เปลี่ยนรูปโปรไฟล์` บนหน้า profile เพื่อให้ลูกค้าอัปโหลด avatar ใหม่ได้โดยไม่ต้องผ่าน flow หน้า ranking
 - เพิ่ม API `POST /api/users/:platform_id/avatar` สำหรับอัปโหลดรูปโปรไฟล์ฝั่งลูกค้า
+- ตรวจ production แล้วว่า custom avatar จากหน้า profile จะไม่ถูก LINE picture ทับกลับเมื่อ login ซ้ำ, `POST /api/users/upsert` หรือ `POST /api/points/activity`
 - ปรับการแสดงรูป avatar ให้ fallback กลับไปใช้ ui-avatars ได้เสมอถ้ายังไม่มีรูปจริง
 - แก้ layout card สรุป Cashback / GV บนหน้า admin ไม่ให้ข้อความหรือตัวเลขยาวล้นกรอบ
 - Admin modal ขยายความกว้างเป็น 1240px และยุบเป็น 1 คอลัมน์เมื่อจอ < 1180px
@@ -918,14 +902,13 @@ ngrok http 3000
 ### 14.1 งานระบบ / product
 
 - ข้อความอธิบายบางส่วนใน schema เดิม เช่น `progress_count` และคอมเมนต์ใน `init-db.sql` ยังสะท้อน model เก่าอยู่ แม้ runtime ปัจจุบันใช้ point-based flow แล้ว
-- การตรวจ production แบบ end-to-end หลัง deploy ล่าสุดยังควรทวนอีกครั้ง โดยเฉพาะหน้า admin history และ profile combined activity feed บน environment production
+- การตรวจ production ใน browser สำหรับหน้า admin history และ profile combined activity feed ยังควรทวนอีกครั้งเมื่อมีงาน UI รอบใหม่ แม้ flow เปลี่ยนรูปโปรไฟล์ฝั่งลูกค้าจะผ่าน end-to-end บน production แล้ว
 - ฝั่ง auth admin ยังเป็น token ใน memory ของ server local จึงหลุด session เมื่อ restart server ระหว่างทดสอบ
 
 ### 14.2 งานโครงสร้าง / configuration
 
-- LINE Login Channel ID/Secret ยังรอข้อมูลจริงจากฝั่งบริษัท
-- `TELEGRAM_BOT_TOKEN` ไม่ใช่ค่าที่จำเป็นต่อ customer flow ปัจจุบันแล้ว และควรถือเป็น legacy integration
-- Company Webhook URL ยังรอข้อมูลจริงจากฝั่งบริษัท
+- ค่า env ฝั่ง Telegram, Company webhook และ LINE server-side OAuth ไม่ถือเป็น requirement ของ flow หลักแล้ว
+- ถ้าจะนำ Telegram / Company webhook / server-side LINE OAuth กลับมาใช้ในอนาคต ควรเปิดงานแยกและ re-scope เป็น feature ใหม่ ไม่ใช่งานค้างของ production ปัจจุบัน
 - หากต้องการให้ local Codacy workflow ใช้งานได้ ต้องแก้ปัญหา environment ของ `wsl .codacy/cli.sh analyze ...` ที่ล้มอยู่ในเครื่องพัฒนา
 
 ### 14.3 หมายเหตุการ deploy ปัจจุบัน
@@ -935,7 +918,7 @@ ngrok http 3000
 - DNS production ปัจจุบันใช้ `A record` ชื่อ `ranking` → `185.182.184.180` บน Cloudflare
 - TLS production ปัจจุบันใช้ `Let's Encrypt` บน VPS และ Cloudflare ควรตั้ง `SSL/TLS = Full (strict)` เมื่อเปิด proxy
 - Legacy deployment เดิมยังเก็บไว้เป็น reference/rollback path: Frontend `https://namodeew-maker.github.io/kiss-me-ranking/` และ Backend `https://kiss-me-ranking.onrender.com/api`
-- ถ้ามีการเปลี่ยน domain หรือ backend host ต้องอัปเดต LIFF Endpoint URL, `LINE_REDIRECT_URI`, และจุด auto-detect ของ `API_BASE` ใน frontend ให้สอดคล้องกัน
+- ถ้ามีการเปลี่ยน domain หรือ backend host ต้องอัปเดต LIFF Endpoint URL และจุด auto-detect ของ `API_BASE` ใน frontend ให้สอดคล้องกัน
 
 ### 14.4 บันทึกงานวันที่ 11 เมษายน 2569
 
@@ -1005,17 +988,28 @@ sudo nginx -t && sudo systemctl reload nginx
 - สาเหตุคือ admin auth token ยังเก็บใน memory ของ Node process ถ้ารันหลาย instance จะมีโอกาส login ผ่าน worker หนึ่ง แต่ request ตรวจ session ไปตกอีก worker แล้วเด้งกลับหน้า login
 - ถ้าต้องการกลับไปใช้หลาย instance ในอนาคต ควรย้าย admin session/token ไปไว้ใน shared store เช่น PostgreSQL หรือ Redis ก่อน
 
+### 14.7 Checklist ถอดของที่ปิดถาวรออกจาก UI/เอกสาร
+
+- [ ] อย่าอธิบาย Telegram login / Telegram send เป็นระบบที่ยังใช้งานได้ใน customer flow หรือ admin flow
+- [ ] อย่าอธิบาย Company webhook reply flow เป็นส่วนหนึ่งของ production ปัจจุบัน
+- [ ] อย่าอธิบาย `/api/points/activity` ว่ายัง forward event ไปบริษัท
+- [ ] อย่าอธิบาย `/auth/line/callback` เป็น flow login หลักของลูกค้า และถ้าจะเก็บ route นี้ไว้ต้องถือว่าเป็น disabled route เท่านั้น
+- [ ] อย่าใส่ `LINE_LOGIN_CHANNEL_ID`, `LINE_LOGIN_CHANNEL_SECRET`, `LINE_REDIRECT_URI`, `COMPANY_WEBHOOK_URL`, `COMPANY_WEBHOOK_TOKEN`, `TELEGRAM_BOT_TOKEN` เป็น env จำเป็นของ setup หลัก
+- [ ] อย่าอธิบาย `/api/admin/points/redeem` ว่าเป็น feature ที่แอดมินใช้งานได้ เพราะ route นี้ปิดเชิงธุรกิจและ runtime return `409`
+- [ ] ถ้าจะเก็บ `examples/company-callback.js`, `examples/telegram-messaging.js`, `examples/line-points-gateway.js` ไว้ต่อ ให้ติดป้ายว่าเป็น archived / legacy reference ให้ชัด
+- [ ] ถ้าใน UI หรือคู่มือยังมีคำว่า LINE Messaging API, Telegram bot, company callback เป็น flow หลัก ให้เปลี่ยนเป็นคำอธิบายแบบ `LINE LIFF only`
+
 ---
 
-## สิ่งที่ยังไม่ได้ตั้งค่า (รอข้อมูลจากบริษัท)
+## สิ่งที่ยังต้องมีสำหรับ flow หลัก
 
 | รายการ | สถานะ | หมายเหตุ |
 |--------|-------|---------|
-| LINE Login Channel ID/Secret | ❌ รอตั้งค่า | ได้จาก LINE Developers Console |
-| Telegram Bot Token (legacy) | ⏸️ ไม่จำเป็นต่อ flow หลัก | ใช้เฉพาะกรณีต้องคง integration เก่าไว้ |
-| Company Webhook URL | ❌ รอตั้งค่า | URL ระบบฝั่งบริษัท |
+| Database / `DATABASE_URL` | ✅ ต้องมี | ใช้เก็บข้อมูลหลักของระบบ |
+| Cloudflare R2 | ✅ ต้องมี | ใช้เก็บรูปสลิป / avatar ถาวร |
+| Admin path | ✅ ต้องมี | ปัจจุบัน production ใช้ `/ranking-admin` |
 | Production frontend/backend | ✅ มีแล้ว | Public production ปัจจุบันใช้ `ranking.kissme-vip.com` บน VPS + Cloudflare; legacy GitHub Pages + Render ยังเก็บไว้เป็น reference |
 
 ---
 
-> **Last updated:** 16 เมษายน 2569 (2026) — อัปเดตเอกสารหลังเพิ่มชุด config สำหรับแยก `Kiss Me Ranking` ออกจาก `kissme-for-web` บน VPS เดียวกัน, ปรับ admin path เป็น `/ranking-admin`, และบันทึกข้อจำกัดการรัน PM2 แบบ single instance ใน production ปัจจุบัน
+> **Last updated:** 16 เมษายน 2569 (2026) — อัปเดตเอกสารให้ตรงกับ production ปัจจุบันแบบ `LINE LIFF only`, ตัดความหมายที่ชวนสับสนของ Telegram / Company webhook / server-side LINE OAuth, และเพิ่ม checklist สำหรับถอดของที่ปิดถาวรออกจาก UI/เอกสาร

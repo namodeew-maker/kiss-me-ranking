@@ -543,8 +543,15 @@ document.addEventListener('DOMContentLoaded', () => {
             syncLottoState(progressData);
             updateLottoConfirmButton();
 
+            if (progressData && typeof progressData === 'object') {
+                currentUser.display_name = progressData.display_name || currentUser.display_name;
+                currentUser.picture_url = Object.prototype.hasOwnProperty.call(progressData, 'picture_url')
+                    ? (progressData.picture_url || null)
+                    : currentUser.picture_url;
+            }
             currentUser.progress_count = Number(progressData?.progress_count || 0);
             sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+            updateProfileUI();
             renderMainUserIdCard();
         } catch (error) {
             console.error('Runtime state refresh error:', error);
