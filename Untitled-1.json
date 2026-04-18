@@ -1,0 +1,11 @@
+{
+  "user": { "id", "display_name", "picture_url", "progress_count" },
+  "transactions": [
+    { "id", "created_at", "status", "round_label", "slip_image_url",
+      "reject_reason", "staff_name", "staff_nickname" }
+  ],
+  "guesses": [
+    { "id", "guess_number", "round_label", "result",
+      "reward_amount", "created_at" }
+  ]
+}

@@ -165,7 +165,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function formatCashbackBalanceText(amount, netAmount) {
-        return `ใช้ซ้ำ ${formatCurrency(amount)} • ถอนสุทธิ ${formatCurrency(netAmount)}`;
+        return `ยอดคงเหลือ ${formatCurrency(amount)} • ถอนได้สุทธิ ${formatCurrency(netAmount)}`;
     }
 
     function formatServiceDate(value) {
@@ -603,6 +603,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userPaginationStatus = document.getElementById('user-pagination-status');
     const userPrevButton = document.getElementById('btn-user-prev');
     const userNextButton = document.getElementById('btn-user-next');
+    const excelAdminStatus = document.getElementById('excel-admin-status');
+    const excelExportReport = document.getElementById('excel-export-report');
+    const excelEditableReport = document.getElementById('excel-editable-report');
+    const excelImportReport = document.getElementById('excel-import-report');
+    const excelImportFile = document.getElementById('excel-import-file');
+    const excelImportResult = document.getElementById('excel-import-result');
+    const excelImportLogBody = document.getElementById('excel-import-log-body');
+    const excelImportLogEmpty = document.getElementById('excel-import-log-empty');
+    const btnExportCsv = document.getElementById('btn-export-csv');
+    const btnExportXlsx = document.getElementById('btn-export-xlsx');
+    const btnDownloadEditableXlsx = document.getElementById('btn-download-editable-xlsx');
+    const btnImportExcel = document.getElementById('btn-import-excel');
+    const btnRefreshImportLogs = document.getElementById('btn-refresh-import-logs');
     const userDetailEmpty = document.getElementById('user-detail-empty');
     const userDetailContent = document.getElementById('user-detail-content');
     const userDetailAvatar = document.getElementById('user-detail-avatar');
@@ -664,6 +677,100 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentUserPage = 1;
     let currentUserTotalPages = 1;
     let userSearchDebounceId = null;
+
+    function setExcelAdminStatus(message, type = 'info') {
+        if (!excelAdminStatus) return;
+        excelAdminStatus.textContent = message;
+        excelAdminStatus.dataset.state = type;
+    }
+
+    async function downloadExcelAdminFile(url, fallbackFilename) {
+        const res = await authFetch(url);
+        if (!res.ok) {
+            let errorMessage = 'download-failed';
+            try {
+                const errorData = await res.json();
+                errorMessage = errorData.error || errorMessage;
+            } catch {
+                errorMessage = await res.text();
+            }
+            throw new Error(errorMessage || 'download-failed');
+        }
+
+        const blob = await res.blob();
+        const contentDisposition = res.headers.get('content-disposition') || '';
+        const filenameMatch = contentDisposition.match(/filename="([^"]+)"/i);
+        const filename = filenameMatch?.[1] || fallbackFilename;
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(objectUrl);
+        return filename;
+    }
+
+    async function importExcelAdminFile(reportKey, file) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await authFetch(`${API_BASE}/admin/import/${encodeURIComponent(reportKey)}`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.error || (data.errors && data.errors.length
+                ? data.errors.map((item) => `แถว ${item.row}: ${item.error}`).join(' | ')
+                : 'import-failed'));
+        }
+
+        return data;
+    }
+
+    function renderExcelImportLogs(logs) {
+        if (!excelImportLogBody || !excelImportLogEmpty) return;
+
+        const items = Array.isArray(logs) ? logs : [];
+        if (!items.length) {
+            excelImportLogBody.innerHTML = '';
+            excelImportLogEmpty.textContent = 'ยังไม่มีประวัติ import Excel';
+            excelImportLogEmpty.classList.remove('hidden');
+            return;
+        }
+
+        excelImportLogEmpty.classList.add('hidden');
+        excelImportLogBody.innerHTML = items.map((log) => `
+            <tr>
+                <td>${escapeHtml(formatShortDateTime(log.created_at))}</td>
+                <td><strong>${escapeHtml(log.report_key || '-')}</strong></td>
+                <td>${escapeHtml(log.file_name || '-')}</td>
+                <td><span class="excel-log-status excel-log-status-${String(log.status || '').toLowerCase() === 'success' ? 'success' : 'failed'}">${escapeHtml(log.status || '-')}</span></td>
+                <td>${Number(log.rows_read || 0).toLocaleString('th-TH')}</td>
+                <td>${Number(log.rows_processed || 0).toLocaleString('th-TH')}</td>
+                <td>${Number(log.rows_written || 0).toLocaleString('th-TH')}</td>
+                <td>${escapeHtml(log.triggered_by_name || '-')}</td>
+                <td class="excel-log-detail">${escapeHtml(log.error_summary || '-')}</td>
+            </tr>
+        `).join('');
+    }
+
+    async function loadExcelImportLogs() {
+        if (!excelImportLogEmpty) return;
+        try {
+            const res = await authFetch(`${API_BASE}/admin/import-logs?limit=20`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'load-import-logs-failed');
+            renderExcelImportLogs(data.logs || []);
+        } catch (err) {
+            if (excelImportLogBody) excelImportLogBody.innerHTML = '';
+            excelImportLogEmpty.textContent = 'ไม่สามารถโหลดประวัติ import Excel ได้';
+            excelImportLogEmpty.classList.remove('hidden');
+        }
+    }
 
     function getTodayDateInputValue() {
         const now = new Date();
@@ -823,9 +930,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const amount = Number(row[amountKey] || 0);
         const netAmount = Number(row[netKey] || 0);
         if (row.reward_type === 'cashback') {
+            let metaText = `ยอดคงเหลือ ${formatCurrency(amount)} • ถอนได้สุทธิ ${formatCurrency(netAmount)}`;
+            if (amountKey === 'total_amount') {
+                metaText = `ถ้าถอนทั้งหมดจะรับสุทธิ ${formatCurrency(netAmount)} หรือใช้ซ้ำเต็มจำนวน`;
+            } else if (amountKey === 'redeemed_amount') {
+                metaText = `ยอดบัญชีที่ถูกหักแล้ว • มูลค่าที่ลูกค้าใช้/รับจริง ${formatCurrency(netAmount)}`;
+            }
             return `
                 <span class="reward-value-strong ${emphasisClass}">${formatCurrency(amount)}</span>
-                <span class="reward-value-meta">ถอนสุทธิ ${formatCurrency(netAmount)} หรือใช้ซ้ำเต็มจำนวน</span>
+                <span class="reward-value-meta">${metaText}</span>
             `;
         }
         return `
@@ -836,13 +949,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function formatRewardClaimItem(claim, allowDelete = true) {
         const amountHtml = claim.reward_type === 'cashback'
-            ? `${formatCurrency(claim.amount)} <span class="reward-value-meta">${formatClaimModeLabel(claim.claim_mode)}</span><span class="reward-value-meta"> • รับจริง ${formatCurrency(claim.net_amount || 0)}</span>`
-            : formatCurrency(claim.amount);
+            ? (claim.claim_mode === 'withdraw'
+                ? `หักยอด ${formatCurrency(claim.amount)} <span class="reward-value-meta">${formatClaimModeLabel(claim.claim_mode)}</span><span class="reward-value-meta"> • จ่ายจริง ${formatCurrency(claim.net_amount || 0)}</span>`
+                : `หักยอด ${formatCurrency(claim.amount)} <span class="reward-value-meta">${formatClaimModeLabel(claim.claim_mode)}</span>`)
+            : `หักยอด ${formatCurrency(claim.amount)}`;
         return `
             <div class="user-activity-item reward-claim-entry">
                 <div class="reward-claim-entry-main">
                     <div class="user-activity-title">${rewardTypeBadge(claim.reward_type)} ${escapeHtml(rewardOwnerLabel(claim))}</div>
-                    <div class="user-activity-meta">งวด ${escapeHtml(claim.round_label || '—')} • ใช้สิทธิ์ ${amountHtml} • บันทึกโดย ${escapeHtml(claim.redeemed_by_name || 'system')} • ${formatDateTime(claim.redeemed_at)}</div>
+                    <div class="user-activity-meta">งวด ${escapeHtml(claim.round_label || '—')} • ${amountHtml} • บันทึกโดย ${escapeHtml(claim.redeemed_by_name || 'system')} • ${formatDateTime(claim.redeemed_at)}</div>
                     ${claim.note ? `<div class="user-activity-meta">โน้ต: ${escapeHtml(claim.note)}</div>` : ''}
                 </div>
                 ${allowDelete ? `<button type="button" class="btn-small" data-delete-reward-claim="${claim.id}">ลบ</button>` : ''}
@@ -1459,6 +1574,103 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (userPlatformFilter) userPlatformFilter.value = 'all';
         renderUsers(1);
     });
+    btnExportCsv?.addEventListener('click', async () => {
+        const reportKey = excelExportReport?.value || 'leaderboard';
+        try {
+            setExcelAdminStatus(`กำลังสร้างไฟล์ CSV ของ ${reportKey}...`);
+            const filename = await downloadExcelAdminFile(
+                `${API_BASE}/admin/export/${encodeURIComponent(reportKey)}.csv`,
+                `${reportKey}.csv`
+            );
+            setExcelAdminStatus(`ดาวน์โหลด ${filename} สำเร็จ`, 'success');
+            showToast(`ดาวน์โหลด ${filename} แล้ว`, 'success');
+        } catch (err) {
+            setExcelAdminStatus('ดาวน์โหลด CSV ไม่สำเร็จ', 'error');
+            showToast(err.message || 'ไม่สามารถดาวน์โหลด CSV ได้', 'error');
+        }
+    });
+    btnExportXlsx?.addEventListener('click', async () => {
+        const reportKey = excelExportReport?.value || 'leaderboard';
+        try {
+            setExcelAdminStatus(`กำลังสร้างไฟล์ XLSX ของ ${reportKey}...`);
+            const filename = await downloadExcelAdminFile(
+                `${API_BASE}/admin/export/${encodeURIComponent(reportKey)}.xlsx`,
+                `${reportKey}.xlsx`
+            );
+            setExcelAdminStatus(`ดาวน์โหลด ${filename} สำเร็จ`, 'success');
+            showToast(`ดาวน์โหลด ${filename} แล้ว`, 'success');
+        } catch (err) {
+            setExcelAdminStatus('ดาวน์โหลด XLSX ไม่สำเร็จ', 'error');
+            showToast(err.message || 'ไม่สามารถดาวน์โหลด XLSX ได้', 'error');
+        }
+    });
+    btnDownloadEditableXlsx?.addEventListener('click', async () => {
+        const reportKey = excelEditableReport?.value || 'members';
+        try {
+            setExcelAdminStatus(`กำลังสร้างไฟล์แก้ไขของ ${reportKey}...`);
+            const filename = await downloadExcelAdminFile(
+                `${API_BASE}/admin/export/${encodeURIComponent(reportKey)}-editable.xlsx`,
+                `${reportKey}-editable.xlsx`
+            );
+            setExcelAdminStatus(`ดาวน์โหลดไฟล์แก้ไข ${filename} สำเร็จ`, 'success');
+            showToast(`ดาวน์โหลดไฟล์แก้ไข ${filename} แล้ว`, 'success');
+        } catch (err) {
+            setExcelAdminStatus('ดาวน์โหลดไฟล์แก้ไขไม่สำเร็จ', 'error');
+            showToast(err.message || 'ไม่สามารถดาวน์โหลดไฟล์แก้ไขได้', 'error');
+        }
+    });
+    btnImportExcel?.addEventListener('click', async () => {
+        const reportKey = excelImportReport?.value || 'members';
+        const file = excelImportFile?.files?.[0];
+        if (!file) {
+            showToast('กรุณาเลือกไฟล์ Excel ก่อนอัปโหลด', 'error');
+            return;
+        }
+
+        const confirmed = window.confirm(
+            reportKey === 'members'
+                ? 'ยืนยันอัปโหลดไฟล์ Members เพื่อแก้ไขชื่อ/รูปภาพของผู้ใช้? ถ้ามีแถวผิดแม้แถวเดียว ระบบจะยกเลิกทั้งไฟล์'
+                : 'ยืนยันอัปโหลดไฟล์ Reward Claims Current เพื่อสร้างรายการใช้สิทธิ์ใหม่? ถ้ามีแถวผิดแม้แถวเดียว ระบบจะยกเลิกทั้งไฟล์'
+        );
+        if (!confirmed) return;
+
+        try {
+            setExcelAdminStatus(`กำลังอัปโหลด ${file.name}...`);
+            if (excelImportResult) {
+                excelImportResult.textContent = `กำลังตรวจสอบไฟล์ ${file.name} ...`;
+            }
+            const data = await importExcelAdminFile(reportKey, file);
+            const resultText = reportKey === 'members'
+                ? `อัปเดตสำเร็จ ${Number(data.updated || 0).toLocaleString('th-TH')} บัญชี จาก ${Number(data.rowsRead || 0).toLocaleString('th-TH')} แถว`
+                : `สร้างรายการใช้สิทธิ์สำเร็จ ${Number(data.inserted || 0).toLocaleString('th-TH')} รายการ จาก ${Number(data.rowsRead || 0).toLocaleString('th-TH')} แถว`;
+
+            if (excelImportResult) {
+                excelImportResult.textContent = resultText;
+            }
+            setExcelAdminStatus('อัปโหลดและบันทึกไฟล์สำเร็จ', 'success');
+            showToast(resultText, 'success');
+            if (excelImportFile) excelImportFile.value = '';
+            await loadExcelImportLogs();
+
+            if (reportKey === 'members') {
+                await renderUsers(currentUserPage);
+                if (selectedUserId) await loadUserDetail(selectedUserId);
+            } else {
+                await renderCashbackSummary();
+                if (selectedUserId) await loadUserDetail(selectedUserId);
+            }
+        } catch (err) {
+            if (excelImportResult) {
+                excelImportResult.textContent = err.message || 'อัปโหลดไฟล์ไม่สำเร็จ';
+            }
+            setExcelAdminStatus('อัปโหลดไฟล์ไม่สำเร็จ', 'error');
+            showToast(err.message || 'ไม่สามารถอัปโหลดไฟล์ได้', 'error');
+            await loadExcelImportLogs();
+        }
+    });
+    btnRefreshImportLogs?.addEventListener('click', () => {
+        loadExcelImportLogs();
+    });
     btnClaimRemaining?.addEventListener('click', () => {
         if (!selectedRewardRow || !rewardClaimAmount) return;
         rewardClaimAmount.value = Number(selectedRewardRow.remaining_amount || 0).toFixed(2);
@@ -1987,6 +2199,85 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    async function renderStaffUsageRanking() {
+        const highlightGrid = document.getElementById('staff-usage-ranking-highlight-grid');
+        const tbody = document.getElementById('staff-usage-ranking-body');
+        const emptyMessage = document.getElementById('no-staff-usage-ranking');
+
+        if (!highlightGrid || !tbody || !emptyMessage) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/ranking/staff-usage`);
+            const staffs = await res.json();
+
+            if (!Array.isArray(staffs) || !staffs.length) {
+                highlightGrid.innerHTML = '<div class="staff-ranking-loading-card">ยังไม่มีข้อมูลยอดแจ้งใช้บริการ</div>';
+                tbody.innerHTML = '';
+                emptyMessage.textContent = 'ยังไม่มีข้อมูลยอดแจ้งใช้บริการ';
+                emptyMessage.classList.remove('hidden');
+                return;
+            }
+
+            emptyMessage.classList.add('hidden');
+
+            highlightGrid.innerHTML = staffs.slice(0, 3).map((staff, index) => {
+                const rank = index + 1;
+                const displayName = staff.nickname || staff.name || '—';
+                const avatarSrc = staffAvatarSrc(staff);
+                return `<div class="staff-ranking-highlight-card ${rank === 1 ? 'is-first' : ''}">
+                    <div class="staff-ranking-highlight-rank">#${rank}</div>
+                    <button type="button" class="staff-ranking-avatar-btn" data-staff-preview="${avatarSrc}" data-staff-name="${escapeHtml(displayName)}">
+                        <img class="staff-ranking-highlight-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=96';if(this.parentElement){this.parentElement.dataset.staffPreview=this.src;}">
+                    </button>
+                    <div class="staff-ranking-highlight-name">${escapeHtml(displayName)}</div>
+                    <div class="staff-ranking-highlight-sub">วัดจากจำนวนการส่งแจ้งใช้บริการทั้งหมด</div>
+                    <div class="staff-ranking-score-chips">
+                        <span>ทั้งหมด ${Number(staff.total_submissions || 0).toLocaleString('th-TH')}</span>
+                        <span>อนุมัติ ${Number(staff.approved_submissions || 0).toLocaleString('th-TH')}</span>
+                        <span>รอตรวจ ${Number(staff.pending_submissions || 0).toLocaleString('th-TH')}</span>
+                        <span>ปฏิเสธ ${Number(staff.rejected_submissions || 0).toLocaleString('th-TH')}</span>
+                    </div>
+                    <div class="staff-ranking-highlight-meta">ล่าสุด ${staff.last_service_at ? formatDateTime(staff.last_service_at) : 'ยังไม่มีรายการ'}</div>
+                    <div class="staff-ranking-highlight-points">${Number(staff.total_submissions || 0).toLocaleString('th-TH')} รายการแจ้งใช้บริการ</div>
+                </div>`;
+            }).join('');
+
+            tbody.innerHTML = staffs.map((staff, index) => {
+                const displayName = staff.nickname || staff.name || '—';
+                const subtitle = staff.name && staff.name !== staff.nickname ? staff.name : 'ยอดแจ้งใช้บริการ';
+                const avatarSrc = staffAvatarSrc(staff);
+                return `<tr>
+                    <td>${index + 1}</td>
+                    <td>
+                        <div class="staff-ranking-user-cell">
+                            <button type="button" class="staff-ranking-avatar-btn" data-staff-preview="${avatarSrc}" data-staff-name="${escapeHtml(displayName)}">
+                                <img class="staff-ranking-table-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1a1a2e&color=00f0ff&size=96';if(this.parentElement){this.parentElement.dataset.staffPreview=this.src;}">
+                            </button>
+                            <div>
+                                <div class="staff-ranking-user-name">${escapeHtml(displayName)}</div>
+                                <div class="staff-ranking-user-sub">${escapeHtml(subtitle)}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>${Number(staff.total_submissions || 0).toLocaleString('th-TH')}</td>
+                    <td>${Number(staff.approved_submissions || 0).toLocaleString('th-TH')}</td>
+                    <td>${Number(staff.pending_submissions || 0).toLocaleString('th-TH')}</td>
+                    <td>${Number(staff.rejected_submissions || 0).toLocaleString('th-TH')}</td>
+                    <td>${staff.last_service_at ? formatDateTime(staff.last_service_at) : '—'}</td>
+                </tr>`;
+            }).join('');
+
+            document.querySelectorAll('#staff-usage-ranking-highlight-grid [data-staff-preview], #staff-usage-ranking-body [data-staff-preview]').forEach((btn) => {
+                btn.addEventListener('click', () => openImageModal(btn.dataset.staffPreview));
+            });
+        } catch (err) {
+            highlightGrid.innerHTML = '<div class="staff-ranking-loading-card">ไม่สามารถโหลดอันดับยอดแจ้งใช้บริการได้</div>';
+            tbody.innerHTML = '';
+            emptyMessage.textContent = 'ไม่สามารถโหลดอันดับยอดแจ้งใช้บริการได้';
+            emptyMessage.classList.remove('hidden');
+        }
+    }
+
     // --- Staff Management ---
     async function renderStaffGrid() {
         const grid = document.getElementById('staff-grid');
@@ -2032,6 +2323,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     showToast('ปิดใช้งานพนักงานแล้ว', 'info');
                     renderStaffGrid();
                     renderStaffRanking();
+                    renderStaffUsageRanking();
                 });
             });
             grid.querySelectorAll('[data-activate-staff]').forEach(btn => {
@@ -2042,6 +2334,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     showToast('เปิดใช้งานพนักงานแล้ว', 'success');
                     renderStaffGrid();
                     renderStaffRanking();
+                    renderStaffUsageRanking();
                 });
             });
             grid.querySelectorAll('[data-delete-staff]').forEach(btn => {
@@ -2053,6 +2346,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         showToast('ลบพนักงานถาวรแล้ว', 'success');
                         renderStaffGrid();
                         renderStaffRanking();
+                        renderStaffUsageRanking();
                         renderHistory();
                         renderApproval();
                     } catch (err) {
@@ -2120,6 +2414,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 resetStaffAvatarPreview();
                 renderStaffGrid();
                 renderStaffRanking();
+                renderStaffUsageRanking();
             } else {
                 showToast(data.error || 'ไม่สามารถเพิ่มพนักงานได้', 'error');
             }
@@ -2131,6 +2426,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnRefreshStaffRanking = document.getElementById('btn-refresh-staff-ranking');
     if (btnRefreshStaffRanking) {
         btnRefreshStaffRanking.addEventListener('click', renderStaffRanking);
+    }
+
+    const btnRefreshStaffUsageRanking = document.getElementById('btn-refresh-staff-usage-ranking');
+    if (btnRefreshStaffUsageRanking) {
+        btnRefreshStaffUsageRanking.addEventListener('click', renderStaffUsageRanking);
     }
 
     const btnSaveRankingReset = document.getElementById('btn-save-ranking-reset');
@@ -2381,8 +2681,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     loadAdminAccounts();
+    loadExcelImportLogs();
     renderStaffGrid();
     renderStaffRanking();
+    renderStaffUsageRanking();
     loadRankingResetDate();
     loadCustomerRankResetDate();
     loadGuessPointsCycle();

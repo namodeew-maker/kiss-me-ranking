@@ -424,13 +424,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentVisitedStaffIds = new Set((staffIds || []).map(String));
 
         document.querySelectorAll('.staff-pick-card').forEach(card => {
-            const isLocked = currentVisitedStaffIds.has(card.dataset.staffId);
-            card.classList.toggle('is-locked', isLocked);
-            card.setAttribute('aria-disabled', isLocked ? 'true' : 'false');
-
-            if (isLocked && card.classList.contains('selected')) {
-                clearSelectedStaff();
-            }
+            card.classList.remove('is-locked');
+            card.setAttribute('aria-disabled', 'false');
         });
     }
 
@@ -882,9 +877,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             staffGrid.querySelectorAll('.staff-pick-card').forEach(card => {
                 card.addEventListener('click', () => {
-                    if (card.classList.contains('is-locked')) {
-                        return;
-                    }
                     staffGrid.querySelectorAll('.staff-pick-card').forEach(c => c.classList.remove('selected'));
                     card.classList.add('selected');
                     staffInput.value = card.dataset.staffId;

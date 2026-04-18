@@ -67,6 +67,79 @@
     box-shadow: 0 10px 28px rgba(255, 196, 64, 0.28);
 }
 
+.ranking-round-select {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.ranking-round-select[hidden] {
+    display: none !important;
+}
+
+.ranking-round-select label {
+    color: rgba(255, 244, 220, 0.88);
+    font-weight: 600;
+}
+
+.ranking-round-select-wrap {
+    position: relative;
+    min-width: 260px;
+}
+
+.ranking-round-select-wrap::after {
+    content: '▾';
+    position: absolute;
+    top: 50%;
+    right: 16px;
+    transform: translateY(-50%);
+    color: #ffd983;
+    pointer-events: none;
+    font-size: 0.95rem;
+}
+
+.ranking-round-dropdown {
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    border: 1px solid rgba(255, 207, 107, 0.26);
+    border-radius: 14px;
+    padding: 12px 44px 12px 16px;
+    background:
+        linear-gradient(135deg, rgba(255, 240, 188, 0.14), rgba(248, 201, 87, 0.08) 58%, rgba(215, 145, 27, 0.08) 100%),
+        rgba(22, 16, 24, 0.92);
+    background-image:
+        linear-gradient(135deg, rgba(255, 240, 188, 0.14), rgba(248, 201, 87, 0.08) 58%, rgba(215, 145, 27, 0.08) 100%);
+    background-color: rgba(22, 16, 24, 0.96);
+    color: #fff4da;
+    font-family: 'Kanit', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.2;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 24px rgba(0, 0, 0, 0.22);
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.ranking-round-dropdown:hover,
+.ranking-round-dropdown:focus {
+    border-color: rgba(255, 215, 128, 0.42);
+    box-shadow: 0 0 0 3px rgba(255, 205, 88, 0.12), 0 12px 28px rgba(0, 0, 0, 0.24);
+}
+
+.ranking-round-dropdown::-ms-expand {
+    display: none;
+}
+
+.ranking-round-dropdown option {
+    color: #fff4da;
+    background: #17111d;
+}
+
 /* ==================== LEADERBOARD SHELL ==================== */
 .leaderboard-shell {
     display: grid;
@@ -727,6 +800,17 @@
         margin-bottom: 16px;
         padding: 4px;
         border-radius: 16px;
+    }
+
+    .ranking-round-select {
+        align-items: stretch;
+        gap: 10px;
+        margin-bottom: 18px;
+    }
+
+    .ranking-round-select-wrap {
+        min-width: 0;
+        width: 100%;
     }
 
     .rank-tab-btn {

@@ -146,6 +146,11 @@ function renderLeaderboardBoard(list, options) {
         const avatarSrc = options.getAvatar(entry);
         const displayName = options.getDisplayName(entry);
         const tierInfo = options.getTier ? options.getTier(entry) : null;
+        const subtitle = options.getSubtitle(entry);
+        const metaParts = [
+            renderCustomerTierBadge(tierInfo, 'podium-tier-badge'),
+            subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ''
+        ].filter(Boolean).join('');
         const avatarNode = avatarSrc
             ? `<button type="button" class="podium-avatar-btn" data-fullimg="${avatarSrc}" data-avatar-name="${escapeHtml(displayName)}" aria-label="ดูรูป ${escapeHtml(displayName)} เต็ม">
                 <img class="podium-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}"
@@ -158,10 +163,7 @@ function renderLeaderboardBoard(list, options) {
             ${renderRankLogoMark(tierInfo, 'podium-rank-logo-wrap')}
             ${avatarNode}
             <div class="podium-name">${escapeHtml(displayName)}</div>
-            <div class="podium-meta">
-                ${renderCustomerTierBadge(tierInfo, 'podium-tier-badge')}
-                <span>${escapeHtml(options.getSubtitle(entry))}</span>
-            </div>
+            ${metaParts ? `<div class="podium-meta">${metaParts}</div>` : ''}
             <div class="podium-points">${escapeHtml(options.getMetric(entry))}</div>
         </div>`;
     }).join('');
@@ -171,6 +173,11 @@ function renderLeaderboardBoard(list, options) {
         const displayName = options.getDisplayName(entry);
         const avatarSrc = options.getAvatar(entry);
         const tierInfo = options.getTier ? options.getTier(entry) : null;
+        const subtitle = options.getSubtitle(entry);
+        const rowSubParts = [
+            renderCustomerTierBadge(tierInfo, 'leaderboard-row-tier-badge'),
+            subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ''
+        ].filter(Boolean).join('');
         const rowAvatar = avatarSrc
             ? `<button type="button" class="leaderboard-row-avatar-btn" data-fullimg="${avatarSrc}" data-avatar-name="${escapeHtml(displayName)}" aria-label="ดูรูป ${escapeHtml(displayName)} เต็ม">
                 <img class="leaderboard-row-avatar" src="${avatarSrc}" alt="${escapeHtml(displayName)}"
@@ -185,10 +192,7 @@ function renderLeaderboardBoard(list, options) {
                 ${rowAvatar}
                 <div>
                 <div class="leaderboard-row-name">${escapeHtml(displayName)}</div>
-                <div class="leaderboard-row-sub">
-                    ${renderCustomerTierBadge(tierInfo, 'leaderboard-row-tier-badge')}
-                    <span>${escapeHtml(options.getSubtitle(entry))}</span>
-                </div>
+                ${rowSubParts ? `<div class="leaderboard-row-sub">${rowSubParts}</div>` : ''}
                 </div>
             </div>
             <div class="leaderboard-row-points">${escapeHtml(options.getMetric(entry))}</div>
@@ -298,10 +302,41 @@ function spawnParticles() {
     }
 }
 
-// ==================== CUSTOMER RANKING ====================
-async function loadCustomerRanking() {
+// ==================== ROUND SELECT & TABS ====================
+async function fetchAvailableRounds() {
+    try {
+        const res = await fetch(`${API_BASE}/round`);
+        const data = await res.json();
+        const configuredRounds = Array.isArray(data?.ranking_rounds) ? data.ranking_rounds : [];
+        return configuredRounds
+            .filter((round) => round && round.value && round.label)
+            .map((round) => ({
+                value: String(round.value),
+                label: String(round.label)
+            }));
+    } catch {
+        return [];
+    }
+}
+
+function getSelectedRounds() {
+    const select = document.getElementById('round-select');
+    return select?.value ? [select.value] : ['all'];
+}
+
+function switchTab(tab) {
+    document.querySelectorAll('.rank-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+    document.querySelectorAll('.rank-tab-content').forEach(sec => {
+        sec.classList.toggle('rank-tab-hidden', sec.id !== `tab-${tab}`);
+    });
+}
+
+async function loadCustomerRanking(rounds) {
     const list = document.getElementById('customer-ranking-list');
     try {
+        // TODO: ส่ง rounds ไป filter ที่ backend ถ้ามี endpoint รองรับ
         const res = await fetch(`${API_BASE}/ranking/customers`);
         const customers = await res.json();
         if (!customers.length) {
@@ -337,8 +372,64 @@ async function loadCustomerRanking() {
     }
 }
 
-// ==================== INIT ====================
-document.addEventListener('DOMContentLoaded', () => {
+async function loadStaffUsageRanking(rounds) {
+    const list = document.getElementById('staff-usage-ranking-list');
+    try {
+        // TODO: ส่ง rounds ไป filter ที่ backend ถ้ามี endpoint รองรับ
+        const res = await fetch(`${API_BASE}/ranking/staff-usage`);
+        const staffs = await res.json();
+        if (!Array.isArray(staffs) || !staffs.length) {
+            list.innerHTML = '<div class="ranking-loading">ยังไม่มีข้อมูลอันดับ</div>';
+            return;
+        }
+        list.innerHTML = renderLeaderboardBoard(staffs, {
+            boardLabel: 'Service Usage Leaderboard',
+            metricHeader: 'ยอดแจ้งใช้บริการ',
+            getAvatar: (staff) => getAvatarSrc(staff, staff.nickname || staff.name || 'U'),
+            getDisplayName: (staff) => staff.nickname || staff.name || '—',
+            getSubtitle: () => '',
+            getTier: null,
+            getMetric: (staff) => formatMetricNumber(staff.total_submissions || 0),
+            getBestMeta: (staff) => [
+                { label: 'แจ้งใช้บริการทั้งหมด', value: formatMetricNumber(staff.total_submissions || 0) },
+                { label: 'อนุมัติแล้ว', value: formatMetricNumber(staff.approved_submissions || 0) },
+                { label: 'ล่าสุด', value: staff.last_service_at ? new Date(staff.last_service_at).toLocaleDateString('th-TH') : '—' }
+            ]
+        });
+        bindRankingImagePreview(list);
+    } catch (err) {
+        list.innerHTML = '<div class="ranking-loading">ไม่สามารถโหลดอันดับได้</div>';
+    }
+}
+
+async function reloadRanking() {
+    const tab = document.querySelector('.rank-tab-btn.active')?.dataset.tab || 'customer';
+    const rounds = getSelectedRounds();
+    if (tab === 'customer') {
+        await loadCustomerRanking(rounds);
+        return;
+    }
+    await loadStaffUsageRanking(rounds);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
     spawnParticles();
-    loadCustomerRanking();
+    const roundSelectWrap = document.getElementById('ranking-round-select');
+    const roundSelect = document.getElementById('round-select');
+    const rounds = await fetchAvailableRounds();
+    if (roundSelectWrap && roundSelect && rounds.length) {
+        roundSelect.innerHTML = rounds.map(r => `<option value="${r.value}">${r.label}</option>`).join('');
+        roundSelect.value = rounds[0].value;
+        roundSelectWrap.hidden = false;
+        roundSelect.addEventListener('change', reloadRanking);
+    }
+
+    document.getElementById('ranking-tabs').addEventListener('click', (e) => {
+        if (e.target.classList.contains('rank-tab-btn')) {
+            switchTab(e.target.dataset.tab);
+            reloadRanking();
+        }
+    });
+
+    reloadRanking();
 });

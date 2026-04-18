@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     staff_id INTEGER NOT NULL REFERENCES staffs(id) ON DELETE RESTRICT,
     slip_image_url TEXT NOT NULL,                   -- URL รูปสลิปที่อัปโหลด
     service_date DATE,                              -- วันที่ลูกค้ามาใช้บริการจริง
-    guess_cycle INTEGER NOT NULL DEFAULT 0,         -- ล็อกพนักงานซ้ำเฉพาะชุดโหวตก่อนการทายเลขแต่ละครั้ง
+    guess_cycle INTEGER NOT NULL DEFAULT 0,         -- เก็บ cycle สำหรับการทายเลขและประวัติรอบ
     status VARCHAR(20) NOT NULL DEFAULT 'pending'   -- pending / approved / rejected
         CHECK (status IN ('pending', 'approved', 'rejected')),
     reviewed_by INTEGER,                            -- admin_users.id ที่ตรวจสอบ
@@ -66,12 +66,6 @@ CREATE TABLE IF NOT EXISTS transactions (
     round_label VARCHAR(20),                        -- ป้ายรอบ เช่น '2026-04-A' (วันที่ 1-14) หรือ '2026-04-B' (วันที่ 16-29)
     created_at TIMESTAMP DEFAULT NOW()
 );
-
--- ป้องกันลูกค้าแจ้งพนักงานซ้ำในชุดโหวตเดียวกัน
--- เมื่อลูกค้าทายเลขแล้ว guess_cycle จะเพิ่ม ทำให้เริ่มโหวตซ้ำได้อีก 1 ชุด
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_staff_round_cycle
-    ON transactions (user_id, staff_id, round_label, guess_cycle)
-    WHERE status <> 'rejected';
 
 -- ============================================
 -- 4. ตาราง ratings — คะแนนลับ 3 ด้าน

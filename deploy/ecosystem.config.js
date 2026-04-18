@@ -10,7 +10,7 @@ module.exports = {
         exec_mode: 'fork',
         env: {
             NODE_ENV: 'production',
-            PORT: 3000,
+            PORT: 3010,
         },
         // Auto-restart on crash
         max_restarts: 10,

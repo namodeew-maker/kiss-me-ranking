@@ -8,6 +8,7 @@ const multer = require('multer');
 const fs = require('fs');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const XLSX = require('xlsx');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 // Load .env if present
@@ -108,6 +109,11 @@ const upload = multer({
         const mimeOk = allowed.test(file.mimetype);
         cb(null, extOk && mimeOk);
     }
+});
+
+const excelUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 // Helper: upload buffer to R2
@@ -517,7 +523,7 @@ app.use(cors({
     origin: [
         'https://namodeew-maker.github.io',
         'https://ranking.kissme-vip.com',
-        'http://localhost:3000',
+        'http://localhost:3010',
         /\.trycloudflare\.com$/,
         /\.ngrok-free\.dev$/
     ],
@@ -640,6 +646,22 @@ async function ensureDatabaseStructure() {
             )
         `);
         await pool.query(`
+            CREATE TABLE IF NOT EXISTS admin_excel_import_logs (
+                id BIGSERIAL PRIMARY KEY,
+                report_key VARCHAR(100) NOT NULL,
+                file_name TEXT,
+                status VARCHAR(20) NOT NULL,
+                rows_read INTEGER NOT NULL DEFAULT 0,
+                rows_processed INTEGER NOT NULL DEFAULT 0,
+                rows_written INTEGER NOT NULL DEFAULT 0,
+                triggered_by INTEGER REFERENCES admin_users(id) ON DELETE SET NULL,
+                triggered_by_name VARCHAR(100),
+                error_summary TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        `);
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_admin_excel_import_logs_created_at ON admin_excel_import_logs (created_at DESC)');
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS lottery_reward_claims (
                 id SERIAL PRIMARY KEY,
                 lottery_guess_id INTEGER NOT NULL REFERENCES lottery_guesses(id) ON DELETE CASCADE,
@@ -676,11 +698,6 @@ async function ensureDatabaseStructure() {
         await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_sold_out_number_round ON sold_out (number, round_label)');
         await pool.query('DROP INDEX IF EXISTS uq_user_staff_round');
         await pool.query('DROP INDEX IF EXISTS uq_user_staff_round_cycle');
-        await pool.query(`
-            CREATE UNIQUE INDEX IF NOT EXISTS uq_user_staff_round_cycle
-            ON transactions (user_id, staff_id, round_label, guess_cycle)
-            WHERE status <> 'rejected'
-        `);
         await pool.query('DROP INDEX IF EXISTS uq_user_lottery_round');
         await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_user_lottery_round_number ON lottery_guesses (user_id, round_label, guess_number)');
         await pool.query(`
@@ -869,6 +886,7 @@ const LOCKOUT_THRESHOLD = 10;         // lock after 10 failed attempts
 const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minute lockout
 const FAILED_ATTEMPT_WINDOW_MS = 15 * 60 * 1000; // 15 minute window
 const ADMIN_ROLES = ['admin', 'editor'];
+const GOOGLE_SHEETS_EXPORT_SECRET = String(process.env.EXPORT_SYNC_SECRET || '').trim();
 
 function cleanExpiredTokens() {
     const now = Date.now();
@@ -904,6 +922,38 @@ function requireAdminManager(req, res, next) {
         return res.status(403).json({ error: 'เฉพาะแอดมินหลักเท่านั้นที่จัดการบัญชีผู้ดูแลได้' });
     }
     next();
+}
+
+function requireGoogleSheetsExportAuth(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Missing Bearer token' });
+    }
+
+    const token = authHeader.slice(7).trim();
+    if (!token) {
+        return res.status(401).json({ error: 'Missing Bearer token' });
+    }
+
+    cleanExpiredTokens();
+    const session = authTokens.get(token);
+    if (session) {
+        req.adminUser = session.username;
+        req.adminUserId = session.userId;
+        req.adminRole = session.role || 'admin';
+        req.exportAuthMode = 'admin_session';
+        return next();
+    }
+
+    if (GOOGLE_SHEETS_EXPORT_SECRET && token === GOOGLE_SHEETS_EXPORT_SECRET) {
+        req.adminUser = 'google_sheets_export';
+        req.adminUserId = null;
+        req.adminRole = 'system';
+        req.exportAuthMode = 'shared_secret';
+        return next();
+    }
+
+    return res.status(401).json({ error: 'Invalid export token' });
 }
 
 async function tableExists(client, tableName) {
@@ -1136,7 +1186,7 @@ function buildRewardBaseQuery(userIds = []) {
                     END AS total_net_amount,
                     COALESCE(ct.redeemed_net_amount, 0)::numeric(10,2) AS redeemed_net_amount,
                     CASE WHEN lg.result = 'won'
-                        THEN GREATEST((COALESCE(lg.reward_amount, 0) * ${CASHBACK_WITHDRAWAL_RATE}) - COALESCE(ct.redeemed_net_amount, 0), 0)::numeric(10,2)
+                        THEN (GREATEST(COALESCE(lg.reward_amount, 0) - COALESCE(ct.redeemed_amount, 0), 0) * ${CASHBACK_WITHDRAWAL_RATE})::numeric(10,2)
                         ELSE GREATEST(COALESCE(lg.reward_amount, 0) - COALESCE(ct.redeemed_amount, 0), 0)::numeric(10,2)
                     END AS remaining_net_amount,
                     ct.last_claim_mode,
@@ -1362,6 +1412,267 @@ app.post('/api/login', loginLimiter, async (req, res) => {
 // GET /api/auth/verify
 app.get('/api/auth/verify', requireAuth, (req, res) => {
     res.json({ valid: true, username: req.adminUser, user_id: req.adminUserId, role: req.adminRole });
+});
+
+// POST /api/admin/google-sheets/export
+app.post('/api/admin/google-sheets/export', requireGoogleSheetsExportAuth, async (req, res) => {
+    const reportKey = String(req.body?.reportKey || '').trim().toLowerCase();
+    const requestedMode = String(req.body?.mode || '').trim().toLowerCase();
+
+    if (!reportKey) {
+        return res.status(400).json({ error: 'reportKey is required' });
+    }
+
+    try {
+        const payload = await getGoogleSheetsExportPayload(reportKey);
+
+        if (requestedMode && requestedMode !== payload.mode) {
+            return res.status(400).json({
+                error: `Unsupported mode for ${reportKey}. Expected ${payload.mode}`
+            });
+        }
+
+        return res.json(payload);
+    } catch (err) {
+        console.error('Google Sheets export error:', err);
+        const isUnsupportedReport = String(err.message || '').startsWith('Unsupported reportKey:');
+        if (isUnsupportedReport) {
+            return res.status(400).json({ error: err.message });
+        }
+        return res.status(500).json({
+            ok: false,
+            error: `Failed to export ${reportKey}`
+        });
+    }
+});
+
+// GET /api/admin/export/:reportKey.csv
+app.get('/api/admin/export/:reportKey.csv', requireGoogleSheetsExportAuth, async (req, res) => {
+    const reportKey = String(req.params.reportKey || '').trim().toLowerCase();
+
+    try {
+        const payload = await getGoogleSheetsExportPayload(reportKey);
+        const csv = buildCsvFromExportPayload(payload);
+        const filename = getExportFilename(reportKey, 'csv', payload.generatedAt || new Date());
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.status(200).send(csv);
+    } catch (err) {
+        console.error('CSV export error:', err);
+        const isUnsupportedReport = String(err.message || '').startsWith('Unsupported reportKey:');
+        if (isUnsupportedReport) {
+            return res.status(400).json({ error: err.message });
+        }
+        return res.status(500).json({ error: `Failed to export CSV for ${reportKey}` });
+    }
+});
+
+// GET /api/admin/export/:reportKey-editable.xlsx
+app.get('/api/admin/export/:reportKey-editable.xlsx', requireAuth, async (req, res) => {
+    const reportKey = String(req.params.reportKey || '').trim().toLowerCase();
+
+    try {
+        let payload = await getGoogleSheetsExportPayload(reportKey);
+        if (reportKey === 'members') {
+            payload = buildEditableMembersPayload(payload);
+        } else if (reportKey === 'reward_claims_current') {
+            payload = buildEditableRewardClaimsCurrentPayload(payload);
+        } else {
+            return res.status(400).json({
+                error: 'This report is read-only in Excel. Editable exports are available only for members and reward_claims_current.'
+            });
+        }
+
+        const buffer = buildXlsxBufferFromExportPayload(payload);
+        const filename = getExportFilename(`${reportKey}-editable`, 'xlsx', payload.generatedAt || new Date());
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.status(200).send(buffer);
+    } catch (err) {
+        console.error('Editable XLSX export error:', err);
+        return res.status(500).json({ error: `Failed to export editable XLSX for ${reportKey}` });
+    }
+});
+
+// GET /api/admin/export/:reportKey.xlsx
+app.get('/api/admin/export/:reportKey.xlsx', requireGoogleSheetsExportAuth, async (req, res) => {
+    const reportKey = String(req.params.reportKey || '').trim().toLowerCase();
+
+    try {
+        const payload = await getGoogleSheetsExportPayload(reportKey);
+        const buffer = buildXlsxBufferFromExportPayload(payload);
+        const filename = getExportFilename(reportKey, 'xlsx', payload.generatedAt || new Date());
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.status(200).send(buffer);
+    } catch (err) {
+        console.error('XLSX export error:', err);
+        const isUnsupportedReport = String(err.message || '').startsWith('Unsupported reportKey:');
+        if (isUnsupportedReport) {
+            return res.status(400).json({ error: err.message });
+        }
+        return res.status(500).json({ error: `Failed to export XLSX for ${reportKey}` });
+    }
+});
+
+// POST /api/admin/import/:reportKey
+app.post('/api/admin/import/:reportKey', requireAuth, excelUpload.single('file'), async (req, res) => {
+    const reportKey = String(req.params.reportKey || '').trim().toLowerCase();
+    const fileName = String(req.file?.originalname || '').trim() || 'unknown-file';
+
+    if (!req.file) {
+        return res.status(400).json({ error: 'Import file is required. Use multipart field name "file".' });
+    }
+
+    try {
+        const parsed = parseWorkbookRowsFromFile(req.file);
+
+        if (reportKey === 'leaderboard') {
+            await logExcelImportRun({
+                reportKey,
+                fileName,
+                status: 'failed',
+                rowsRead: 0,
+                rowsProcessed: 0,
+                rowsWritten: 0,
+                triggeredBy: req.adminUserId,
+                triggeredByName: req.adminUser,
+                errorSummary: 'Leaderboard is read-only and does not support import'
+            });
+            return res.status(400).json({
+                error: 'Leaderboard is a derived report and is read-only. Import is not supported.'
+            });
+        }
+
+        if (reportKey === 'members') {
+            const result = await applyMembersImport(parsed.records);
+            if (!result.ok) {
+                await logExcelImportRun({
+                    reportKey,
+                    fileName,
+                    status: 'failed',
+                    rowsRead: parsed.records.length,
+                    rowsProcessed: result.processed,
+                    rowsWritten: result.updated,
+                    triggeredBy: req.adminUserId,
+                    triggeredByName: req.adminUser,
+                    errorSummary: (result.errors || []).slice(0, 5).map((item) => `row ${item.row}: ${item.error}`).join(' | ')
+                });
+                return res.status(400).json(result);
+            }
+            await logExcelImportRun({
+                reportKey,
+                fileName,
+                status: 'success',
+                rowsRead: parsed.records.length,
+                rowsProcessed: result.processed,
+                rowsWritten: result.updated,
+                triggeredBy: req.adminUserId,
+                triggeredByName: req.adminUser
+            });
+            return res.json({
+                ...result,
+                importedSheetName: parsed.sheetName,
+                rowsRead: parsed.records.length
+            });
+        }
+
+        if (reportKey === 'reward_claims_current') {
+            const result = await applyRewardClaimsCurrentImport(parsed.records, req.adminUserId);
+            if (!result.ok) {
+                await logExcelImportRun({
+                    reportKey,
+                    fileName,
+                    status: 'failed',
+                    rowsRead: parsed.records.length,
+                    rowsProcessed: result.processed,
+                    rowsWritten: result.inserted,
+                    triggeredBy: req.adminUserId,
+                    triggeredByName: req.adminUser,
+                    errorSummary: (result.errors || []).slice(0, 5).map((item) => `row ${item.row}: ${item.error}`).join(' | ')
+                });
+                return res.status(400).json(result);
+            }
+            await logExcelImportRun({
+                reportKey,
+                fileName,
+                status: 'success',
+                rowsRead: parsed.records.length,
+                rowsProcessed: result.processed,
+                rowsWritten: result.inserted,
+                triggeredBy: req.adminUserId,
+                triggeredByName: req.adminUser
+            });
+            return res.json({
+                ...result,
+                importedSheetName: parsed.sheetName,
+                rowsRead: parsed.records.length
+            });
+        }
+
+        await logExcelImportRun({
+            reportKey,
+            fileName,
+            status: 'failed',
+            rowsRead: parsed.records.length,
+            rowsProcessed: 0,
+            rowsWritten: 0,
+            triggeredBy: req.adminUserId,
+            triggeredByName: req.adminUser,
+            errorSummary: `Unsupported import reportKey: ${reportKey}`
+        });
+        return res.status(400).json({ error: `Unsupported import reportKey: ${reportKey}` });
+    } catch (err) {
+        console.error('Excel import error:', err);
+        await logExcelImportRun({
+            reportKey,
+            fileName,
+            status: 'failed',
+            rowsRead: 0,
+            rowsProcessed: 0,
+            rowsWritten: 0,
+            triggeredBy: req.adminUserId,
+            triggeredByName: req.adminUser,
+            errorSummary: err.message
+        });
+        return res.status(500).json({ error: `Failed to import ${reportKey}: ${err.message}` });
+    }
+});
+
+// GET /api/admin/import-logs
+app.get('/api/admin/import-logs', requireAuth, async (req, res) => {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+
+    try {
+        const result = await pool.query(
+            `SELECT
+                id,
+                report_key,
+                file_name,
+                status,
+                rows_read,
+                rows_processed,
+                rows_written,
+                triggered_by,
+                triggered_by_name,
+                error_summary,
+                created_at
+             FROM admin_excel_import_logs
+             ORDER BY created_at DESC, id DESC
+             LIMIT $1`,
+            [limit]
+        );
+
+        return res.json({
+            logs: result.rows
+        });
+    } catch (err) {
+        console.error('Import logs fetch error:', err);
+        return res.status(500).json({ error: 'ไม่สามารถโหลดประวัติ import Excel ได้' });
+    }
 });
 
 app.get('/api/admin/accounts', requireAuth, requireAdminManager, async (req, res) => {
@@ -1681,7 +1992,7 @@ app.post('/api/admin/rewards/claims', requireAuth, async (req, res) => {
             await client.query('ROLLBACK');
             return res.status(400).json({
                 error: rewardType === 'cashback'
-                    ? `ยอดเกินวงเงินคงเหลือ (${remainingAmount.toFixed(2)} บาท ก่อนภาษี)`
+                    ? `ยอดเกินบัญชี Cashback คงเหลือ ${remainingAmount.toFixed(2)} บาท`
                     : `ยอดเกินสิทธิ์ GV คงเหลือ ${remainingAmount.toFixed(2)} บาท`
             });
         }
@@ -2126,6 +2437,696 @@ async function upsertCustomerUser({ platform, platformId, displayName, pictureUr
     return result.rows[0];
 }
 
+function formatDateOnlyValue(date) {
+    const normalized = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(normalized.getTime())) return '';
+    return normalized.toISOString().slice(0, 10);
+}
+
+function formatDateTimeValue(date) {
+    const normalized = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(normalized.getTime())) return '';
+    return normalized.toISOString();
+}
+
+function getCustomerTierName(totalScore) {
+    const score = Number(totalScore || 0);
+    if (score >= 50) return 'Diamond';
+    if (score >= 30) return 'Platinum';
+    if (score >= 20) return 'Gold';
+    if (score >= 10) return 'Silver';
+    if (score >= 5) return 'Bronze';
+    return 'Member';
+}
+
+const GOOGLE_SHEETS_REPORT_DEFINITIONS = {
+    leaderboard: {
+        sheetName: 'Leaderboard',
+        mode: 'full_refresh',
+        headers: [
+            'export_date',
+            'export_datetime',
+            'rank',
+            'member_id',
+            'line_user_id',
+            'display_name',
+            'phone',
+            'total_score',
+            'available_points',
+            'tier_name',
+            'rewards_claimed_count',
+            'last_activity_at',
+            'updated_at'
+        ]
+    },
+    members: {
+        sheetName: 'Members',
+        mode: 'full_refresh',
+        headers: [
+            'export_date',
+            'export_datetime',
+            'member_id',
+            'line_user_id',
+            'display_name',
+            'first_name',
+            'last_name',
+            'phone',
+            'email',
+            'branch_code',
+            'branch_name',
+            'total_score',
+            'available_points',
+            'lifetime_redeemed_points',
+            'tier_name',
+            'status',
+            'is_blocked',
+            'registered_at',
+            'last_login_at',
+            'last_activity_at',
+            'updated_at'
+        ]
+    },
+    reward_claims_current: {
+        sheetName: 'Reward_Claims_Current',
+        mode: 'full_refresh',
+        headers: [
+            'export_date',
+            'export_datetime',
+            'lottery_guess_id',
+            'member_id',
+            'line_user_id',
+            'display_name',
+            'round_label',
+            'result',
+            'reward_type',
+            'claim_mode',
+            'total_amount',
+            'redeemed_amount',
+            'remaining_amount',
+            'total_net_amount',
+            'redeemed_net_amount',
+            'remaining_net_amount',
+            'claim_count',
+            'reward_status',
+            'created_at'
+        ]
+    }
+};
+
+async function getLeaderboardExportData() {
+    const resetDate = await getCustomerRankResetDate();
+    const generatedAt = new Date();
+    const exportDate = formatDateOnlyValue(generatedAt);
+    const exportDatetime = formatDateTimeValue(generatedAt);
+
+    const result = await pool.query(
+        `WITH reward_claim_counts AS (
+            SELECT
+                user_id,
+                COUNT(*)::int AS claim_count
+            FROM lottery_reward_claims
+            GROUP BY user_id
+        ),
+        point_totals AS (
+            SELECT
+                global_user_id,
+                COALESCE(SUM(points), 0)::int AS total_points
+            FROM points
+            GROUP BY global_user_id
+        ),
+        ranking_rows AS (
+            SELECT
+                u.id,
+                u.platform_id AS line_user_id,
+                u.display_name,
+                COALESCE(COUNT(t.id), 0)::int AS total_score,
+                COALESCE(pt.total_points, 0)::int AS available_points,
+                COALESCE(rcc.claim_count, 0)::int AS rewards_claimed_count,
+                MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_activity_at,
+                u.updated_at
+            FROM users u
+            LEFT JOIN transactions t ON t.user_id = u.id
+                AND t.status = 'approved'
+                AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
+            LEFT JOIN point_totals pt ON pt.global_user_id = u.global_user_id
+            LEFT JOIN reward_claim_counts rcc ON rcc.user_id = u.id
+            WHERE u.platform = 'line'
+            GROUP BY u.id, u.platform_id, u.display_name, pt.total_points, rcc.claim_count, u.updated_at
+        )
+        SELECT
+            ROW_NUMBER() OVER (
+                ORDER BY total_score DESC, COALESCE(last_activity_at, updated_at) DESC, id ASC
+            )::int AS rank,
+            id,
+            line_user_id,
+            display_name,
+            total_score,
+            available_points,
+            rewards_claimed_count,
+            last_activity_at,
+            updated_at
+        FROM ranking_rows
+        WHERE total_score > 0
+        ORDER BY rank ASC`,
+        [resetDate]
+    );
+
+    const definition = GOOGLE_SHEETS_REPORT_DEFINITIONS.leaderboard;
+    const rows = result.rows.map((row) => ([
+        exportDate,
+        exportDatetime,
+        Number(row.rank || 0),
+        String(row.id),
+        row.line_user_id || '',
+        row.display_name || '',
+        '',
+        Number(row.total_score || 0),
+        Number(row.available_points || 0),
+        getCustomerTierName(row.total_score),
+        Number(row.rewards_claimed_count || 0),
+        formatDateTimeValue(row.last_activity_at),
+        formatDateTimeValue(row.updated_at)
+    ]));
+
+    return {
+        ok: true,
+        reportKey: 'leaderboard',
+        sheetName: definition.sheetName,
+        mode: definition.mode,
+        headers: definition.headers,
+        rows,
+        rowsWritten: rows.length,
+        generatedAt: exportDatetime
+    };
+}
+
+async function getMembersExportData() {
+    const resetDate = await getCustomerRankResetDate();
+    const generatedAt = new Date();
+    const exportDate = formatDateOnlyValue(generatedAt);
+    const exportDatetime = formatDateTimeValue(generatedAt);
+
+    const result = await pool.query(
+        `WITH point_totals AS (
+            SELECT
+                global_user_id,
+                COALESCE(SUM(points), 0)::int AS total_points
+            FROM points
+            GROUP BY global_user_id
+        ),
+        redeemed_totals AS (
+            SELECT
+                user_id,
+                COALESCE(SUM(amount), 0)::numeric(10,2) AS redeemed_points
+            FROM lottery_reward_claims
+            GROUP BY user_id
+        ),
+        member_rows AS (
+            SELECT
+                u.id,
+                u.platform_id AS line_user_id,
+                u.display_name,
+                u.created_at,
+                u.updated_at,
+                COALESCE(SUM(CASE
+                    WHEN t.status = 'approved'
+                     AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
+                    THEN 1 ELSE 0
+                END), 0)::int AS total_score,
+                COALESCE(pt.total_points, 0)::int AS available_points,
+                COALESCE(rt.redeemed_points, 0)::numeric(10,2) AS lifetime_redeemed_points,
+                MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_activity_at
+            FROM users u
+            LEFT JOIN transactions t ON t.user_id = u.id
+            LEFT JOIN point_totals pt ON pt.global_user_id = u.global_user_id
+            LEFT JOIN redeemed_totals rt ON rt.user_id = u.id
+            WHERE u.platform = 'line'
+            GROUP BY u.id, u.platform_id, u.display_name, u.created_at, u.updated_at, pt.total_points, rt.redeemed_points
+        )
+        SELECT *
+        FROM member_rows
+        ORDER BY COALESCE(last_activity_at, updated_at, created_at) DESC, id DESC`
+        ,
+        [resetDate]
+    );
+
+    const definition = GOOGLE_SHEETS_REPORT_DEFINITIONS.members;
+    const rows = result.rows.map((row) => ([
+        exportDate,
+        exportDatetime,
+        String(row.id),
+        row.line_user_id || '',
+        row.display_name || '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        Number(row.total_score || 0),
+        Number(row.available_points || 0),
+        Number(row.lifetime_redeemed_points || 0),
+        getCustomerTierName(row.total_score),
+        'active',
+        false,
+        formatDateTimeValue(row.created_at),
+        '',
+        formatDateTimeValue(row.last_activity_at),
+        formatDateTimeValue(row.updated_at)
+    ]));
+
+    return {
+        ok: true,
+        reportKey: 'members',
+        sheetName: definition.sheetName,
+        mode: definition.mode,
+        headers: definition.headers,
+        rows,
+        rowsWritten: rows.length,
+        generatedAt: exportDatetime
+    };
+}
+
+async function getRewardClaimsCurrentExportData() {
+    const generatedAt = new Date();
+    const exportDate = formatDateOnlyValue(generatedAt);
+    const exportDatetime = formatDateTimeValue(generatedAt);
+    const snapshot = await getRewardManagementSnapshot(pool, {
+        onlyOutstanding: false,
+        rewardLimit: 1000,
+        claimLimit: 1
+    });
+    const definition = GOOGLE_SHEETS_REPORT_DEFINITIONS.reward_claims_current;
+
+    const rows = snapshot.rewards.map((row) => {
+        const rewardStatus = Number(row.remaining_amount || 0) > 0 ? 'open' : 'closed';
+        return [
+            exportDate,
+            exportDatetime,
+            String(row.lottery_guess_id),
+            String(row.user_id),
+            row.platform_id || '',
+            row.display_name || '',
+            row.round_label || '',
+            row.result || '',
+            row.reward_type || '',
+            row.last_claim_mode || '',
+            Number(row.total_amount || 0),
+            Number(row.redeemed_amount || 0),
+            Number(row.remaining_amount || 0),
+            Number(row.total_net_amount || 0),
+            Number(row.redeemed_net_amount || 0),
+            Number(row.remaining_net_amount || 0),
+            Number(row.claim_count || 0),
+            rewardStatus,
+            formatDateTimeValue(row.created_at)
+        ];
+    });
+
+    return {
+        ok: true,
+        reportKey: 'reward_claims_current',
+        sheetName: definition.sheetName,
+        mode: definition.mode,
+        headers: definition.headers,
+        rows,
+        rowsWritten: rows.length,
+        generatedAt: exportDatetime
+    };
+}
+
+async function getGoogleSheetsExportPayload(reportKey) {
+    switch (String(reportKey || '').trim().toLowerCase()) {
+        case 'leaderboard':
+            return getLeaderboardExportData();
+        case 'members':
+            return getMembersExportData();
+        case 'reward_claims_current':
+            return getRewardClaimsCurrentExportData();
+        default:
+            throw new Error(`Unsupported reportKey: ${reportKey}`);
+    }
+}
+
+function getExportFilename(reportKey, extension, generatedAt = new Date()) {
+    const safeReportKey = String(reportKey || 'export').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+    const timestamp = formatDateTimeValue(generatedAt)
+        .replace(/:/g, '-')
+        .replace(/\.\d{3}Z$/, 'Z');
+    return `${safeReportKey}-${timestamp}.${extension}`;
+}
+
+function escapeCsvValue(value) {
+    if (value === null || value === undefined) return '';
+    const normalized = String(value);
+    if (/[",\r\n]/.test(normalized)) {
+        return `"${normalized.replace(/"/g, '""')}"`;
+    }
+    return normalized;
+}
+
+function buildCsvFromExportPayload(payload) {
+    const lines = [];
+    lines.push(payload.headers.map(escapeCsvValue).join(','));
+    for (const row of payload.rows || []) {
+        lines.push(row.map(escapeCsvValue).join(','));
+    }
+    return `\ufeff${lines.join('\r\n')}`;
+}
+
+function buildXlsxBufferFromExportPayload(payload) {
+    const worksheetData = [payload.headers, ...(payload.rows || [])];
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, payload.sheetName || payload.reportKey || 'Export');
+    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+}
+
+function normalizeImportHeader(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '_');
+}
+
+function parseWorkbookRowsFromFile(file) {
+    if (!file?.buffer?.length) {
+        throw new Error('Missing import file');
+    }
+
+    const workbook = XLSX.read(file.buffer, { type: 'buffer', cellDates: false });
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName) {
+        throw new Error('Import file has no sheets');
+    }
+
+    const worksheet = workbook.Sheets[firstSheetName];
+    const matrix = XLSX.utils.sheet_to_json(worksheet, {
+        header: 1,
+        blankrows: false,
+        defval: ''
+    });
+
+    if (!matrix.length) {
+        throw new Error('Import file is empty');
+    }
+
+    const rawHeaders = matrix[0].map((header) => String(header || '').trim());
+    const normalizedHeaders = rawHeaders.map(normalizeImportHeader);
+    const records = matrix.slice(1).map((row, index) => {
+        const record = { __rowNumber: index + 2 };
+        normalizedHeaders.forEach((header, headerIndex) => {
+            if (!header) return;
+            record[header] = row[headerIndex];
+        });
+        return record;
+    });
+
+    return {
+        sheetName: firstSheetName,
+        rawHeaders,
+        normalizedHeaders,
+        records
+    };
+}
+
+function createEditablePayload(payload, extraHeaders, rowMapper) {
+    return {
+        ...payload,
+        headers: [...payload.headers, ...extraHeaders],
+        rows: (payload.rows || []).map((row) => [...row, ...rowMapper(row)])
+    };
+}
+
+function buildEditableMembersPayload(payload) {
+    return createEditablePayload(
+        payload,
+        ['editable_display_name', 'editable_picture_url', 'row_action'],
+        (row) => [row[4] || '', '', 'update']
+    );
+}
+
+function buildEditableRewardClaimsCurrentPayload(payload) {
+    return createEditablePayload(
+        payload,
+        ['row_action', 'claim_amount', 'claim_mode', 'claim_note', 'redeemed_at'],
+        () => ['', '', '', '', '']
+    );
+}
+
+async function applyMembersImport(records) {
+    const summary = {
+        reportKey: 'members',
+        processed: 0,
+        updated: 0,
+        skipped: 0,
+        errors: []
+    };
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        for (const record of records) {
+            const memberId = parseInt(record.member_id, 10);
+            if (!Number.isFinite(memberId)) {
+                summary.skipped += 1;
+                continue;
+            }
+
+            const editableDisplayName = String(record.editable_display_name || record.display_name || '').trim();
+            const editablePictureUrl = String(record.editable_picture_url || '').trim();
+
+            if (!editableDisplayName && !editablePictureUrl) {
+                summary.skipped += 1;
+                continue;
+            }
+
+            const userResult = await client.query(
+                'SELECT id, global_user_id, display_name, picture_url FROM users WHERE id = $1 LIMIT 1',
+                [memberId]
+            );
+            const user = userResult.rows[0];
+            if (!user) {
+                summary.errors.push({ row: record.__rowNumber, error: `Member not found: ${memberId}` });
+                continue;
+            }
+
+            const targetIds = user.global_user_id
+                ? (await client.query('SELECT id FROM users WHERE global_user_id = $1', [user.global_user_id])).rows.map((row) => row.id)
+                : [user.id];
+
+            const nextDisplayName = editableDisplayName || user.display_name;
+            const nextPictureUrl = editablePictureUrl || user.picture_url || null;
+
+            if (!nextDisplayName) {
+                summary.errors.push({ row: record.__rowNumber, error: `Display name is required for member ${memberId}` });
+                continue;
+            }
+
+            await client.query(
+                `UPDATE users
+                 SET display_name = $1,
+                     picture_url = $2,
+                     updated_at = NOW()
+                 WHERE id = ANY($3::int[])`,
+                [nextDisplayName, nextPictureUrl, targetIds]
+            );
+
+            summary.processed += 1;
+            summary.updated += targetIds.length;
+        }
+
+        if (summary.errors.length) {
+            await client.query('ROLLBACK');
+            return {
+                ok: false,
+                ...summary
+            };
+        }
+
+        await client.query('COMMIT');
+        return {
+            ok: true,
+            ...summary
+        };
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+}
+
+async function applyRewardClaimsCurrentImport(records, adminUserId) {
+    const summary = {
+        reportKey: 'reward_claims_current',
+        processed: 0,
+        inserted: 0,
+        skipped: 0,
+        errors: []
+    };
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        for (const record of records) {
+            const action = String(record.row_action || '').trim().toLowerCase();
+            if (!action) {
+                summary.skipped += 1;
+                continue;
+            }
+
+            if (action !== 'claim') {
+                summary.errors.push({ row: record.__rowNumber, error: `Unsupported row_action "${action}". Use "claim" only.` });
+                continue;
+            }
+
+            const lotteryGuessId = parseInt(record.lottery_guess_id, 10);
+            const amount = Number(record.claim_amount || 0);
+            const note = String(record.claim_note || '').trim();
+            const redeemedAtInput = String(record.redeemed_at || '').trim();
+            const claimModeInput = String(record.claim_mode || '').trim().toLowerCase();
+
+            if (!Number.isFinite(lotteryGuessId)) {
+                summary.errors.push({ row: record.__rowNumber, error: 'Invalid lottery_guess_id' });
+                continue;
+            }
+            if (!Number.isFinite(amount) || amount <= 0) {
+                summary.errors.push({ row: record.__rowNumber, error: 'claim_amount must be greater than 0' });
+                continue;
+            }
+            if (redeemedAtInput && !/^\d{4}-\d{2}-\d{2}$/.test(redeemedAtInput)) {
+                summary.errors.push({ row: record.__rowNumber, error: 'redeemed_at must be YYYY-MM-DD' });
+                continue;
+            }
+
+            const guessResult = await client.query(
+                `SELECT id, user_id, result, reward_amount
+                 FROM lottery_guesses
+                 WHERE id = $1
+                 FOR UPDATE`,
+                [lotteryGuessId]
+            );
+            const guess = guessResult.rows[0];
+            if (!guess) {
+                summary.errors.push({ row: record.__rowNumber, error: `Reward row not found: ${lotteryGuessId}` });
+                continue;
+            }
+
+            const rewardType = getRewardTypeFromResult(guess.result);
+            if (!rewardType) {
+                summary.errors.push({ row: record.__rowNumber, error: `Reward is not claimable: ${lotteryGuessId}` });
+                continue;
+            }
+
+            const claimMode = rewardType === 'cashback'
+                ? (claimModeInput || 'reuse')
+                : null;
+
+            if (rewardType === 'cashback' && !['withdraw', 'reuse'].includes(claimMode)) {
+                summary.errors.push({ row: record.__rowNumber, error: 'Cashback claim_mode must be withdraw or reuse' });
+                continue;
+            }
+
+            const claimedResult = await client.query(
+                'SELECT COALESCE(SUM(amount), 0)::numeric(10,2) AS claimed_amount FROM lottery_reward_claims WHERE lottery_guess_id = $1',
+                [lotteryGuessId]
+            );
+            const claimedAmount = Number(claimedResult.rows[0]?.claimed_amount || 0);
+            const totalAmount = Number(guess.reward_amount || 0);
+            const remainingAmount = Math.max(totalAmount - claimedAmount, 0);
+
+            if (amount > remainingAmount + 0.0001) {
+                summary.errors.push({
+                    row: record.__rowNumber,
+                    error: `${rewardType} remaining is ${remainingAmount.toFixed(2)}, requested ${amount.toFixed(2)}`
+                });
+                continue;
+            }
+
+            await client.query(
+                `INSERT INTO lottery_reward_claims (lottery_guess_id, user_id, reward_type, claim_mode, amount, note, redeemed_by, redeemed_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamp, NOW()))`,
+                [
+                    lotteryGuessId,
+                    guess.user_id,
+                    rewardType,
+                    claimMode,
+                    amount,
+                    note || null,
+                    adminUserId,
+                    redeemedAtInput ? `${redeemedAtInput} 12:00:00` : null
+                ]
+            );
+
+            summary.processed += 1;
+            summary.inserted += 1;
+        }
+
+        if (summary.errors.length) {
+            await client.query('ROLLBACK');
+            return {
+                ok: false,
+                ...summary
+            };
+        }
+
+        await client.query('COMMIT');
+        return {
+            ok: true,
+            ...summary
+        };
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+}
+
+async function logExcelImportRun({
+    reportKey,
+    fileName,
+    status,
+    rowsRead = 0,
+    rowsProcessed = 0,
+    rowsWritten = 0,
+    triggeredBy = null,
+    triggeredByName = null,
+    errorSummary = null
+}) {
+    try {
+        await pool.query(
+            `INSERT INTO admin_excel_import_logs (
+                report_key,
+                file_name,
+                status,
+                rows_read,
+                rows_processed,
+                rows_written,
+                triggered_by,
+                triggered_by_name,
+                error_summary
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [
+                reportKey,
+                fileName || null,
+                status,
+                Number(rowsRead || 0),
+                Number(rowsProcessed || 0),
+                Number(rowsWritten || 0),
+                triggeredBy,
+                triggeredByName || null,
+                errorSummary || null
+            ]
+        );
+    } catch (err) {
+        console.error('Excel import log write error:', err);
+    }
+}
+
 // GET /api/auth/telegram/config — disabled permanently
 app.get('/api/auth/telegram/config', (req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -2552,17 +3553,6 @@ app.post('/api/transactions', upload.single('slip'), async (req, res) => {
 
         const currentGuessCycle = await getCurrentGuessCycle(client, userId, roundLabel);
 
-        // Check duplicate staff in the current vote cycle (only non-rejected)
-        const dupCheck = await client.query(
-            `SELECT id FROM transactions
-             WHERE user_id = $1 AND staff_id = $2 AND round_label = $3 AND guess_cycle = $4 AND status <> 'rejected'`,
-            [userId, staffIdNum, roundLabel, currentGuessCycle]
-        );
-        if (dupCheck.rows.length > 0) {
-            await client.query('ROLLBACK');
-            return res.status(409).json({ error: 'คุณได้โหวตพนักงานคนนี้แล้วในชุดโหวตปัจจุบัน กรุณาทายเลขก่อนเพื่อเริ่มโหวตซ้ำรอบใหม่' });
-        }
-
         // Upload slip image
         const slipUrl = await resolveSlipUrl(req.file);
 
@@ -2593,10 +3583,6 @@ app.post('/api/transactions', upload.single('slip'), async (req, res) => {
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Transaction submit error:', err);
-        // Handle unique constraint violation gracefully
-        if (err.code === '23505') {
-            return res.status(409).json({ error: 'คุณได้โหวตพนักงานคนนี้แล้วในชุดโหวตปัจจุบัน กรุณาทายเลขก่อนเพื่อเริ่มโหวตซ้ำรอบใหม่' });
-        }
         res.status(500).json({ error: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' });
     } finally {
         client.release();
@@ -3574,6 +4560,31 @@ app.delete('/api/admin/users/:id', requireAuth, async (req, res) => {
 // GET /auth/line/callback — disabled permanently
 app.get('/auth/line/callback', async (req, res) => {
     return res.status(410).json({ error: 'ปิด server-side LINE OAuth callback ถาวรแล้ว — production ใช้ LINE LIFF เท่านั้น' });
+});
+
+// GET /api/ranking/staff-usage — staff ranking by total service notifications
+app.get('/api/ranking/staff-usage', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT
+                s.id, s.name, s.nickname, s.avatar_url,
+                COUNT(t.id)::int AS total_submissions,
+                COALESCE(SUM(CASE WHEN t.status = 'approved' THEN 1 ELSE 0 END), 0)::int AS approved_submissions,
+                COALESCE(SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END), 0)::int AS pending_submissions,
+                COALESCE(SUM(CASE WHEN t.status = 'rejected' THEN 1 ELSE 0 END), 0)::int AS rejected_submissions,
+                MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_service_at
+            FROM staffs s
+            LEFT JOIN transactions t ON t.staff_id = s.id
+            WHERE s.is_active = TRUE
+            GROUP BY s.id, s.name, s.nickname, s.avatar_url
+            HAVING COUNT(t.id) > 0
+            ORDER BY COUNT(t.id) DESC, MAX(COALESCE(t.service_date::timestamp, t.created_at)) DESC, s.id ASC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Staff usage ranking error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดอันดับยอดแจ้งใช้บริการได้' });
+    }
 });
 
 // ============ POINTS / ACTIVITY API ============

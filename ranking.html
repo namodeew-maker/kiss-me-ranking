@@ -6,9 +6,10 @@
     <title>Kiss Me Ranking — อันดับ</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260411c">
-    <link rel="stylesheet" href="ranking.css?v=20260411c">
+    <link rel="stylesheet" href="ranking.css?v=20260417b">
 </head>
 <body class="futuristic-bg">
+
     <div class="bg-particles" id="particles"></div>
 
     <div class="container ranking-page">
@@ -17,14 +18,38 @@
                 <a href="index.html" class="back-btn">← กลับหน้าหลัก</a>
                 <div class="logo-icon">🏆</div>
                 <div>
-                    <h1>อันดับลูกค้า Kiss Me Ranking</h1>
-                    <p class="subtitle">Customer Leaderboard Hall</p>
+                    <h1>Kiss Me Ranking</h1>
+                    <p class="subtitle">Customer & Staff Leaderboard Hall</p>
                 </div>
             </div>
         </header>
 
+        <!-- Tabs -->
+        <nav class="ranking-tabs" id="ranking-tabs">
+            <button class="rank-tab-btn active" data-tab="customer">🏆 อันดับลูกค้า Kiss Me Ranking</button>
+            <button class="rank-tab-btn" data-tab="staff-usage">💌 อันดับยอดแจ้งใช้บริการน้องๆ</button>
+        </nav>
+
+        <!-- รอบกิจกรรม -->
+        <div class="ranking-round-select" id="ranking-round-select" hidden>
+            <label for="round-select">เลือกรอบกิจกรรม:</label>
+            <div class="ranking-round-select-wrap">
+                <select id="round-select" class="ranking-round-dropdown">
+                    <!-- ตัวเลือกจะถูกเติมโดย JS -->
+                </select>
+            </div>
+        </div>
+
+        <!-- อันดับลูกค้า -->
         <section class="rank-tab-content" id="tab-customer">
             <div class="leaderboard-shell" id="customer-ranking-list">
+                <div class="ranking-loading">กำลังโหลดอันดับ...</div>
+            </div>
+        </section>
+
+        <!-- อันดับยอดแจ้งใช้บริการน้องๆ -->
+        <section class="rank-tab-content rank-tab-hidden" id="tab-staff-usage">
+            <div class="leaderboard-shell" id="staff-usage-ranking-list">
                 <div class="ranking-loading">กำลังโหลดอันดับ...</div>
             </div>
         </section>
@@ -37,6 +62,6 @@
         </div>
     </div>
 
-    <script src="ranking.js?v=20260410d"></script>
+    <script src="ranking.js?v=20260417b"></script>
 </body>
 </html>

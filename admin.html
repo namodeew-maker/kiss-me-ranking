@@ -241,7 +241,7 @@
 
                         <div class="reward-claim-card">
                             <h4>บันทึกการใช้สิทธิ์จากรายการที่เลือก</h4>
-                            <p class="panel-caption reward-claim-copy">Cashback สามารถเลือกได้ว่าจะถอนเงินสดแบบหัก 10% หรือเก็บไว้ใช้ซ้ำแบบไม่หัก ส่วน GV จะตัดตามยอดเต็ม</p>
+                            <p class="panel-caption reward-claim-copy">กรอกยอดที่จะหักจากบัญชีรางวัลของลูกค้าโดยตรง: Cashback ถ้าเลือกถอน ระบบจะหักจากยอดเต็มตามจำนวนที่กรอก แล้วจ่ายจริง 90% ของยอดนั้น ส่วนถ้าใช้ซ้ำจะหักจากยอดเต็มโดยไม่หักเพิ่ม และ GV ตัดได้เฉพาะแบบใช้สิทธิ์เท่านั้น</p>
                             <div class="reward-claim-target" id="reward-claim-target">ยังไม่ได้เลือกรายการ</div>
                             <div class="input-row reward-claim-form-row">
                                 <select id="reward-claim-mode" title="เลือกวิธีใช้สิทธิ์ Cashback">
@@ -250,7 +250,7 @@
                                 </select>
                             </div>
                             <div class="input-row reward-claim-form-row">
-                                <input type="number" id="reward-claim-amount" min="0" step="0.01" placeholder="ยอดที่ใช้สิทธิ์">
+                                <input type="number" id="reward-claim-amount" min="0" step="0.01" placeholder="ยอดที่จะหักจากบัญชี">
                                 <button class="btn-small" id="btn-claim-remaining" type="button">ใส่ยอดคงเหลือ</button>
                             </div>
                             <textarea id="reward-claim-note" class="reward-claim-note" rows="4" placeholder="โน้ต เช่น ใช้กับบิลวันที่..., นัดรับ GV แล้ว, หรือลูกค้าแบ่งใช้ครั้งที่ 2"></textarea>
@@ -322,6 +322,95 @@
                             <button class="btn-action" id="btn-user-refresh" type="button">รีเฟรช</button>
                         </div>
                     </div>
+
+                    <section class="excel-admin-panel">
+                        <div class="excel-admin-panel-header">
+                            <div>
+                                <h4>📁 Excel Export / Import</h4>
+                                <p class="panel-caption">ดาวน์โหลดรายงานแบบ CSV/XLSX, ดาวน์โหลดไฟล์แก้ไขเฉพาะส่วนที่ปลอดภัย, และอัปโหลดไฟล์กลับเข้าระบบจากหน้าเดียวกัน</p>
+                            </div>
+                            <div class="excel-admin-header-actions">
+                                <a class="btn-small" href="/EXCEL_ADMIN_GUIDE.md" target="_blank" rel="noopener">เปิดคู่มือการใช้งาน</a>
+                                <div class="excel-admin-status" id="excel-admin-status">พร้อมใช้งาน</div>
+                            </div>
+                        </div>
+
+                        <div class="excel-admin-grid">
+                            <div class="excel-admin-card">
+                                <h5>ดาวน์โหลดรายงาน</h5>
+                                <p class="panel-caption">ใช้สำหรับเปิดดูใน Excel หรือส่งต่อทีมโดยไม่แก้ข้อมูลกลับเข้าระบบ</p>
+                                <div class="input-row excel-admin-row">
+                                    <select id="excel-export-report">
+                                        <option value="leaderboard">Leaderboard</option>
+                                        <option value="members">Members</option>
+                                        <option value="reward_claims_current">Reward Claims Current</option>
+                                    </select>
+                                    <button class="btn-action btn-blue" id="btn-export-csv" type="button">ดาวน์โหลด CSV</button>
+                                    <button class="btn-action btn-green" id="btn-export-xlsx" type="button">ดาวน์โหลด XLSX</button>
+                                </div>
+                                <p class="excel-admin-help">`leaderboard` เป็นรายงานดูอย่างเดียว ส่วน `members` และ `reward_claims_current` มีเวอร์ชันแก้ไขได้แยกต่างหากด้านขวา</p>
+                            </div>
+
+                            <div class="excel-admin-card">
+                                <h5>ไฟล์แก้ไขที่ปลอดภัย</h5>
+                                <p class="panel-caption">ระบบจะสร้างคอลัมน์สำหรับแก้ไขเฉพาะส่วนที่อนุญาตเท่านั้น และตรวจทุกแถวก่อนบันทึก</p>
+                                <div class="input-row excel-admin-row">
+                                    <select id="excel-editable-report">
+                                        <option value="members">Members</option>
+                                        <option value="reward_claims_current">Reward Claims Current</option>
+                                    </select>
+                                    <button class="btn-action btn-gold" id="btn-download-editable-xlsx" type="button">ดาวน์โหลดไฟล์แก้ไข</button>
+                                </div>
+                                <div class="excel-admin-actions-note">
+                                    <div><strong>Members</strong> แก้ได้เฉพาะ `editable_display_name` และ `editable_picture_url`</div>
+                                    <div><strong>Reward Claims Current</strong> ใช้ `row_action=claim` เพื่อสร้างรายการใช้สิทธิ์ใหม่เท่านั้น</div>
+                                </div>
+                            </div>
+
+                            <div class="excel-admin-card">
+                                <h5>อัปโหลดไฟล์กลับเข้าระบบ</h5>
+                                <p class="panel-caption">ใช้ไฟล์จากปุ่ม “ดาวน์โหลดไฟล์แก้ไข” เท่านั้น หากมีแถวผิดแม้แถวเดียวระบบจะยกเลิกทั้งไฟล์เพื่อกันข้อมูลพัง</p>
+                                <div class="input-row excel-admin-row">
+                                    <select id="excel-import-report">
+                                        <option value="members">Members</option>
+                                        <option value="reward_claims_current">Reward Claims Current</option>
+                                    </select>
+                                    <input type="file" id="excel-import-file" accept=".xlsx,.xls,.csv">
+                                    <button class="btn-action btn-red" id="btn-import-excel" type="button">อัปโหลดไฟล์กลับ</button>
+                                </div>
+                                <div class="excel-admin-last-result" id="excel-import-result">ยังไม่มีการอัปโหลดไฟล์</div>
+                            </div>
+                        </div>
+
+                        <div class="excel-admin-log-panel">
+                            <div class="excel-admin-log-header">
+                                <div>
+                                    <h5>ประวัติการ Import ล่าสุด</h5>
+                                    <p class="panel-caption">ใช้ตรวจย้อนหลังว่าไฟล์ไหนสำเร็จหรือไม่สำเร็จ ใครเป็นคนอัปโหลด และมีข้อผิดพลาดอะไร</p>
+                                </div>
+                                <button class="btn-small" id="btn-refresh-import-logs" type="button">รีเฟรชประวัติ</button>
+                            </div>
+                            <div class="admin-table-wrap excel-admin-log-table-wrap">
+                                <table class="admin-table" id="excel-import-log-table">
+                                    <thead>
+                                        <tr>
+                                            <th>เวลา</th>
+                                            <th>รายงาน</th>
+                                            <th>ไฟล์</th>
+                                            <th>สถานะ</th>
+                                            <th>อ่าน</th>
+                                            <th>ประมวลผล</th>
+                                            <th>บันทึกจริง</th>
+                                            <th>โดย</th>
+                                            <th>รายละเอียด</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="excel-import-log-body"></tbody>
+                                </table>
+                            </div>
+                            <p class="empty-msg" id="excel-import-log-empty">กำลังโหลดประวัติ import...</p>
+                        </div>
+                    </section>
 
                     <div class="stat-cards user-stat-cards">
                         <div class="stat-card">
@@ -438,6 +527,38 @@
                         </table>
                     </div>
                     <p class="empty-msg" id="no-staff-ranking">กำลังโหลดอันดับพนักงาน...</p>
+                </section>
+
+                <section class="admin-panel staff-ranking-panel">
+                    <div class="staff-ranking-header">
+                        <div>
+                            <h3>💌 อันดับยอดแจ้งใช้บริการน้องๆ</h3>
+                            <p class="panel-caption">ส่วนนี้นับจากจำนวนการส่งแจ้งใช้บริการทั้งหมดของแต่ละน้อง แยกจากอันดับพนักงานที่อ้างอิงเฉพาะรายการอนุมัติ</p>
+                        </div>
+                        <button class="btn-action btn-blue" id="btn-refresh-staff-usage-ranking" type="button">เช็กยอดแจ้งล่าสุด</button>
+                    </div>
+
+                    <div class="staff-ranking-highlight-grid" id="staff-usage-ranking-highlight-grid">
+                        <div class="staff-ranking-loading-card">กำลังโหลดอันดับยอดแจ้งใช้บริการ...</div>
+                    </div>
+
+                    <div class="admin-table-wrap admin-table-wrap-staff-ranking">
+                        <table class="admin-table" id="staff-usage-ranking-table">
+                            <thead>
+                                <tr>
+                                    <th>อันดับ</th>
+                                    <th>พนักงาน</th>
+                                    <th>แจ้งใช้บริการทั้งหมด</th>
+                                    <th>อนุมัติ</th>
+                                    <th>รอตรวจ</th>
+                                    <th>ปฏิเสธ</th>
+                                    <th>ใช้งานล่าสุด</th>
+                                </tr>
+                            </thead>
+                            <tbody id="staff-usage-ranking-body"></tbody>
+                        </table>
+                    </div>
+                    <p class="empty-msg" id="no-staff-usage-ranking">กำลังโหลดอันดับยอดแจ้งใช้บริการ...</p>
                 </section>
 
                 <section class="admin-panel ranking-reset-panel">
@@ -680,7 +801,7 @@
                         <div class="user-reward-claim-card">
                             <div class="user-reward-claim-header">
                                 <strong>บันทึกการใช้สิทธิ์ของ user นี้</strong>
-                                <p class="panel-caption">Cashback เลือกได้ว่าจะถอนเงินสดหัก 10% หรือเก็บไว้ใช้ซ้ำเต็มจำนวน ส่วน GV จะตัดตามยอดเต็ม</p>
+                                <p class="panel-caption">กรอกยอดที่จะหักจากบัญชีรางวัลของลูกค้าโดยตรง: ถ้าเป็น Cashback แบบถอน ระบบจะจ่ายจริง 90% ของยอดที่หัก ส่วนแบบใช้ซ้ำจะหักจากยอดเต็ม และ GV ใช้ได้เฉพาะแบบตัดสิทธิ์</p>
                             </div>
                             <div id="user-reward-claim-target" class="reward-claim-target">ยังไม่ได้เลือกรายการสิทธิ์</div>
                             <div class="input-row reward-claim-form-row user-reward-claim-form-row">
@@ -691,7 +812,7 @@
                             </div>
                             <div class="input-row reward-claim-form-row user-reward-claim-form-row">
                                 <input type="date" id="user-reward-claim-date">
-                                <input type="number" id="user-reward-claim-amount" min="0" step="0.01" placeholder="ยอดที่จะใช้">
+                                <input type="number" id="user-reward-claim-amount" min="0" step="0.01" placeholder="ยอดที่จะหักจากบัญชี">
                                 <button class="btn-small" id="btn-user-claim-remaining" type="button">ใส่ยอดคงเหลือ</button>
                             </div>
                             <textarea id="user-reward-claim-note" class="reward-claim-note" rows="3" placeholder="โน้ต เช่น ใช้กับบิลวันที่..., นัดรับ GV แล้ว, ใช้สิทธิ์ครั้งที่ 2"></textarea>
@@ -711,6 +832,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260411a"></script>
+    <script src="admin.js?v=20260417a"></script>
 </body>
 </html>

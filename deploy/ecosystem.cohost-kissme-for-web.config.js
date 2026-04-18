@@ -5,8 +5,8 @@
 //   pm2 start deploy/ecosystem.cohost-kissme-for-web.config.js
 //
 // Notes:
-//   - kissme-for-web can stay on :3000
-//   - Kiss Me Ranking moves to :3010
+//   - kissme-for-web can stay on its current port
+//   - Kiss Me Ranking runs on :3010
 //   - This profile uses a distinct PM2 name to avoid confusion with older runs
 //   - Admin auth is stored in-memory today, so this app must stay on 1 instance
 
