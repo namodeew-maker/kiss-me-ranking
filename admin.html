@@ -6,7 +6,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260411c">
-    <link rel="stylesheet" href="admin.css?v=20260418a">
+    <link rel="stylesheet" href="admin.css?v=20260418b">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -30,6 +30,7 @@
             <button class="admin-tab" data-tab="staff">👩‍💼 เพิ่มรายชื่อ</button>
             <button class="admin-tab" data-tab="approval">📋 คิวรออนุมัติ</button>
             <button class="admin-tab" data-tab="lottery">🎯 การทายเลข</button>
+            <button class="admin-tab" data-tab="settings">⚙️ ตั้งค่าระบบ</button>
         </nav>
 
         <div class="admin-grid">
@@ -105,53 +106,6 @@
                         <div class="stat-card">
                             <span class="stat-number" id="available-slots">100</span>
                             <span class="stat-label">เลขว่าง</span>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="admin-panel admin-account-panel" id="admin-account-panel" hidden>
-                    <div class="admin-account-header">
-                        <div>
-                            <h3>🔐 จัดการผู้ดูแลระบบ</h3>
-                            <p class="panel-caption">พิมพ์ URL หน้าแอดมินแล้วล็อกอินด้วย username/password ได้ทันที ไม่ต้องผ่าน LINE และจะสร้างผู้ดูแลเพิ่มได้หลังจากล็อกอินแล้วเท่านั้น ค่าเริ่มต้นคือ <code>/admin</code> และถ้าจะซ่อนเป็น path ลับให้ตั้ง <code>ADMIN_LOGIN_PATH</code> ในไฟล์ .env</p>
-                        </div>
-                        <div class="admin-account-header-actions">
-                            <div class="admin-account-session" id="admin-account-session">กำลังโหลด session...</div>
-                            <button class="btn-small" id="btn-refresh-admin-accounts" type="button">รีเฟรช</button>
-                        </div>
-                    </div>
-
-                    <div class="admin-account-grid">
-                        <div class="admin-account-card">
-                            <div class="input-row admin-account-row">
-                                <select id="admin-account-select" title="เลือกผู้ดูแลเดิมเพื่อแก้ไข">
-                                    <option value="">-- สร้างผู้ดูแลใหม่ --</option>
-                                </select>
-                                <select id="admin-account-role" title="เลือกสิทธิ์ผู้ดูแล">
-                                    <option value="admin">admin</option>
-                                    <option value="editor">editor</option>
-                                </select>
-                            </div>
-                            <div class="input-row admin-account-row">
-                                <input type="text" id="admin-account-username" placeholder="username เช่น editor01" maxlength="50" autocomplete="off">
-                                <input type="password" id="admin-account-password" placeholder="รหัสผ่านอย่างน้อย 8 ตัวอักษร" autocomplete="new-password">
-                            </div>
-                            <p class="admin-account-help" id="admin-account-help">โหมดสร้างผู้ดูแลใหม่: ถ้าเลือกบัญชีเดิม ระบบจะเปลี่ยนเป็นโหมดแก้ไขและช่องรหัสผ่านจะเป็นทางเลือก</p>
-                            <div class="admin-account-actions">
-                                <button class="btn-action btn-green" id="btn-save-admin-account" type="button">สร้างผู้ดูแล</button>
-                                <button class="btn-action btn-blue" id="btn-reset-admin-password" type="button" disabled>รีเซ็ตรหัสผ่าน</button>
-                                <button class="btn-action btn-red" id="btn-delete-admin-account" type="button" disabled>ลบผู้ดูแล</button>
-                            </div>
-                        </div>
-
-                        <div class="admin-account-card">
-                            <div class="admin-account-list-header">
-                                <h4>บัญชีผู้ดูแลที่มีอยู่</h4>
-                                <span class="admin-account-count" id="admin-account-count">0 บัญชี</span>
-                            </div>
-                            <div class="admin-account-list" id="admin-account-list">
-                                <p class="empty-msg">กำลังโหลดรายชื่อผู้ดูแล...</p>
-                            </div>
                         </div>
                     </div>
                 </section>
@@ -322,95 +276,6 @@
                             <button class="btn-action" id="btn-user-refresh" type="button">รีเฟรช</button>
                         </div>
                     </div>
-
-                    <section class="excel-admin-panel">
-                        <div class="excel-admin-panel-header">
-                            <div>
-                                <h4>📁 Excel Export / Import</h4>
-                                <p class="panel-caption">ดาวน์โหลดรายงานแบบ CSV/XLSX, ดาวน์โหลดไฟล์แก้ไขเฉพาะส่วนที่ปลอดภัย, และอัปโหลดไฟล์กลับเข้าระบบจากหน้าเดียวกัน</p>
-                            </div>
-                            <div class="excel-admin-header-actions">
-                                <a class="btn-small" href="/EXCEL_ADMIN_GUIDE.md" target="_blank" rel="noopener">เปิดคู่มือการใช้งาน</a>
-                                <div class="excel-admin-status" id="excel-admin-status">พร้อมใช้งาน</div>
-                            </div>
-                        </div>
-
-                        <div class="excel-admin-grid">
-                            <div class="excel-admin-card">
-                                <h5>ดาวน์โหลดรายงาน</h5>
-                                <p class="panel-caption">ใช้สำหรับเปิดดูใน Excel หรือส่งต่อทีมโดยไม่แก้ข้อมูลกลับเข้าระบบ</p>
-                                <div class="input-row excel-admin-row">
-                                    <select id="excel-export-report">
-                                        <option value="leaderboard">Leaderboard</option>
-                                        <option value="members">Members</option>
-                                        <option value="reward_claims_current">Reward Claims Current</option>
-                                    </select>
-                                    <button class="btn-action btn-blue" id="btn-export-csv" type="button">ดาวน์โหลด CSV</button>
-                                    <button class="btn-action btn-green" id="btn-export-xlsx" type="button">ดาวน์โหลด XLSX</button>
-                                </div>
-                                <p class="excel-admin-help">`leaderboard` เป็นรายงานดูอย่างเดียว ส่วน `members` และ `reward_claims_current` มีเวอร์ชันแก้ไขได้แยกต่างหากด้านขวา</p>
-                            </div>
-
-                            <div class="excel-admin-card">
-                                <h5>ไฟล์แก้ไขที่ปลอดภัย</h5>
-                                <p class="panel-caption">ระบบจะสร้างคอลัมน์สำหรับแก้ไขเฉพาะส่วนที่อนุญาตเท่านั้น และตรวจทุกแถวก่อนบันทึก</p>
-                                <div class="input-row excel-admin-row">
-                                    <select id="excel-editable-report">
-                                        <option value="members">Members</option>
-                                        <option value="reward_claims_current">Reward Claims Current</option>
-                                    </select>
-                                    <button class="btn-action btn-gold" id="btn-download-editable-xlsx" type="button">ดาวน์โหลดไฟล์แก้ไข</button>
-                                </div>
-                                <div class="excel-admin-actions-note">
-                                    <div><strong>Members</strong> แก้ได้เฉพาะ `editable_display_name` และ `editable_picture_url`</div>
-                                    <div><strong>Reward Claims Current</strong> ใช้ `row_action=claim` เพื่อสร้างรายการใช้สิทธิ์ใหม่เท่านั้น</div>
-                                </div>
-                            </div>
-
-                            <div class="excel-admin-card">
-                                <h5>อัปโหลดไฟล์กลับเข้าระบบ</h5>
-                                <p class="panel-caption">ใช้ไฟล์จากปุ่ม “ดาวน์โหลดไฟล์แก้ไข” เท่านั้น หากมีแถวผิดแม้แถวเดียวระบบจะยกเลิกทั้งไฟล์เพื่อกันข้อมูลพัง</p>
-                                <div class="input-row excel-admin-row">
-                                    <select id="excel-import-report">
-                                        <option value="members">Members</option>
-                                        <option value="reward_claims_current">Reward Claims Current</option>
-                                    </select>
-                                    <input type="file" id="excel-import-file" accept=".xlsx,.xls,.csv">
-                                    <button class="btn-action btn-red" id="btn-import-excel" type="button">อัปโหลดไฟล์กลับ</button>
-                                </div>
-                                <div class="excel-admin-last-result" id="excel-import-result">ยังไม่มีการอัปโหลดไฟล์</div>
-                            </div>
-                        </div>
-
-                        <div class="excel-admin-log-panel">
-                            <div class="excel-admin-log-header">
-                                <div>
-                                    <h5>ประวัติการ Import ล่าสุด</h5>
-                                    <p class="panel-caption">ใช้ตรวจย้อนหลังว่าไฟล์ไหนสำเร็จหรือไม่สำเร็จ ใครเป็นคนอัปโหลด และมีข้อผิดพลาดอะไร</p>
-                                </div>
-                                <button class="btn-small" id="btn-refresh-import-logs" type="button">รีเฟรชประวัติ</button>
-                            </div>
-                            <div class="admin-table-wrap excel-admin-log-table-wrap">
-                                <table class="admin-table" id="excel-import-log-table">
-                                    <thead>
-                                        <tr>
-                                            <th>เวลา</th>
-                                            <th>รายงาน</th>
-                                            <th>ไฟล์</th>
-                                            <th>สถานะ</th>
-                                            <th>อ่าน</th>
-                                            <th>ประมวลผล</th>
-                                            <th>บันทึกจริง</th>
-                                            <th>โดย</th>
-                                            <th>รายละเอียด</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="excel-import-log-body"></tbody>
-                                </table>
-                            </div>
-                            <p class="empty-msg" id="excel-import-log-empty">กำลังโหลดประวัติ import...</p>
-                        </div>
-                    </section>
 
                     <div class="stat-cards user-stat-cards">
                         <div class="stat-card">
@@ -717,6 +582,147 @@
 
             </div>
 
+            <!-- ======================== TAB 6: ตั้งค่าระบบ ======================== -->
+            <div class="tab-content" id="tab-settings">
+
+                <section class="admin-panel admin-account-panel" id="admin-account-panel">
+                    <div class="admin-account-header">
+                        <div>
+                            <h3>🔐 จัดการผู้ดูแลระบบ</h3>
+                            <p class="panel-caption">พิมพ์ URL หน้าแอดมินแล้วล็อกอินด้วย username/password ได้ทันที ไม่ต้องผ่าน LINE และจะสร้างผู้ดูแลเพิ่มได้หลังจากล็อกอินแล้วเท่านั้น ค่าเริ่มต้นคือ <code>/admin</code> และถ้าจะซ่อนเป็น path ลับให้ตั้ง <code>ADMIN_LOGIN_PATH</code> ในไฟล์ .env</p>
+                        </div>
+                        <div class="admin-account-header-actions">
+                            <div class="admin-account-session" id="admin-account-session">กำลังโหลด session...</div>
+                            <button class="btn-small" id="btn-refresh-admin-accounts" type="button">รีเฟรช</button>
+                        </div>
+                    </div>
+
+                    <div class="admin-account-grid">
+                        <div class="admin-account-card">
+                            <div class="input-row admin-account-row">
+                                <select id="admin-account-select" title="เลือกผู้ดูแลเดิมเพื่อแก้ไข">
+                                    <option value="">-- สร้างผู้ดูแลใหม่ --</option>
+                                </select>
+                                <select id="admin-account-role" title="เลือกสิทธิ์ผู้ดูแล">
+                                    <option value="admin">admin</option>
+                                    <option value="editor">editor</option>
+                                </select>
+                            </div>
+                            <div class="input-row admin-account-row">
+                                <input type="text" id="admin-account-username" placeholder="username เช่น editor01" maxlength="50" autocomplete="off">
+                                <input type="password" id="admin-account-password" placeholder="รหัสผ่านอย่างน้อย 8 ตัวอักษร" autocomplete="new-password">
+                            </div>
+                            <p class="admin-account-help" id="admin-account-help">โหมดสร้างผู้ดูแลใหม่: ถ้าเลือกบัญชีเดิม ระบบจะเปลี่ยนเป็นโหมดแก้ไขและช่องรหัสผ่านจะเป็นทางเลือก</p>
+                            <div class="admin-account-actions">
+                                <button class="btn-action btn-green" id="btn-save-admin-account" type="button">สร้างผู้ดูแล</button>
+                                <button class="btn-action btn-blue" id="btn-reset-admin-password" type="button" disabled>รีเซ็ตรหัสผ่าน</button>
+                                <button class="btn-action btn-red" id="btn-delete-admin-account" type="button" disabled>ลบผู้ดูแล</button>
+                            </div>
+                        </div>
+
+                        <div class="admin-account-card">
+                            <div class="admin-account-list-header">
+                                <h4>บัญชีผู้ดูแลที่มีอยู่</h4>
+                                <span class="admin-account-count" id="admin-account-count">0 บัญชี</span>
+                            </div>
+                            <div class="admin-account-list" id="admin-account-list">
+                                <p class="empty-msg">กำลังโหลดรายชื่อผู้ดูแล...</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="admin-panel excel-admin-panel" id="excel-admin-panel">
+                    <div class="excel-admin-panel-header">
+                        <div>
+                            <h4>📁 Excel Export / Import</h4>
+                            <p class="panel-caption">ดาวน์โหลดรายงานแบบ CSV/XLSX, ดาวน์โหลดไฟล์แก้ไขเฉพาะส่วนที่ปลอดภัย, และอัปโหลดไฟล์กลับเข้าระบบจากหน้าเดียวกัน</p>
+                        </div>
+                        <div class="excel-admin-header-actions">
+                            <a class="btn-small" href="/EXCEL_ADMIN_GUIDE.md" target="_blank" rel="noopener">เปิดคู่มือการใช้งาน</a>
+                            <div class="excel-admin-status" id="excel-admin-status">พร้อมใช้งาน</div>
+                        </div>
+                    </div>
+
+                    <div class="excel-admin-grid">
+                        <div class="excel-admin-card">
+                            <h5>ดาวน์โหลดรายงาน</h5>
+                            <p class="panel-caption">ใช้สำหรับเปิดดูใน Excel หรือส่งต่อทีมโดยไม่แก้ข้อมูลกลับเข้าระบบ</p>
+                            <div class="input-row excel-admin-row">
+                                <select id="excel-export-report">
+                                    <option value="leaderboard">Leaderboard</option>
+                                    <option value="members">Members</option>
+                                    <option value="reward_claims_current">Reward Claims Current</option>
+                                </select>
+                                <button class="btn-action btn-blue" id="btn-export-csv" type="button">ดาวน์โหลด CSV</button>
+                                <button class="btn-action btn-green" id="btn-export-xlsx" type="button">ดาวน์โหลด XLSX</button>
+                            </div>
+                            <p class="excel-admin-help">`leaderboard` เป็นรายงานดูอย่างเดียว ส่วน `members` และ `reward_claims_current` มีเวอร์ชันแก้ไขได้แยกต่างหากด้านขวา</p>
+                        </div>
+
+                        <div class="excel-admin-card">
+                            <h5>ไฟล์แก้ไขที่ปลอดภัย</h5>
+                            <p class="panel-caption">ระบบจะสร้างคอลัมน์สำหรับแก้ไขเฉพาะส่วนที่อนุญาตเท่านั้น และตรวจทุกแถวก่อนบันทึก</p>
+                            <div class="input-row excel-admin-row">
+                                <select id="excel-editable-report">
+                                    <option value="members">Members</option>
+                                    <option value="reward_claims_current">Reward Claims Current</option>
+                                </select>
+                                <button class="btn-action btn-gold" id="btn-download-editable-xlsx" type="button">ดาวน์โหลดไฟล์แก้ไข</button>
+                            </div>
+                            <div class="excel-admin-actions-note">
+                                <div><strong>Members</strong> แก้ได้เฉพาะ `editable_display_name` และ `editable_picture_url`</div>
+                                <div><strong>Reward Claims Current</strong> ใช้ `row_action=claim` เพื่อสร้างรายการใช้สิทธิ์ใหม่เท่านั้น</div>
+                            </div>
+                        </div>
+
+                        <div class="excel-admin-card">
+                            <h5>อัปโหลดไฟล์กลับเข้าระบบ</h5>
+                            <p class="panel-caption">ใช้ไฟล์จากปุ่ม "ดาวน์โหลดไฟล์แก้ไข" เท่านั้น หากมีแถวผิดแม้แถวเดียวระบบจะยกเลิกทั้งไฟล์เพื่อกันข้อมูลพัง</p>
+                            <div class="input-row excel-admin-row">
+                                <select id="excel-import-report">
+                                    <option value="members">Members</option>
+                                    <option value="reward_claims_current">Reward Claims Current</option>
+                                </select>
+                                <input type="file" id="excel-import-file" accept=".xlsx,.xls,.csv">
+                                <button class="btn-action btn-red" id="btn-import-excel" type="button">อัปโหลดไฟล์กลับ</button>
+                            </div>
+                            <div class="excel-admin-last-result" id="excel-import-result">ยังไม่มีการอัปโหลดไฟล์</div>
+                        </div>
+                    </div>
+
+                    <div class="excel-admin-log-panel">
+                        <div class="excel-admin-log-header">
+                            <div>
+                                <h5>ประวัติการ Import ล่าสุด</h5>
+                                <p class="panel-caption">ใช้ตรวจย้อนหลังว่าไฟล์ไหนสำเร็จหรือไม่สำเร็จ ใครเป็นคนอัปโหลด และมีข้อผิดพลาดอะไร</p>
+                            </div>
+                            <button class="btn-small" id="btn-refresh-import-logs" type="button">รีเฟรชประวัติ</button>
+                        </div>
+                        <div class="admin-table-wrap excel-admin-log-table-wrap">
+                            <table class="admin-table" id="excel-import-log-table">
+                                <thead>
+                                    <tr>
+                                        <th>เวลา</th>
+                                        <th>รายงาน</th>
+                                        <th>ไฟล์</th>
+                                        <th>สถานะ</th>
+                                        <th>อ่าน</th>
+                                        <th>ประมวลผล</th>
+                                        <th>บันทึกจริง</th>
+                                        <th>โดย</th>
+                                        <th>รายละเอียด</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="excel-import-log-body"></tbody>
+                            </table>
+                        </div>
+                        <p class="empty-msg" id="excel-import-log-empty">กำลังโหลดประวัติ import...</p>
+                    </div>
+                </section>
+
+            </div>
+
         </div>
     </div>
 
@@ -832,6 +838,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260418a"></script>
+    <script src="admin.js?v=20260418b"></script>
 </body>
 </html>

@@ -150,7 +150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         // Hide admin-only tabs (lottery tab for editing sold-out etc.)
-        const adminOnlyTabs = [];
+        const adminOnlyTabs = ['settings'];
         adminOnlyTabs.forEach(tabName => {
             const tab = document.querySelector(`.admin-tab[data-tab="${tabName}"]`);
             if (tab) tab.style.display = 'none';
