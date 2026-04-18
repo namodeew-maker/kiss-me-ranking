@@ -6,7 +6,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260411c">
-    <link rel="stylesheet" href="admin.css?v=20260411c">
+    <link rel="stylesheet" href="admin.css?v=20260418a">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -639,8 +639,8 @@
                     <div class="sold-out-controls">
                         <div class="input-row">
                             <input type="text" id="sold-out-input" placeholder="กรอกเลข 00-99" maxlength="2" pattern="[0-9]{2}">
-                            <button class="btn-action btn-red" id="btn-add-soldout">+ เพิ่ม Sold Out</button>
-                            <button class="btn-action btn-green" id="btn-remove-soldout">- ปลด Sold Out</button>
+                            <button class="btn-action btn-red" id="btn-add-soldout">ปิดเลข</button>
+                            <button class="btn-action btn-green" id="btn-remove-soldout">เปิดเลข</button>
                         </div>
                         <div class="sold-out-list" id="sold-out-list">
                             <p class="empty-msg">ยังไม่มีเลขที่ปิดขาย</p>
@@ -832,6 +832,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260417a"></script>
+    <script src="admin.js?v=20260418a"></script>
 </body>
 </html>

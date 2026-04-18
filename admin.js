@@ -108,6 +108,131 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.addEventListener('click', () => switchTab(btn.dataset.tab));
     });
 
+    // --- Role-based UI restrictions ---
+    const isEditor = currentAdminSession.role === 'editor';
+
+    // Show role badge in header
+    const headerEl = document.querySelector('.admin-header > div');
+    if (headerEl) {
+        const roleBadge = document.createElement('span');
+        roleBadge.style.cssText = 'display:inline-block;padding:2px 10px;border-radius:8px;font-size:13px;margin-left:10px;font-weight:600;';
+        if (isEditor) {
+            roleBadge.style.background = '#2563eb';
+            roleBadge.style.color = '#fff';
+            roleBadge.textContent = `🛡️ Editor: ${currentAdminSession.username}`;
+        } else {
+            roleBadge.style.background = '#dc2626';
+            roleBadge.style.color = '#fff';
+            roleBadge.textContent = `👑 Admin: ${currentAdminSession.username}`;
+        }
+        headerEl.appendChild(roleBadge);
+    }
+
+    if (isEditor) {
+        // Hide admin-only panels
+        const adminOnlyPanels = [
+            'admin-account-panel',
+            'ranking-reset-panel',
+            'excel-admin-panel'
+        ];
+        adminOnlyPanels.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+
+        // Hide admin-only buttons
+        const adminOnlyButtons = [
+            'btn-delete-user'
+        ];
+        adminOnlyButtons.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+
+        // Hide admin-only tabs (lottery tab for editing sold-out etc.)
+        const adminOnlyTabs = [];
+        adminOnlyTabs.forEach(tabName => {
+            const tab = document.querySelector(`.admin-tab[data-tab="${tabName}"]`);
+            if (tab) tab.style.display = 'none';
+        });
+
+        // Add self-password change button in header area
+        const headerInfo = document.querySelector('.admin-header-info');
+        if (headerInfo) {
+            const selfPwdBtn = document.createElement('button');
+            selfPwdBtn.className = 'btn-blue';
+            selfPwdBtn.textContent = '🔑 เปลี่ยนรหัสผ่าน';
+            selfPwdBtn.style.marginLeft = '10px';
+            selfPwdBtn.addEventListener('click', () => openSelfPasswordModal());
+            headerInfo.appendChild(selfPwdBtn);
+        }
+    }
+
+    // --- Self password change modal (for editor) ---
+    function openSelfPasswordModal() {
+        let modal = document.getElementById('self-pwd-modal');
+        if (modal) { modal.style.display = 'flex'; return; }
+
+        modal = document.createElement('div');
+        modal.id = 'self-pwd-modal';
+        modal.className = 'staff-edit-modal';
+        modal.innerHTML = `
+            <div class="staff-edit-modal-content" style="max-width:400px;">
+                <h3 style="margin-bottom:16px;color:#fff;">🔑 เปลี่ยนรหัสผ่าน</h3>
+                <label style="color:#ccc;font-size:14px;">รหัสผ่านปัจจุบัน</label>
+                <input type="password" id="self-pwd-current" class="staff-edit-input" placeholder="รหัสผ่านปัจจุบัน" />
+                <label style="color:#ccc;font-size:14px;margin-top:8px;">รหัสผ่านใหม่</label>
+                <input type="password" id="self-pwd-new" class="staff-edit-input" placeholder="รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)" />
+                <label style="color:#ccc;font-size:14px;margin-top:8px;">ยืนยันรหัสผ่านใหม่</label>
+                <input type="password" id="self-pwd-confirm" class="staff-edit-input" placeholder="ยืนยันรหัสผ่านใหม่" />
+                <div class="staff-edit-actions" style="margin-top:16px;">
+                    <button class="btn-blue" id="self-pwd-save">💾 บันทึก</button>
+                    <button class="btn-outline" id="self-pwd-cancel">ยกเลิก</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.style.display = 'flex';
+
+        document.getElementById('self-pwd-cancel').addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.style.display = 'none';
+        });
+        document.getElementById('self-pwd-save').addEventListener('click', async () => {
+            const currentPwd = document.getElementById('self-pwd-current').value;
+            const newPwd = document.getElementById('self-pwd-new').value;
+            const confirmPwd = document.getElementById('self-pwd-confirm').value;
+
+            if (!currentPwd || !newPwd) {
+                return showToast('กรุณากรอกรหัสผ่านให้ครบ', 'error');
+            }
+            if (newPwd.length < 8) {
+                return showToast('รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร', 'error');
+            }
+            if (newPwd !== confirmPwd) {
+                return showToast('รหัสผ่านใหม่ไม่ตรงกัน', 'error');
+            }
+            try {
+                const res = await fetch(`${API_BASE}/admin/me/password`, {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ currentPassword: currentPwd, newPassword: newPwd })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'เกิดข้อผิดพลาด');
+                showToast('เปลี่ยนรหัสผ่านสำเร็จ ✅', 'success');
+                modal.style.display = 'none';
+                document.getElementById('self-pwd-current').value = '';
+                document.getElementById('self-pwd-new').value = '';
+                document.getElementById('self-pwd-confirm').value = '';
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        });
+    }
+
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.appendChild(document.createTextNode(text));
@@ -960,7 +1085,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <div class="user-activity-meta">งวด ${escapeHtml(claim.round_label || '—')} • ${amountHtml} • บันทึกโดย ${escapeHtml(claim.redeemed_by_name || 'system')} • ${formatDateTime(claim.redeemed_at)}</div>
                     ${claim.note ? `<div class="user-activity-meta">โน้ต: ${escapeHtml(claim.note)}</div>` : ''}
                 </div>
-                ${allowDelete ? `<button type="button" class="btn-small" data-delete-reward-claim="${claim.id}">ลบ</button>` : ''}
+                ${(allowDelete && !isEditor) ? `<button type="button" class="btn-small" data-delete-reward-claim="${claim.id}">ลบ</button>` : ''}
             </div>
         `;
     }
@@ -1376,7 +1501,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     ? imageCell(h.image_path || h.slip_image_url)
                     : '<span class="history-empty-image">ไม่มีสลิป</span>';
                 const actionHtml = h.history_type === 'transaction'
-                    ? `<button class="btn-small" data-delete-history="${h.id}">ลบ</button>`
+                    ? (isEditor ? '' : `<button class="btn-small" data-delete-history="${h.id}">ลบ</button>`)
                     : `<button class="btn-small" data-view-user="${h.user_id}">ดู user</button>`;
 
                 return `<tr>
@@ -2377,7 +2502,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             ? `<button class="btn-small btn-red" data-deactivate-staff="${s.id}">ปิดใช้งาน</button>`
                             : `<button class="btn-small btn-green" data-activate-staff="${s.id}">เปิดใช้งาน</button>`
                         }
-                        <button class="btn-small btn-red" data-delete-staff="${s.id}" type="button">ลบถาวร</button>
+                        ${isEditor ? '' : `<button class="btn-small btn-red" data-delete-staff="${s.id}" type="button">ลบถาวร</button>`}
                     </div>
                 </div>`;
             }).join('');

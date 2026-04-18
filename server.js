@@ -924,6 +924,13 @@ function requireAdminManager(req, res, next) {
     next();
 }
 
+function requireAdminOnly(req, res, next) {
+    if (req.adminRole !== 'admin') {
+        return res.status(403).json({ error: 'เฉพาะแอดมินเท่านั้นที่มีสิทธิ์ดำเนินการนี้' });
+    }
+    next();
+}
+
 function requireGoogleSheetsExportAuth(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -1890,6 +1897,46 @@ app.delete('/api/admin/accounts/:id', requireAuth, requireAdminManager, async (r
     }
 });
 
+// POST /api/admin/me/password — change own password (any role)
+app.post('/api/admin/me/password', requireAuth, async (req, res) => {
+    const currentPassword = String(req.body?.currentPassword || '');
+    const newPassword = String(req.body?.newPassword || '');
+
+    if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: 'กรุณากรอกรหัสผ่านปัจจุบันและรหัสผ่านใหม่' });
+    }
+    if (newPassword.length < 8) {
+        return res.status(400).json({ error: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร' });
+    }
+
+    try {
+        const userResult = await pool.query(
+            'SELECT id, password_hash FROM admin_users WHERE id = $1',
+            [req.adminUserId]
+        );
+        const user = userResult.rows[0];
+        if (!user) {
+            return res.status(404).json({ error: 'ไม่พบบัญชีผู้ดูแล' });
+        }
+
+        const valid = await bcrypt.compare(currentPassword, user.password_hash);
+        if (!valid) {
+            return res.status(401).json({ error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' });
+        }
+
+        const newHash = await bcrypt.hash(newPassword, 10);
+        await pool.query(
+            'UPDATE admin_users SET password_hash = $1 WHERE id = $2',
+            [newHash, req.adminUserId]
+        );
+
+        res.json({ success: true, message: 'เปลี่ยนรหัสผ่านสำเร็จ' });
+    } catch (err) {
+        console.error('Self password change error:', err);
+        res.status(500).json({ error: 'ไม่สามารถเปลี่ยนรหัสผ่านได้' });
+    }
+});
+
 app.get('/api/admin/storage/status', requireAuth, async (req, res) => {
     try {
         const summary = await summarizeAssetStorage();
@@ -2033,7 +2080,7 @@ app.post('/api/admin/rewards/claims', requireAuth, async (req, res) => {
     }
 });
 
-app.delete('/api/admin/rewards/claims/:id', requireAuth, async (req, res) => {
+app.delete('/api/admin/rewards/claims/:id', requireAuth, requireAdminOnly, async (req, res) => {
     const claimId = parseInt(req.params.id, 10);
     if (isNaN(claimId)) {
         return res.status(400).json({ error: 'Invalid claim ID' });
@@ -2265,7 +2312,7 @@ app.delete('/api/staffs/:id', requireAuth, async (req, res) => {
 });
 
 // DELETE /api/staffs/:id/permanent — hard delete staff (admin)
-app.delete('/api/staffs/:id/permanent', requireAuth, async (req, res) => {
+app.delete('/api/staffs/:id/permanent', requireAuth, requireAdminOnly, async (req, res) => {
     const staffId = parseInt(req.params.id, 10);
     if (isNaN(staffId)) return res.status(400).json({ error: 'Invalid ID' });
     try {
@@ -2291,8 +2338,8 @@ app.get('/api/staffs/reset-ranking', requireAuth, async (req, res) => {
     }
 });
 
-// POST /api/staffs/reset-ranking — set ranking reset date (admin)
-app.post('/api/staffs/reset-ranking', requireAuth, async (req, res) => {
+// POST /api/staffs/reset-ranking — set ranking reset date (admin only)
+app.post('/api/staffs/reset-ranking', requireAuth, requireAdminOnly, async (req, res) => {
     const { date } = req.body;
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return res.status(400).json({ error: 'กรุณาระบุวันที่ (YYYY-MM-DD)' });
@@ -3948,7 +3995,7 @@ app.get('/api/history', async (req, res) => {
 });
 
 // DELETE /api/history/:id — delete a transaction (admin)
-app.delete('/api/history/:id', requireAuth, async (req, res) => {
+app.delete('/api/history/:id', requireAuth, requireAdminOnly, async (req, res) => {
     const txId = parseInt(req.params.id, 10);
     if (isNaN(txId)) return res.status(400).json({ error: 'Invalid ID' });
     const client = await pool.connect();
@@ -4507,7 +4554,7 @@ app.put('/api/admin/users/:id', requireAuth, async (req, res) => {
     }
 });
 
-app.delete('/api/admin/users/:id', requireAuth, async (req, res) => {
+app.delete('/api/admin/users/:id', requireAuth, requireAdminOnly, async (req, res) => {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'Invalid ID' });
 
