@@ -2278,6 +2278,73 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // --- Staff Edit Modal ---
+    function openStaffEditModal(staffId, name, nickname, avatarSrc) {
+        // Remove existing modal if any
+        let existing = document.getElementById('staff-edit-modal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'staff-edit-modal';
+        modal.className = 'img-modal-overlay';
+        modal.innerHTML = `
+            <div class="staff-edit-modal-content">
+                <h3>✏️ แก้ไขพนักงาน</h3>
+                <div class="staff-edit-avatar-wrap">
+                    <img id="staff-edit-avatar-preview" src="${avatarSrc}" alt="avatar" class="staff-edit-avatar-img" onerror="this.src='https://ui-avatars.com/api/?name=S&background=1a1a2e&color=00f0ff&size=120'">
+                    <label class="btn-small btn-blue staff-edit-avatar-label">📷 เปลี่ยนรูป
+                        <input type="file" id="staff-edit-avatar-file" accept="image/*" hidden>
+                    </label>
+                </div>
+                <label class="staff-edit-label">ชื่อจริง
+                    <input type="text" id="staff-edit-name" value="${escapeHtml(name)}" class="staff-edit-input" placeholder="ชื่อจริง">
+                </label>
+                <label class="staff-edit-label">ชื่อเล่น
+                    <input type="text" id="staff-edit-nickname" value="${escapeHtml(nickname)}" class="staff-edit-input" placeholder="ชื่อเล่น">
+                </label>
+                <div class="staff-edit-actions">
+                    <button class="btn-action btn-green" id="staff-edit-save" type="button">💾 บันทึก</button>
+                    <button class="btn-action btn-red" id="staff-edit-cancel" type="button">ยกเลิก</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const fileInput = document.getElementById('staff-edit-avatar-file');
+        const previewImg = document.getElementById('staff-edit-avatar-preview');
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files && fileInput.files[0]) {
+                previewImg.src = URL.createObjectURL(fileInput.files[0]);
+            }
+        });
+
+        document.getElementById('staff-edit-cancel').addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+        document.getElementById('staff-edit-save').addEventListener('click', async () => {
+            const newName = document.getElementById('staff-edit-name').value.trim();
+            const newNickname = document.getElementById('staff-edit-nickname').value.trim();
+            const formData = new FormData();
+            if (newName) formData.append('name', newName);
+            if (newNickname) formData.append('nickname', newNickname);
+            if (fileInput.files && fileInput.files[0]) {
+                formData.append('avatar', fileInput.files[0]);
+            }
+            try {
+                const res = await authFetch(`${API_BASE}/staffs/${staffId}`, { method: 'PUT', body: formData });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'update failed');
+                showToast('อัปเดตข้อมูลพนักงานแล้ว', 'success');
+                modal.remove();
+                renderStaffGrid();
+                renderStaffRanking();
+                renderStaffUsageRanking();
+            } catch (err) {
+                showToast('ไม่สามารถอัปเดตข้อมูลพนักงานได้: ' + err.message, 'error');
+            }
+        });
+    }
+
     // --- Staff Management ---
     async function renderStaffGrid() {
         const grid = document.getElementById('staff-grid');
@@ -2305,6 +2372,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <span class="staff-status-badge ${statusClass}">${statusText}</span>
                     </div>
                     <div class="staff-card-actions">
+                        <button class="btn-small btn-blue" data-edit-staff="${s.id}" data-edit-name="${escapeHtml(s.name || '')}" data-edit-nickname="${escapeHtml(s.nickname || '')}" data-edit-avatar="${avatarSrc}" type="button">✏️ แก้ไข</button>
                         ${s.is_active
                             ? `<button class="btn-small btn-red" data-deactivate-staff="${s.id}">ปิดใช้งาน</button>`
                             : `<button class="btn-small btn-green" data-activate-staff="${s.id}">เปิดใช้งาน</button>`
@@ -2356,6 +2424,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             grid.querySelectorAll('[data-staff-preview]').forEach(btn => {
                 btn.addEventListener('click', () => openImageModal(btn.dataset.staffPreview));
+            });
+            // Bind edit staff
+            grid.querySelectorAll('[data-edit-staff]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    openStaffEditModal(btn.dataset.editStaff, btn.dataset.editName, btn.dataset.editNickname, btn.dataset.editAvatar);
+                });
             });
         } catch (err) {
             grid.innerHTML = '<p class="empty-msg">ไม่สามารถโหลดรายชื่อพนักงานได้</p>';

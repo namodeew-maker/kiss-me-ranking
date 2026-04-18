@@ -164,7 +164,7 @@ function renderLeaderboardBoard(list, options) {
             ${avatarNode}
             <div class="podium-name">${escapeHtml(displayName)}</div>
             ${metaParts ? `<div class="podium-meta">${metaParts}</div>` : ''}
-            <div class="podium-points">${escapeHtml(options.getMetric(entry))}</div>
+            ${options.hideMetric ? '' : `<div class="podium-points">${escapeHtml(options.getMetric(entry))}</div>`}
         </div>`;
     }).join('');
 
@@ -228,7 +228,7 @@ function renderLeaderboardBoard(list, options) {
         </div>
     </section>
 
-    <section class="leaderboard-card leaderboard-table-card">
+    ${options.hideTable ? '' : `<section class="leaderboard-card leaderboard-table-card">
         <div class="leaderboard-card-header">
             <div>
                 <h2 class="leaderboard-card-title">Ranking Table</h2>
@@ -245,7 +245,7 @@ function renderLeaderboardBoard(list, options) {
             </div>
             ${rows}
         </div>
-    </section>
+    </section>`}
 
     <section class="leaderboard-card leaderboard-best-card">
         <div class="best-player-inner">
@@ -266,11 +266,11 @@ function renderLeaderboardBoard(list, options) {
                     <div class="best-player-avatar-caption">อันดับสูงสุดตอนนี้</div>
                 </div>
             </div>
-            <div class="best-player-score-wrap">
+            ${options.hideMetric ? '' : `<div class="best-player-score-wrap">
                 <div class="best-player-score-label">${escapeHtml(options.metricHeader)}</div>
                 <div class="best-player-score">${escapeHtml(options.getMetric(best))}</div>
                 <div class="best-player-tier">${renderCustomerTierBadge(bestTierInfo, 'best-player-tier-badge')}</div>
-            </div>
+            </div>`}
             <div class="best-player-name">${escapeHtml(bestDisplayName)}</div>
             <div class="best-player-meta">
                 ${options.getBestMeta(best).map(meta => `<div class="best-player-chip"><span>${escapeHtml(meta.label)}</span><strong>${escapeHtml(meta.value)}</strong></div>`).join('')}
@@ -382,9 +382,12 @@ async function loadStaffUsageRanking(rounds) {
             list.innerHTML = '<div class="ranking-loading">ยังไม่มีข้อมูลอันดับ</div>';
             return;
         }
-        list.innerHTML = renderLeaderboardBoard(staffs, {
+        const top3 = staffs.slice(0, 3);
+        list.innerHTML = renderLeaderboardBoard(top3, {
             boardLabel: 'Service Usage Leaderboard',
             metricHeader: 'ยอดแจ้งใช้บริการ',
+            hideTable: true,
+            hideMetric: true,
             getAvatar: (staff) => getAvatarSrc(staff, staff.nickname || staff.name || 'U'),
             getDisplayName: (staff) => staff.nickname || staff.name || '—',
             getSubtitle: () => '',
