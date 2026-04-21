@@ -697,6 +697,8 @@ async function ensureDatabaseStructure() {
         await pool.query('DROP INDEX IF EXISTS uq_sold_out_number_round');
         await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_sold_out_number_round ON sold_out (number, round_label)');
         await pool.query('DROP INDEX IF EXISTS uq_user_staff_round');
+        // Remove the duplicate staff selection constraint to allow employees to be selected multiple times
+        // within the same guess cycle until all 5 points are used up
         await pool.query('DROP INDEX IF EXISTS uq_user_staff_round_cycle');
         await pool.query('DROP INDEX IF EXISTS uq_user_lottery_round');
         await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_user_lottery_round_number ON lottery_guesses (user_id, round_label, guess_number)');
@@ -2393,6 +2395,9 @@ app.post('/api/admin/customers/reset-rank', requireAuth, async (req, res) => {
 app.get('/api/ranking/staff', async (req, res) => {
     try {
         const resetDate = await getRankingResetDate();
+        // Only apply reset date filter if the reset date is today or in the past
+        const today = new Date().toISOString().split('T')[0];
+        const effectiveResetDate = resetDate && resetDate <= today ? resetDate : null;
         const result = await pool.query(`
             SELECT
                 s.id, s.name, s.nickname, s.avatar_url,
@@ -2410,7 +2415,7 @@ app.get('/api/ranking/staff', async (req, res) => {
             WHERE s.is_active = TRUE
             GROUP BY s.id, s.name, s.nickname, s.avatar_url
             ORDER BY total_votes DESC, avg_score DESC, MAX(COALESCE(t.service_date::timestamp, t.created_at)) DESC, s.id ASC
-        `, [resetDate]);
+        `, [effectiveResetDate]);
         res.json(result.rows);
     } catch (err) {
         console.error('Staff ranking error:', err);
@@ -2422,25 +2427,34 @@ app.get('/api/ranking/staff', async (req, res) => {
 app.get('/api/ranking/customers', async (req, res) => {
     try {
         const resetDate = await getCustomerRankResetDate();
+        // Only apply reset date filter if the reset date is today or in the past
+        const today = new Date().toISOString().split('T')[0];
+        const effectiveResetDate = resetDate && resetDate <= today ? resetDate : null;
         const result = await pool.query(`
             SELECT
                 u.id, u.display_name, u.picture_url, u.platform,
-                COUNT(t.id)::int AS total_approved,
+                COALESCE(ranked.total_approved, 0)::int AS total_approved,
                 (
                     SELECT COUNT(*)::int
                     FROM transactions t_all
                     WHERE t_all.user_id = u.id
                       AND t_all.status = 'approved'
                 ) AS total_lifetime_approved,
-                MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_service_at
+                ranked.last_service_at
             FROM users u
-            LEFT JOIN transactions t ON t.user_id = u.id
-                AND t.status = 'approved'
-                AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
-            GROUP BY u.id, u.display_name, u.picture_url, u.platform
-            HAVING COUNT(t.id) > 0
-            ORDER BY COUNT(t.id) DESC, MAX(COALESCE(t.service_date::timestamp, t.created_at)) DESC, u.id ASC
-        `, [resetDate]);
+            LEFT JOIN (
+                SELECT
+                    t.user_id,
+                    COUNT(*)::int AS total_approved,
+                    MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_service_at
+                FROM transactions t
+                WHERE t.status = 'approved'
+                  AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
+                GROUP BY t.user_id
+            ) ranked ON ranked.user_id = u.id
+            WHERE ranked.user_id IS NOT NULL
+            ORDER BY ranked.total_approved DESC, ranked.last_service_at DESC, u.id ASC
+        `, [effectiveResetDate]);
         res.json(result.rows.map((row) => ({
             ...row,
             rank_reset_date: resetDate

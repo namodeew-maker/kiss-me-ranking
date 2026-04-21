@@ -1,5 +1,5 @@
-◇ injecting env (14) from .env // tip: ⌘ suppress logs { quiet: true }
-R2 startup migration: migrated_rows=0, uploaded_files=0, local_remaining=0, local_missing=0
+◇ injecting env (14) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+R2 startup migration: migrated_rows=1, uploaded_files=0, local_remaining=0, local_missing=0
 Kiss Me Ranking server running at http://localhost:3010
 Admin login route: /admin (panel: /admin/panel)
 [AUTH] Admin login: Kissmy456 from ::1
