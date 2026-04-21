@@ -2433,7 +2433,7 @@ app.get('/api/ranking/customers', async (req, res) => {
         const result = await pool.query(`
             SELECT
                 u.id, u.display_name, u.picture_url, u.platform,
-                COALESCE(ranked.total_approved, 0)::int AS total_approved,
+                ranked.total_approved,
                 (
                     SELECT COUNT(*)::int
                     FROM transactions t_all
@@ -2442,7 +2442,7 @@ app.get('/api/ranking/customers', async (req, res) => {
                 ) AS total_lifetime_approved,
                 ranked.last_service_at
             FROM users u
-            LEFT JOIN (
+            INNER JOIN (
                 SELECT
                     t.user_id,
                     COUNT(*)::int AS total_approved,
@@ -2452,7 +2452,6 @@ app.get('/api/ranking/customers', async (req, res) => {
                   AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
                 GROUP BY t.user_id
             ) ranked ON ranked.user_id = u.id
-            WHERE ranked.user_id IS NOT NULL
             ORDER BY ranked.total_approved DESC, ranked.last_service_at DESC, u.id ASC
         `, [effectiveResetDate]);
         res.json(result.rows.map((row) => ({
