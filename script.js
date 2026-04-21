@@ -5,7 +5,6 @@ const API_ROOT = API_BASE.replace(/\/api$/, '');
 
 // ==================== GLOBAL STATE ====================
 let currentUser = null; // { id, platform, platform_id, display_name, picture_url, progress_count }
-let currentVisitedStaffIds = new Set();
 let mainUserIdCopyResetTimer = null;
 let currentProgressData = null;
 let currentLottoSelection = '';
@@ -420,14 +419,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setActiveStep(1);
     }
 
-    function applyVisitedStaffState(staffIds) {
-        currentVisitedStaffIds = new Set((staffIds || []).map(String));
-
-        document.querySelectorAll('.staff-pick-card').forEach(card => {
-            card.classList.remove('is-locked');
-            card.setAttribute('aria-disabled', 'false');
-        });
-    }
 
     function syncLottoState(progressData) {
         const btnOpenLotto = document.getElementById('btn-open-lotto');
@@ -534,7 +525,6 @@ document.addEventListener('DOMContentLoaded', () => {
             currentProgressData = progressData;
             renderProgressState(pointBalance, guessCredits);
             renderTotalPoints(guessCredits);
-            applyVisitedStaffState(progressData?.visited_staff_ids || []);
             syncLottoState(progressData);
             updateLottoConfirmButton();
 
@@ -884,7 +874,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
 
-            applyVisitedStaffState(Array.from(currentVisitedStaffIds));
         } catch (err) {
             staffGrid.innerHTML = '<p class="staff-pick-loading">ไม่สามารถโหลดรายชื่อพนักงานได้</p>';
         }

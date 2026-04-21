@@ -2397,7 +2397,7 @@ app.get('/api/ranking/staff', async (req, res) => {
         const resetDate = await getRankingResetDate();
         // Only apply reset date filter if the reset date is today or in the past
         const today = new Date().toISOString().split('T')[0];
-        const effectiveResetDate = resetDate && resetDate <= today ? resetDate : null;
+        const effectiveResetDate = resetDate && resetDate < today ? resetDate : null;
         const result = await pool.query(`
             SELECT
                 s.id, s.name, s.nickname, s.avatar_url,
@@ -2429,7 +2429,7 @@ app.get('/api/ranking/customers', async (req, res) => {
         const resetDate = await getCustomerRankResetDate();
         // Only apply reset date filter if the reset date is today or in the past
         const today = new Date().toISOString().split('T')[0];
-        const effectiveResetDate = resetDate && resetDate <= today ? resetDate : null;
+        const effectiveResetDate = resetDate && resetDate < today ? resetDate : null;
         const result = await pool.query(`
             SELECT
                 u.id, u.display_name, u.picture_url, u.platform,
@@ -3366,13 +3366,6 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
             [user.id, roundLabel]
         );
 
-        // List which staffs already visited this round
-        const visitedResult = await pool.query(
-            `SELECT DISTINCT staff_id FROM transactions
-             WHERE user_id = $1 AND round_label = $2 AND guess_cycle = $3 AND status <> 'rejected'`,
-            [user.id, roundLabel, currentGuessCycle]
-        );
-
         res.json({
             user_id: user.id,
             display_name: user.display_name,
@@ -3390,8 +3383,8 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
             lottery_guess: guessResult.rows[0] || null,
             lottery_guesses: guessResult.rows,
             guess_count: guessResult.rows.length,
-            current_guess_cycle: currentGuessCycle,
-            visited_staff_ids: visitedResult.rows.map(r => r.staff_id)
+            current_guess_cycle: currentGuessCycle
+        });
         });
     } catch (err) {
         console.error('Progress fetch error:', err);
