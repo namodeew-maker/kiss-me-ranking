@@ -2992,7 +2992,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Load prediction status data when tab is activated
-    const tabButtons = document.querySelectorAll('.admin-tab[data-tab]');
     tabButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
             if (e.target.dataset.tab === 'prediction-status') {

@@ -2424,25 +2424,34 @@ app.get('/api/ranking/staff', async (req, res) => {
 });
 
 // GET /api/ranking/customers — customer ranking by approved service usage after customer rank reset date
+// Behavior:
+//  • ถ้าวันที่รีแรงค์ยังไม่ถึง (หรือยังไม่ได้ตั้ง) → นับสะสมทั้งหมด (lifetime)
+//  • ถ้าวันที่รีแรงค์มาถึงแล้ว → นับเฉพาะสลิปที่อนุมัติตั้งแต่วันนั้นเป็นต้นไป (เริ่มนับ 1 ใหม่)
+//  • ลูกค้าที่เคยมีสลิปอนุมัติอย่างน้อย 1 ใบ ยังคงแสดงใน leaderboard เสมอ
+//    (ถ้าหลังรีแรงค์ยังไม่มีสลิป → total_approved = 0, ได้แรงค์ Unranked)
 app.get('/api/ranking/customers', async (req, res) => {
     try {
         const resetDate = await getCustomerRankResetDate();
-        // Only apply reset date filter if the reset date is today or in the past
+        // Apply the reset filter when the reset date is today or in the past
         const today = new Date().toISOString().split('T')[0];
-        const effectiveResetDate = resetDate && resetDate < today ? resetDate : null;
+        const effectiveResetDate = resetDate && resetDate <= today ? resetDate : null;
         const result = await pool.query(`
             SELECT
                 u.id, u.display_name, u.picture_url, u.platform,
-                ranked.total_approved,
-                (
-                    SELECT COUNT(*)::int
-                    FROM transactions t_all
-                    WHERE t_all.user_id = u.id
-                      AND t_all.status = 'approved'
-                ) AS total_lifetime_approved,
-                ranked.last_service_at
+                COALESCE(ranked.total_approved, 0) AS total_approved,
+                lifetime.total_lifetime_approved,
+                COALESCE(ranked.last_service_at, lifetime.last_service_at) AS last_service_at
             FROM users u
             INNER JOIN (
+                SELECT
+                    t_all.user_id,
+                    COUNT(*)::int AS total_lifetime_approved,
+                    MAX(COALESCE(t_all.service_date::timestamp, t_all.created_at)) AS last_service_at
+                FROM transactions t_all
+                WHERE t_all.status = 'approved'
+                GROUP BY t_all.user_id
+            ) lifetime ON lifetime.user_id = u.id
+            LEFT JOIN (
                 SELECT
                     t.user_id,
                     COUNT(*)::int AS total_approved,
@@ -2452,7 +2461,9 @@ app.get('/api/ranking/customers', async (req, res) => {
                   AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
                 GROUP BY t.user_id
             ) ranked ON ranked.user_id = u.id
-            ORDER BY ranked.total_approved DESC, ranked.last_service_at DESC, u.id ASC
+            ORDER BY COALESCE(ranked.total_approved, 0) DESC,
+                     COALESCE(ranked.last_service_at, lifetime.last_service_at) DESC NULLS LAST,
+                     u.id ASC
         `, [effectiveResetDate]);
         res.json(result.rows.map((row) => ({
             ...row,
@@ -3384,7 +3395,6 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
             lottery_guesses: guessResult.rows,
             guess_count: guessResult.rows.length,
             current_guess_cycle: currentGuessCycle
-        });
         });
     } catch (err) {
         console.error('Progress fetch error:', err);

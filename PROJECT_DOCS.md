@@ -120,7 +120,6 @@ Kiss Me Ranking/
 ├── script.js                       ← JS หลักของ index.html
 ├── seed-staff.js                   ← Script สร้างข้อมูลพนักงานตัวอย่าง
 ├── server.js                       ← Backend หลัก (Express.js, ทุก endpoint อยู่ที่นี่)
-├── status.html                     ← หน้าสถานะ transaction
 ├── styles.css                      ← CSS หลักของหน้าลูกค้า
 ├── uploads/                        ← local uploads fallback
 │   ├── 1775058350403-440250.jpg

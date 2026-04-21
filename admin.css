@@ -540,6 +540,16 @@
     animation: pulse-pending 1.5s infinite;
 }
 
+.badge-approved {
+    background: #003322;
+    color: #00ff88;
+}
+
+.badge-rejected {
+    background: #330000;
+    color: #ff4444;
+}
+
 @keyframes pulse-pending {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.6; }
