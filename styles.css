@@ -1239,15 +1239,36 @@ header h1 {
 .service-date-group label {
     font-size: 1rem !important;
     font-weight: 700 !important;
-    color: var(--neon-cyan) !important;
-    text-shadow: 0 0 8px rgba(0, 240, 255, 0.25);
+    color: #ff6b6b !important;
+    text-shadow: 0 0 8px rgba(255, 107, 107, 0.35) !important;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.required-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #ff3c3c, #ff6b6b);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    animation: pulse-warning 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+    0%, 100% { opacity: 0.8; text-shadow: 0 0 6px rgba(255, 59, 59, 0.4); }
+    50% { opacity: 1; text-shadow: 0 0 12px rgba(255, 59, 59, 0.8); }
 }
 
 .service-date-group {
-    padding: 16px;
+    padding: 18px;
     border-radius: 16px;
-    border: 1px solid rgba(0, 240, 255, 0.18);
-    background: linear-gradient(135deg, rgba(0, 240, 255, 0.06), rgba(122, 66, 255, 0.03));
+    border: 2px solid #ff6b6b;
+    background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(255, 59, 59, 0.05));
+    box-shadow: 0 0 20px rgba(255, 107, 107, 0.15);
 }
 
 .service-date-shell {
@@ -1257,23 +1278,50 @@ header h1 {
     align-items: center;
 }
 
+.service-date-shell input[type="date"] {
+    background: rgba(255, 107, 107, 0.08);
+    border: 2px solid rgba(255, 107, 107, 0.3);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.service-date-shell input[type="date"]:hover {
+    border-color: rgba(255, 107, 107, 0.5);
+    background: rgba(255, 107, 107, 0.12);
+    box-shadow: 0 0 12px rgba(255, 107, 107, 0.2);
+}
+
+.service-date-shell input[type="date"]:focus {
+    outline: none;
+    border-color: #ff6b6b;
+    background: rgba(255, 107, 107, 0.14);
+    box-shadow: 0 0 16px rgba(255, 107, 107, 0.35);
+}
+
 .date-picker-trigger {
-    border: 1px solid rgba(0, 240, 255, 0.26);
-    background: rgba(0, 240, 255, 0.08);
-    color: var(--neon-cyan);
+    border: 2px solid #ff6b6b;
+    background: linear-gradient(135deg, rgba(255, 107, 107, 0.15), rgba(255, 59, 59, 0.08));
+    color: #ff6b6b;
     border-radius: 12px;
     min-height: 46px;
     padding: 14px 16px;
     font-family: 'Kanit', sans-serif;
-    font-weight: 700;
+    font-weight: 800;
     cursor: pointer;
     transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    font-size: 0.95rem;
 }
 
 .date-picker-trigger:hover {
-    transform: translateY(-1px);
-    background: rgba(0, 240, 255, 0.14);
-    box-shadow: 0 0 18px rgba(0, 240, 255, 0.16);
+    transform: translateY(-2px);
+    background: linear-gradient(135deg, rgba(255, 107, 107, 0.25), rgba(255, 59, 59, 0.15));
+    box-shadow: 0 0 20px rgba(255, 107, 107, 0.35), 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.date-picker-trigger:active {
+    transform: translateY(0);
+    box-shadow: 0 0 14px rgba(255, 107, 107, 0.25);
 }
 
 .service-date-shortcuts {
@@ -1307,8 +1355,12 @@ header h1 {
 }
 
 .service-date-group .input-help {
-    margin-top: 10px;
+    margin-top: 12px;
     text-align: center;
+    color: #ff9e9e;
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
 }
 
 .submission-panel input[type="text"]:focus,

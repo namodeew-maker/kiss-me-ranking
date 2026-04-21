@@ -1282,7 +1282,7 @@ function syncReport_(sheetName) {
     throw new Error('Unknown sheet config: ' + sheetName);
   }
 
-  if (sheetConfig.syncMode === 'none') {
+  if (sheetConfig.syncMode === 'none')  curl http://localhost:3010 {
     throw new Error('Sheet does not support direct sync: ' + sheetName);
   }
 

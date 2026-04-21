@@ -197,7 +197,7 @@ ADMIN_LOGIN_PATH=admin
 | **lottery_guesses** | ทายเลข 2 หลัก | `user_id`, `guess_number` (00-99), `round_label`, `result` (pending/won/lost), `reward_amount` |
 | **lottery_reward_claims** | บันทึกการใช้สิทธิ์ Cashback / GV แบบทยอยใช้ | `lottery_guess_id`, `user_id`, `reward_type` (cashback/gv), `amount`, `note`, `redeemed_by`, `redeemed_at`, `claim_mode` (withdraw/reuse — เฉพาะ Cashback) |
 | **sold_out** | เลขที่ถูกจองแล้วต่อรอบ | `number` (0-99), `round_label` |
-| **admin_users** | ผู้ดูแลระบบ | `username`, `password_hash` (bcrypt) |
+| **admin_users** | ผู้ดูแลระบบ | `username`, `password_hash` (bcrypt), `role` ('admin'/'editor') |
 
 ### 6.2 ตารางจาก migrate-unified.sql (Identity & Points)
 
@@ -232,6 +232,7 @@ ADMIN_LOGIN_PATH=admin
 | `POST` | `/api/login` | — | Login admin (username + password → token) |
 | `GET` | `/api/auth/verify` | Bearer | ตรวจ token ยัง valid อยู่ไหม |
 | `POST` | `/api/logout` | Bearer | Logout (ลบ token) |
+| `POST` | `/api/admin/me/password` | Bearer | เปลี่ยนรหัสผ่านตัวเอง (ทุก role) |
 
 ### 7.2 Customer Authentication
 
@@ -396,9 +397,10 @@ value_score: 8
 **Dashboard มีหลาย Tab หลัก + panel จัดการเพิ่มเติมในหน้า Overview/User/Lottery:**
 1. Overview: สถิติรวม, สรุป Cashback / GV, reward ledger, สถานะที่เก็บรูป
 2. Users: ค้นหา user, ดูรายละเอียด, ดูพ้อยทายเลข, Rank EXP, Cashback / GV และตั้งค่าวันรีแรงค์ลูกค้า
-3. Staff: จัดการพนักงาน + อันดับพนักงาน + รีอันดับพนักงาน
+3. Staff: จัดการพนักงาน (เพิ่ม/แก้ไข/ปิดใช้งาน) + อันดับพนักงาน + รีอันดับพนักงาน
 4. Approval: คิวรออนุมัติ + ประวัติทั้งหมด
 5. Lottery: sold-out, กราฟ, ประกาศผล, **ตั้งค่ารอบสะสมแต้มทายเลข** และปุ่มรีเช็คพ้อยทายเลข
+6. Settings (⚙️ ตั้งค่าระบบ): 🔐 จัดการผู้ดูแลระบบ + 📁 Excel Export/Import — **แท็บนี้ซ่อนสำหรับ Editor**
 
 **ใน Overview มี panel “จัดการการใช้สิทธิ์ Cashback / GV” เพิ่มเติม:**
 - สรุปสิทธิ์ที่ยังค้างทั้งหมด
@@ -912,6 +914,40 @@ ngrok http 3000
 - เลขที่ปิดขาย (Sold Out) แก้ schema/index ให้ unique per `(number, round_label)` ถูกต้อง
 - Migration: `migrate-sold-out-round.sql`
 
+### 13.3 ปรับแก้วันที่ 18 เมษายน 2569
+
+**ระบบสิทธิ์ Admin / Editor:**
+- เพิ่ม `requireAdminOnly` middleware ใน `server.js` สำหรับ endpoint ที่อนุญาตเฉพาะ Admin
+- Editor ถูกบล็อกจาก: DELETE staff permanent, DELETE history, DELETE user, DELETE reward claims, POST reset-ranking
+- `requireAdminManager` (เดิม) ยังคงบล็อก Editor จาก CRUD admin accounts
+- เพิ่ม `POST /api/admin/me/password` — Editor/Admin เปลี่ยนรหัสผ่านตัวเองได้
+- Frontend แสดง role badge ใน header: 👑 Admin (แดง) / 🛡️ Editor (น้ำเงิน)
+- Editor มองไม่เห็น: ปุ่มลบถาวร (staff/user/history/reward claims), แถบ ⚙️ ตั้งค่าระบบ
+- Editor มองเห็นและใช้งานได้: จัดการ user, เพิ่ม/แก้ไข/ปิดเปิดพนักงาน, อนุมัติสลิป, ดู ranking
+- Editor มี modal เปลี่ยนรหัสผ่านตัวเอง (ปุ่ม 🔑 ใน header)
+
+**แก้ไขข้อมูลพนักงาน:**
+- เพิ่มปุ่ม ✏️ แก้ไข บน staff card ในหน้า Admin
+- `openStaffEditModal()` — modal สำหรับแก้ชื่อ/ชื่อเล่น/อัปโหลดรูปพนักงาน
+- ใช้ `PUT /api/staffs/:id` (มี endpoint อยู่แล้ว) รองรับ name, nickname, avatar
+
+**ปรับอันดับพนักงานแสดง Top 3:**
+- หน้า ranking สาธารณะ: อันดับแจ้งใช้บริการแสดงเฉพาะ 3 อันดับแรก
+- ซ่อนตารางอันดับและจำนวนครั้งใช้งาน (`hideTable: true`, `hideMetric: true`)
+
+**ย้ายโครงสร้าง Admin Panel:**
+- เพิ่มแถบใหม่ **⚙️ ตั้งค่าระบบ** (`tab-settings`)
+- ย้าย 🔐 จัดการผู้ดูแลระบบ จากแถบ ภาพรวม → แถบ ตั้งค่าระบบ
+- ย้าย 📁 Excel Export/Import จากแถบ จัดการ User → แถบ ตั้งค่าระบบ
+- แถบ ⚙️ ตั้งค่าระบบ ซ่อนอัตโนมัติสำหรับ Editor
+
+**Deployment / Infrastructure:**
+- แก้ PM2 ecosystem.config.js บน VPS: เปลี่ยนจาก cluster mode → fork mode, PORT 3001 → 3010
+- แก้ 502 Bad Gateway จาก port mismatch
+- ติดตั้ง `xlsx` module บน VPS ที่ขาดหายไป
+- VPS deploy ใช้ `curl -sLO` จาก GitHub raw (ไม่มี git repo บน VPS)
+- Cache buster อัปเดตเป็น `v=20260418b` เพื่อบังคับ browser reload
+
 ---
 
 ## 14. รายการที่ยังไม่ได้หรือยังค้างอยู่
@@ -921,6 +957,7 @@ ngrok http 3000
 - ข้อความอธิบายบางส่วนใน schema เดิม เช่น `progress_count` และคอมเมนต์ใน `init-db.sql` ยังสะท้อน model เก่าอยู่ แม้ runtime ปัจจุบันใช้ point-based flow แล้ว
 - การตรวจ production ใน browser สำหรับหน้า admin history และ profile combined activity feed ยังควรทวนอีกครั้งเมื่อมีงาน UI รอบใหม่ แม้ flow เปลี่ยนรูปโปรไฟล์ฝั่งลูกค้าจะผ่าน end-to-end บน production แล้ว
 - ฝั่ง auth admin ยังเป็น token ใน memory ของ server local จึงหลุด session เมื่อ restart server ระหว่างทดสอบ
+- ⬜ ยังไม่มี UI สำหรับสร้าง/แก้ไข admin ที่เป็น Editor role ผ่านหน้า admin (ปัจจุบันต้อง INSERT ลง DB ตรง หรือแก้ role ผ่าน SQL)
 
 ### 14.2 งานโครงสร้าง / configuration
 
@@ -931,7 +968,7 @@ ngrok http 3000
 ### 14.3 หมายเหตุการ deploy ปัจจุบัน
 
 - Public production ปัจจุบัน: `https://ranking.kissme-vip.com`
-- Origin production ปัจจุบัน: `VPS + Nginx + PM2` โดย Node/Express เสิร์ฟทั้ง frontend และ `/api` จาก origin เดียว
+- Origin production ปัจจุบัน: `VPS + Nginx + PM2` โดย Node/Express เสิร์ฟทั้ง frontend และ `/api` จาก origin เดียว (`PORT=3010`, fork mode, 1 instance)
 - DNS production ปัจจุบันใช้ `A record` ชื่อ `ranking` → `185.182.184.180` บน Cloudflare
 - TLS production ปัจจุบันใช้ `Let's Encrypt` บน VPS และ Cloudflare ควรตั้ง `SSL/TLS = Full (strict)` เมื่อเปิด proxy
 - Legacy deployment เดิมยังเก็บไว้เป็น reference/rollback path: Frontend `https://namodeew-maker.github.io/kiss-me-ranking/` และ Backend `https://kiss-me-ranking.onrender.com/api`
@@ -1016,6 +1053,21 @@ sudo nginx -t && sudo systemctl reload nginx
 - [ ] ถ้าจะเก็บ `examples/company-callback.js`, `examples/telegram-messaging.js`, `examples/line-points-gateway.js` ไว้ต่อ ให้ติดป้ายว่าเป็น archived / legacy reference ให้ชัด
 - [ ] ถ้าใน UI หรือคู่มือยังมีคำว่า LINE Messaging API, Telegram bot, company callback เป็น flow หลัก ให้เปลี่ยนเป็นคำอธิบายแบบ `LINE LIFF only`
 
+### 14.8 บันทึกงานวันที่ 18 เมษายน 2569
+
+สิ่งที่ทำวันนี้บน production:
+- ตั้ง PM2 ใหม่เป็น fork mode / PORT 3010 บน VPS หลังจากพบ 502 จาก port mismatch + cluster mode
+- ติดตั้ง `xlsx` npm module ที่ขาดหายบน VPS แก้ server crash
+- Deploy ระบบสิทธิ์ Admin/Editor: backend middleware `requireAdminOnly` + frontend role badge + ซ่อน UI สำหรับ Editor
+- Deploy แถบ ⚙️ ตั้งค่าระบบ ที่ย้าย admin accounts + Excel panels มาไว้ในแท็บเดียว
+- Deploy ปุ่มแก้ไขพนักงาน (ชื่อ/ชื่อเล่น/รูป) ในหน้า Admin
+- Deploy อันดับแจ้งใช้บริการแสดงเฉพาะ Top 3 ไม่มีตารางและจำนวนครั้ง
+- อัปเดต cache buster เป็น `v=20260418b` → deploy + verify HTTP 200
+
+Commits วันนี้:
+- `5a8ceff`: feat: Admin/Editor role permissions + self password change + cache buster update
+- `358ea2d`: refactor: move admin accounts + Excel to new Settings tab
+
 ---
 
 ## สิ่งที่ยังต้องมีสำหรับ flow หลัก
@@ -1029,4 +1081,4 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ---
 
-> **Last updated:** 16 เมษายน 2569 (2026) — อัปเดตเอกสารให้ตรงกับ production ปัจจุบันแบบ `LINE LIFF only`, ตัดความหมายที่ชวนสับสนของ Telegram / Company webhook / server-side LINE OAuth, และเพิ่ม checklist สำหรับถอดของที่ปิดถาวรออกจาก UI/เอกสาร
+> **Last updated:** 18 เมษายน 2569 (2026) — เพิ่มระบบสิทธิ์ Admin/Editor, แก้ไขพนักงาน, ย้ายแถบตั้งค่าระบบ, ปรับ ranking แสดง top 3, deploy VPS

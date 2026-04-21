@@ -2601,6 +2601,32 @@
 .user-pagination-status {
     min-width: 132px;
     text-align: center;
+}
+
+/* ==================== HIGHLIGHT SERVICE DATE ==================== */
+.highlight-service-date {
+    background: linear-gradient(135deg, rgba(255, 107, 107, 0.2), rgba(255, 59, 59, 0.12)) !important;
+    color: #ff9999 !important;
+    font-weight: 800 !important;
+    border: 1px solid rgba(255, 107, 107, 0.3) !important;
+    text-shadow: 0 0 6px rgba(255, 107, 107, 0.3);
+    padding: 12px 10px !important;
+}
+
+.admin-table td:nth-child(2) {
+    background: rgba(255, 107, 107, 0.06) !important;
+    border-left: 3px solid rgba(255, 107, 107, 0.4) !important;
+    color: #ffbbbb !important;
+    font-weight: 600;
+}
+
+.approval-table td:nth-child(2),
+.history-table td:nth-child(2) {
+    background: rgba(255, 107, 107, 0.06) !important;
+    border-left: 3px solid rgba(255, 107, 107, 0.4) !important;
+    color: #ffbbbb !important;
+    font-weight: 600;
+}
     color: var(--text-muted);
     font-size: 0.84rem;
 }
