@@ -34,7 +34,7 @@
 4. **ทายเลข 2 หลัก** (00-99) โดยใช้ 5 พ้อยต่อ 1 เลข สามารถทายได้หลายเลขในรอบเดียวกันถ้าพ้อยพอ
 5. **ถูกรางวัล** → Cashback 5,000 ฿ (ถอนเงินสดหัก 10% หรือเก็บใช้ซ้ำเต็มจำนวน)
 6. **ไม่ถูกรางวัล** → รับ Gift Voucher 300 บาท
-7. **โหวตซ้ำหลังทายเลข** — เมื่อทายเลขแล้ว สามารถโหวตพนักงานที่เคยโหวตแล้วได้อีกรอบ (guess_cycle)
+7. **ชุดกิจกรรมหลังทายเลข (guess_cycle)** — เมื่อทายเลขแล้ว ระบบจะเริ่มชุดกิจกรรมใหม่เพื่อใช้แยกการสะสมย้อนหลัง แต่ปัจจุบันไม่ได้บังคับห้ามเลือกพนักงานซ้ำในชุดเดียวแล้ว
 
 ---
 
@@ -191,7 +191,7 @@ ADMIN_LOGIN_PATH=admin
 |-------|--------|-------------|
 | **users** | ข้อมูลลูกค้า | `id`, `platform` (line/telegram), `platform_id`, `display_name`, `picture_url`, `progress_count` (legacy progress UI), `global_user_id` (UUID) |
 | **staffs** | ข้อมูลพนักงาน | `id`, `name`, `nickname`, `avatar_url`, `is_active` |
-| **transactions** | บันทึกส่งสลิป | `id`, `user_id`, `staff_id`, `slip_image_url`, `status` (pending/approved/rejected), `round_label`, `reviewed_by`, `reject_reason`, `guess_cycle` (INT — ระบุว่าเป็นชุดโหวตรอบที่เท่าไร) |
+| **transactions** | บันทึกส่งสลิป | `id`, `user_id`, `staff_id`, `slip_image_url`, `status` (pending/approved/rejected), `round_label`, `reviewed_by`, `reject_reason`, `guess_cycle` (INT — ระบุว่าเป็นชุดกิจกรรมรอบที่เท่าไร) |
 | **ratings** | คะแนนลับ 3 ด้าน (**admin มองไม่เห็น**) | `transaction_id`, `looks_score`, `service_score`, `value_score` (1-10 แต่ละด้าน) |
 | **lottery_guesses** | ทายเลข 2 หลัก | `user_id`, `guess_number` (00-99), `round_label`, `result` (pending/won/lost), `reward_amount` |
 | **lottery_reward_claims** | บันทึกการใช้สิทธิ์ Cashback / GV แบบทยอยใช้ | `lottery_guess_id`, `user_id`, `reward_type` (cashback/gv), `amount`, `note`, `redeemed_by`, `redeemed_at`, `claim_mode` (withdraw/reuse — เฉพาะ Cashback) |
@@ -209,7 +209,7 @@ ADMIN_LOGIN_PATH=admin
 ### 6.3 Constraints สำคัญ
 
 - `UNIQUE (platform, platform_id)` — ป้องกัน user ซ้ำ
-- `UNIQUE (user_id, staff_id, round_label, guess_cycle) WHERE status <> 'rejected'` — ห้ามแจ้งพนักงานซ้ำในชุดโหวตเดียวกัน (เมื่อทายเลขแล้ว guess_cycle +1 จะเริ่มชุดใหม่ได้)
+- ปัจจุบันไม่มี unique constraint ที่บังคับห้ามเลือกพนักงานซ้ำใน `transactions` แล้ว แต่ยังคงเก็บ `guess_cycle` เพื่อแยกชุดกิจกรรมย้อนหลัง
 - `UNIQUE (user_id, round_label, guess_number)` บน lottery_guesses — คนเดิมห้ามทายเลขเดิมซ้ำในรอบเดียวกัน แต่ยังทายหลายเลขได้
 - `lottery_reward_claims.amount > 0` — ทุกการใช้สิทธิ์ต้องเป็นยอดบวก
 - `UNIQUE (number, round_label)` บน sold_out — 1 เลขต่อรอบ
@@ -441,6 +441,24 @@ value_score: 8
 - แอดมินค้นหา user ด้วย `platform_id`
 - ตรวจสอบยอดคงเหลือและหักสิทธิ์ให้จากหน้า admin โดยตรง
 
+**ในหน้า Admin ปุ่มหลักมี tooltip อธิบายการใช้งาน:**
+- ปุ่มและแท็บสำคัญจะมี tooltip เมื่อ hover หรือ focus
+- ครอบทั้งปุ่มคงที่ในหน้าและปุ่มที่ถูกสร้างจาก `admin.js` ภายหลัง
+- ใช้ช่วยอธิบายงานเช่น ค้นหา user, อนุมัติ/ปฏิเสธ, export/import Excel, จัดการ staff และตั้งค่าระบบ
+
+### 8.4 ranking.html — หน้า Ranking สาธารณะ
+
+หน้า ranking ปัจจุบันมี 2 แท็บหลัก:
+
+1. อันดับลูกค้า Kiss Me Ranking
+2. อันดับยอดแจ้งใช้บริการน้องๆ
+
+รายละเอียด runtime ปัจจุบัน:
+- แท็บลูกค้าใช้ `Rank EXP` จากสลิปที่อนุมัติเป็นเกณฑ์หลัก
+- แท็บพนักงานสาธารณะแสดงเฉพาะ Top 3 แบบ card highlight
+- ฝั่งพนักงานซ่อนตารางอันดับเต็มและซ่อนตัวเลข metric ขนาดใหญ่บน card สาธารณะ
+- หน้า Admin ยังมีอันดับพนักงานฉบับเต็มในแท็บ Staff สำหรับงานจัดการหลังบ้าน
+
 ---
 
 ## 9. Business Logic
@@ -467,11 +485,11 @@ value_score: 8
 Admin ตรวจสอบ → approve หรือ reject
          ↓
 ถ้า approve → ได้ 1 พ้อยทายเลข
-ห้ามพนักงานซ้ำในชุดโหวตเดียวกัน (ดู guess_cycle)
+สามารถเลือกพนักงานซ้ำได้ตาม flow ปัจจุบัน
          ↓
 ทุก 5 พ้อย = ทายเลขได้ 1 ครั้ง
 เมื่อทายจริง ระบบจะหัก 5 พ้อยทันที
-และเริ่มชุดโหวตใหม่ (guess_cycle +1) ทำให้โหวตพนักงานเดิมได้อีก
+และเริ่มชุดกิจกรรมใหม่ (guess_cycle +1) เพื่อแยกประวัติย้อนหลัง
 ```
 
 ### 9.3 Flow ทายเลข
@@ -496,7 +514,7 @@ Admin ประกาศเลขที่ถูก → POST /api/draw { winning
 - ผู้ใช้ 1 คนทายได้หลายเลขในรอบเดียวกัน ถ้าพ้อยยังพอ
 - แต่คนเดิมห้ามทายเลขเดิมซ้ำในรอบเดียวกัน
 - พ้อยทายเลขคำนวณภายในรอบสะสม 1 เดือนที่แอดมินตั้งค่าผ่าน admin panel (ไม่ได้ผูกกับ round label อีกแล้ว)
-- เมื่อทายเลขแล้ว ระบบจะเข้าสู่ชุดโหวตใหม่ (guess_cycle +1) ทำให้สามารถโหวตพนักงานที่เคยโหวตในชุดก่อนได้อีกรอบ
+- เมื่อทายเลขแล้ว ระบบจะเข้าสู่ชุดกิจกรรมใหม่ (`guess_cycle +1`) เพื่อใช้แยกการสะสมย้อนหลังและการอ้างอิงข้อมูลในระบบ
 
 ### 9.4 เกณฑ์การจัดแรงค์ / Rank EXP (Rank Criteria)
 
@@ -527,7 +545,7 @@ Admin ประกาศเลขที่ถูก → POST /api/draw { winning
 
 Frontend ที่ใช้เกณฑ์นี้อยู่ใน `profile.js` และ `ranking.js` โดยใช้เงื่อนไขเดียวกัน
 
-> **หมายเหตุ:** หน้า ranking สาธารณะ (`ranking.html`) แสดงเฉพาะอันดับลูกค้า ส่วนอันดับพนักงานถูกย้ายไปในหน้า Admin แล้ว
+> **หมายเหตุ:** หน้า ranking สาธารณะ (`ranking.html`) ปัจจุบันมีทั้งอันดับลูกค้าและอันดับยอดแจ้งใช้บริการน้องๆ แต่ฝั่งพนักงานใน public จะแสดงเฉพาะ Top 3 แบบย่อ ส่วนรายละเอียดเต็มยังอยู่ในหน้า Admin
 
 ### 9.5 Flow พ้อยทายเลขและการรีเช็คพ้อยโดยแอดมิน
 
@@ -712,16 +730,16 @@ Admin token หมดอายุใน 8 ชั่วโมง และจะ�
 
 ### 9.12 ระบบ Re-Vote หลังทายเลข (Guess Cycle)
 
-เมื่อลูกค้าทายเลขครบ (ใช้ 5 พ้อย) ระบบจะเข้าสู่ชุดโหวตใหม่:
+เมื่อลูกค้าทายเลขครบ (ใช้ 5 พ้อย) ระบบจะเข้าสู่ชุดกิจกรรมใหม่:
 
 ```text
-ชุดโหวตที่ 0: โหวตพนักงาน A, B, C, D, E → ครบ 5 → ทายเลข
+ชุดกิจกรรมที่ 0: โหวตพนักงาน A, B, C, D, E → ครบ 5 → ทายเลข
                                                ↓
-ชุดโหวตที่ 1: สามารถโหวตพนักงาน A, B, C, D, E ซ้ำได้อีก
+ชุดกิจกรรมที่ 1: ระบบเริ่มนับกิจกรรมชุดใหม่สำหรับการอ้างอิงย้อนหลัง
 ```
 
-- `transactions.guess_cycle` ระบุว่าอยู่ในชุดโหวตไหน
-- Unique constraint ตรวจสอบ `(user_id, staff_id, round_label, guess_cycle)`
+- `transactions.guess_cycle` ระบุว่าอยู่ในชุดกิจกรรมไหน
+- ปัจจุบันไม่มี unique constraint ที่บังคับห้ามเลือกพนักงานซ้ำใน cycle เดียวแล้ว
 - Migration: `migrate-guess-cycle.sql`
 
 ---
@@ -859,19 +877,19 @@ ngrok http 3000
 - Migration: `migrate-reward-claim-mode.sql`
 
 **ระบบ Re-Vote หลังทายเลข:**
-- เพิ่ม `transactions.guess_cycle` เพื่อให้โหวตพนักงานเดิมได้อีกหลังจากทายเลขแล้ว
-- Unique index เปลี่ยนจาก `(user_id, staff_id, round_label)` เป็น `(user_id, staff_id, round_label, guess_cycle)`
+- เพิ่ม `transactions.guess_cycle` เพื่อใช้แยกชุดกิจกรรมหลังทายเลข
+- ในช่วงแรกเคยใช้ unique index `(user_id, staff_id, round_label, guess_cycle)` เพื่อกันพนักงานซ้ำต่อชุด ก่อนจะถอด constraint นี้ออกภายหลังในหัวข้อ 13.4
 - Migration: `migrate-guess-cycle.sql`
 
 **ระบบจัดอันดับลูกค้า:**
 - แยกอันดับลูกค้าออกจากพ้อยทายเลข — ranking ใช้ Rank EXP จากสลิปอนุมัติ ไม่ใช้ points
 - เพิ่มระบบรีแรงค์ลูกค้าในหน้า Admin แถบ User Management โดยเก็บวันที่เริ่มนับใน `app_settings.customer_rank_reset_date`
-- หน้า ranking สาธารณะแสดงเฉพาะลูกค้า ส่วนอันดับพนักงานย้ายเข้า admin
+- ในช่วงแรกหน้า ranking สาธารณะเน้นเฉพาะลูกค้า ก่อนจะนำแท็บอันดับยอดแจ้งใช้บริการน้องๆ กลับมาแบบ Top 3 ในหัวข้อ 13.4
 - `/api/ranking/customers` return `total_approved`, `total_lifetime_approved`, `rank_reset_date`, และ `last_service_at`
 - หน้า profile และ ranking แสดงคำว่า `Rank EXP` เพื่อแยกจากพ้อยทายเลขชัดเจน
 
 **ระบบจัดอันดับพนักงาน:**
-- อันดับพนักงานอยู่ในหน้า Admin แท็บ Staff เท่านั้น
+- อันดับพนักงานฉบับเต็มอยู่ในหน้า Admin แท็บ Staff และภายหลังมี summary Top 3 กลับไปแสดงในหน้า public
 - ซ่อม markup ของ highlight grid และเพิ่มปุ่ม `เช็กอันดับล่าสุด`
 - ตารางอันดับพนักงานแสดงอันดับ, พนักงาน, รายการอนุมัติ และใช้งานล่าสุด
 
@@ -946,6 +964,32 @@ ngrok http 3000
 - ติดตั้ง `xlsx` module บน VPS ที่ขาดหายไป
 - VPS deploy ใช้ `curl -sLO` จาก GitHub raw (ไม่มี git repo บน VPS)
 - Cache buster อัปเดตเป็น `v=20260418b` เพื่อบังคับ browser reload
+
+### 13.4 ปรับแก้วันที่ 21-22 เมษายน 2569
+
+**ระบบจัดอันดับลูกค้า:**
+- แก้ logic วันที่รีแรงค์ให้มีผลตั้งแต่ “วันรีเซ็ต” ทันที (`<= today`) ไม่ต้องรอวันถัดไป
+- `/api/ranking/customers` ยังแสดงลูกค้าที่เคยมีประวัติอนุมัติ แม้หลังวันที่รีแรงค์ใหม่จะยังมี `Rank EXP = 0`
+- หน้า ranking/profile จึงไม่หายรายชื่อเก่าทั้งหมดในวันเริ่มรีแรงค์ใหม่
+
+**หน้า Ranking สาธารณะ:**
+- หน้า `ranking.html` ยังคงมีทั้งแท็บลูกค้าและแท็บอันดับยอดแจ้งใช้บริการน้องๆ
+- ฝั่งพนักงาน public ถูกปรับให้แสดงเฉพาะ Top 3 และซ่อนตารางเต็ม/ตัวเลข metric เด่น เพื่อให้หน้าอ่านง่ายขึ้น
+- cache buster ของ `ranking.js` ขยับเป็น `v=20260422b`
+
+**หน้า Admin / สถานะการทายผล:**
+- ยกเลิกหน้า `status.html` เดิม และย้าย flow สถานะการทายผลมาไว้ในแท็บ `📊 สถานะการทายผล` ของ Admin
+- เติม style badge ที่ใช้กับสถานะ `approved` และ `rejected` ในหน้า Admin ให้ครบ
+- เพิ่ม tooltip อธิบายปุ่มสำคัญในหน้า Admin ทั้งปุ่มคงที่และปุ่มที่ render จาก JavaScript ภายหลัง
+- tooltip ครอบคลุมงานหลัก เช่น tab navigation, user search, approval actions, staff actions, lottery actions, Excel export/import และ admin account management
+
+**กติกาการเลือกพนักงาน:**
+- เอาเงื่อนไข “พนักงานไม่ซ้ำต่อชุดโหวต” ออกจาก runtime และข้อความกติกาหน้าเว็บ
+- `transactions.guess_cycle` ยังถูกเก็บไว้เพื่อแยกชุดกิจกรรมหลังการทายเลข แต่ไม่ได้ใช้บังคับ uniqueness แบบเดิมแล้ว
+
+**Deploy / เอกสาร:**
+- deploy ขึ้น GitHub และ VPS production แล้ว
+- `PROJECT_DOCS.md` ปรับข้อความให้ตรงกับ runtime ปัจจุบันของหน้า ranking, admin tooltip และกติกา guess cycle
 
 ---
 
@@ -1080,4 +1124,4 @@ Commits วันนี้:
 
 ---
 
-> **Last updated:** 18 เมษายน 2569 (2026) — เพิ่มระบบสิทธิ์ Admin/Editor, แก้ไขพนักงาน, ย้ายแถบตั้งค่าระบบ, ปรับ ranking แสดง top 3, deploy VPS
+> **Last updated:** 22 เมษายน 2569 (2026) — อัปเดตเอกสารตาม runtime ปัจจุบัน: ranking reset, public staff ranking, admin tooltips, ย้ายสถานะการทายผลเข้า Admin และถอดกติกาพนักงานไม่ซ้ำ
