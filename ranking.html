@@ -24,6 +24,12 @@
             </div>
         </header>
 
+        <!-- Tabs -->
+        <nav class="ranking-tabs" id="ranking-tabs">
+            <button class="rank-tab-btn active" data-tab="customer">🏆 อันดับลูกค้า Kiss Me Ranking</button>
+            <button class="rank-tab-btn" data-tab="staff-usage">💌 อันดับยอดแจ้งใช้บริการน้องๆ</button>
+        </nav>
+
         <!-- รอบกิจกรรม -->
         <div class="ranking-round-select" id="ranking-round-select" hidden>
             <label for="round-select">เลือกรอบกิจกรรม:</label>
@@ -35,8 +41,15 @@
         </div>
 
         <!-- อันดับลูกค้า -->
-        <section id="tab-customer">
+        <section class="rank-tab-content" id="tab-customer">
             <div class="leaderboard-shell" id="customer-ranking-list">
+                <div class="ranking-loading">กำลังโหลดอันดับ...</div>
+            </div>
+        </section>
+
+        <!-- อันดับยอดแจ้งใช้บริการน้องๆ -->
+        <section class="rank-tab-content rank-tab-hidden" id="tab-staff-usage">
+            <div class="leaderboard-shell" id="staff-usage-ranking-list">
                 <div class="ranking-loading">กำลังโหลดอันดับ...</div>
             </div>
         </section>
@@ -49,6 +62,6 @@
         </div>
     </div>
 
-    <script src="ranking.js?v=20260422a"></script>
+    <script src="ranking.js?v=20260422b"></script>
 </body>
 </html>

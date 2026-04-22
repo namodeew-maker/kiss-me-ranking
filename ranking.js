@@ -210,6 +210,10 @@ function renderLeaderboardBoard(list, options) {
         : `<img class="best-player-avatar" src="${bestAvatarSrc}" alt="${escapeHtml(bestDisplayName)}"
              onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(bestDisplayName)}&background=1a1a2e&color=00f0ff&size=160'">`;
 
+    const bestMetaItems = options.hideBestMeta
+        ? []
+        : (options.getBestMeta ? options.getBestMeta(best) : []);
+
     return `<section class="leaderboard-card leaderboard-podium">
         <div class="leaderboard-card-header">
             <div>
@@ -272,9 +276,9 @@ function renderLeaderboardBoard(list, options) {
                 <div class="best-player-tier">${renderCustomerTierBadge(bestTierInfo, 'best-player-tier-badge')}</div>
             </div>`}
             <div class="best-player-name">${escapeHtml(bestDisplayName)}</div>
-            <div class="best-player-meta">
-                ${options.getBestMeta(best).map(meta => `<div class="best-player-chip"><span>${escapeHtml(meta.label)}</span><strong>${escapeHtml(meta.value)}</strong></div>`).join('')}
-            </div>
+            ${bestMetaItems.length ? `<div class="best-player-meta">
+                ${bestMetaItems.map(meta => `<div class="best-player-chip"><span>${escapeHtml(meta.label)}</span><strong>${escapeHtml(meta.value)}</strong></div>`).join('')}
+            </div>` : ''}
         </div>
     </section>`;
 }
@@ -302,7 +306,7 @@ function spawnParticles() {
     }
 }
 
-// ==================== ROUND SELECT ====================
+// ==================== ROUND SELECT & TABS ====================
 async function fetchAvailableRounds() {
     try {
         const res = await fetch(`${API_BASE}/round`);
@@ -322,6 +326,15 @@ async function fetchAvailableRounds() {
 function getSelectedRounds() {
     const select = document.getElementById('round-select');
     return select?.value ? [select.value] : ['all'];
+}
+
+function switchTab(tab) {
+    document.querySelectorAll('.rank-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+    document.querySelectorAll('.rank-tab-content').forEach(sec => {
+        sec.classList.toggle('rank-tab-hidden', sec.id !== `tab-${tab}`);
+    });
 }
 
 async function loadCustomerRanking(rounds) {
@@ -363,9 +376,45 @@ async function loadCustomerRanking(rounds) {
     }
 }
 
+async function loadStaffUsageRanking(rounds) {
+    const list = document.getElementById('staff-usage-ranking-list');
+    try {
+        // TODO: ส่ง rounds ไป filter ที่ backend ถ้ามี endpoint รองรับ
+        const res = await fetch(`${API_BASE}/ranking/staff-usage`);
+        const staffs = await res.json();
+        if (!Array.isArray(staffs) || !staffs.length) {
+            list.innerHTML = '<div class="ranking-loading">ยังไม่มีข้อมูลอันดับ</div>';
+            return;
+        }
+        const top3 = staffs.slice(0, 3);
+        list.innerHTML = renderLeaderboardBoard(top3, {
+            boardLabel: 'Service Usage Leaderboard',
+            metricHeader: 'ยอดแจ้งใช้บริการ',
+            hideTable: true,
+            hideMetric: true,
+            getAvatar: (staff) => getAvatarSrc(staff, staff.nickname || staff.name || 'U'),
+            getDisplayName: (staff) => staff.nickname || staff.name || '—',
+            getSubtitle: () => '',
+            getTier: null,
+            getMetric: (staff) => formatMetricNumber(staff.total_submissions || 0),
+            getBestMeta: (staff) => [
+                { label: 'ล่าสุด', value: staff.last_service_at ? new Date(staff.last_service_at).toLocaleDateString('th-TH') : '—' }
+            ]
+        });
+        bindRankingImagePreview(list);
+    } catch (err) {
+        list.innerHTML = '<div class="ranking-loading">ไม่สามารถโหลดอันดับได้</div>';
+    }
+}
+
 async function reloadRanking() {
+    const tab = document.querySelector('.rank-tab-btn.active')?.dataset.tab || 'customer';
     const rounds = getSelectedRounds();
-    await loadCustomerRanking(rounds);
+    if (tab === 'customer') {
+        await loadCustomerRanking(rounds);
+        return;
+    }
+    await loadStaffUsageRanking(rounds);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -379,6 +428,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         roundSelectWrap.hidden = false;
         roundSelect.addEventListener('change', reloadRanking);
     }
+
+    document.getElementById('ranking-tabs').addEventListener('click', (e) => {
+        if (e.target.classList.contains('rank-tab-btn')) {
+            switchTab(e.target.dataset.tab);
+            reloadRanking();
+        }
+    });
 
     reloadRanking();
 });
