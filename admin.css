@@ -363,6 +363,61 @@
     box-shadow: 0 0 20px #ffaa00;
 }
 
+.has-admin-tooltip {
+    position: relative;
+}
+
+.has-admin-tooltip::before,
+.has-admin-tooltip::after {
+    position: absolute;
+    left: 50%;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 80;
+}
+
+.has-admin-tooltip::before {
+    content: '';
+    top: calc(100% + 4px);
+    transform: translateX(-50%) translateY(-4px);
+    border-width: 6px;
+    border-style: solid;
+    border-color: transparent transparent rgba(17, 24, 39, 0.96) transparent;
+}
+
+.has-admin-tooltip::after {
+    content: attr(data-admin-tooltip);
+    top: calc(100% + 14px);
+    transform: translateX(-50%) translateY(-4px);
+    min-width: 180px;
+    max-width: min(320px, calc(100vw - 32px));
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(17, 24, 39, 0.96);
+    border: 1px solid rgba(255, 196, 64, 0.22);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.34);
+    color: #f7ead0;
+    font-size: 0.8rem;
+    font-weight: 500;
+    line-height: 1.45;
+    text-align: left;
+    white-space: normal;
+}
+
+.has-admin-tooltip:hover::before,
+.has-admin-tooltip:hover::after,
+.has-admin-tooltip:focus-visible::before,
+.has-admin-tooltip:focus-visible::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+[disabled].has-admin-tooltip::before,
+[disabled].has-admin-tooltip::after {
+    display: none;
+}
+
 /* Sold Out List */
 .sold-out-list {
     margin-top: 15px;

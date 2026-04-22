@@ -62,6 +62,106 @@ function showToast(message, type = 'success') {
     }, 3500);
 }
 
+const ADMIN_BUTTON_TOOLTIPS = [
+    ['.btn-back[href]', 'กลับไปหน้าเว็บไซต์หลักของ Kiss Me Ranking'],
+    ['#btn-logout', 'ออกจากระบบผู้ดูแลในเครื่องนี้และล้าง session ปัจจุบัน'],
+    ['.admin-tab[data-tab="overview"]', 'เปิดภาพรวมรอบปัจจุบัน สถิติ และลำดับงานตรวจสอบหลัก'],
+    ['.admin-tab[data-tab="users"]', 'ค้นหา ดูรายละเอียด และแก้ไขข้อมูลผู้ใช้ในระบบ'],
+    ['.admin-tab[data-tab="staff"]', 'เพิ่ม แก้ไข และติดตามข้อมูลพนักงานรวมถึงอันดับที่เกี่ยวข้อง'],
+    ['.admin-tab[data-tab="approval"]', 'เปิดคิวรายการที่รออนุมัติหรือปฏิเสธจากผู้ดูแล'],
+    ['.admin-tab[data-tab="prediction-status"]', 'ดูสถานะการทายผลทั้งหมดและกรองตามขั้นตอนของรายการ'],
+    ['.admin-tab[data-tab="lottery"]', 'จัดการเลขปิด รอบแต้มการทาย และประกาศผลหวย'],
+    ['.admin-tab[data-tab="settings"]', 'จัดการผู้ดูแล ระบบ Excel และงานดูแลระบบเพิ่มเติม'],
+    ['#btn-refresh-rewards', 'ดึงข้อมูลสิทธิ์รางวัลและประวัติการใช้สิทธิ์ล่าสุดเข้าหน้านี้อีกครั้ง'],
+    ['#btn-claim-remaining', 'ใส่ยอดคงเหลือของสิทธิ์ที่เลือกลงฟอร์มอัตโนมัติ'],
+    ['#btn-save-reward-claim', 'บันทึกการใช้สิทธิ์ Cashback หรือ Gift Voucher ให้ผู้ใช้ที่เลือก'],
+    ['#btn-clear-reward-claim', 'ล้างการเลือกรายการสิทธิ์และค่าในฟอร์มบันทึกการใช้สิทธิ์'],
+    ['#btn-refresh-storage', 'รีเฟรชสถานะไฟล์และการเชื่อมต่อพื้นที่จัดเก็บ'],
+    ['#btn-migrate-storage', 'ย้ายไฟล์อัปโหลดเดิมขึ้น Cloudflare R2 ตามการตั้งค่าปัจจุบัน'],
+    ['#btn-user-search', 'ค้นหาผู้ใช้ตามคำค้นและตัวกรองที่เลือก'],
+    ['#btn-user-refresh', 'โหลดรายชื่อผู้ใช้ใหม่และรีเซ็ตผลลัพธ์ล่าสุด'],
+    ['#btn-save-customer-rank-reset', 'บันทึกวันที่รีแรงค์ลูกค้าเพื่อเริ่มนับ Rank EXP รอบใหม่'],
+    ['#btn-user-prev', 'ย้อนกลับไปหน้ารายชื่อผู้ใช้ก่อนหน้า'],
+    ['#btn-user-next', 'ไปหน้ารายชื่อผู้ใช้ถัดไป'],
+    ['.staff-avatar-btn', 'เลือกรูปโปรไฟล์สำหรับพนักงานที่จะเพิ่มใหม่'],
+    ['#btn-add-staff', 'บันทึกรายชื่อพนักงานใหม่เข้าสู่ระบบ'],
+    ['#btn-remove-staff-img', 'ลบรูปที่เลือกออกจากฟอร์มเพิ่มพนักงาน'],
+    ['#btn-refresh-staff-ranking', 'ดึงอันดับพนักงานล่าสุดมาแสดงใหม่'],
+    ['#btn-refresh-staff-usage-ranking', 'ดึงสถิติยอดแจ้งใช้บริการของพนักงานล่าสุด'],
+    ['#btn-save-ranking-reset', 'บันทึกวันที่รีอันดับพนักงานสำหรับเริ่มรอบใหม่'],
+    ['.admin-status-filter-btn[data-filter="all"]', 'แสดงรายการสถานะการทายผลทั้งหมด'],
+    ['.admin-status-filter-btn[data-filter="pending"]', 'กรองเฉพาะรายการที่ยังรออนุมัติ'],
+    ['.admin-status-filter-btn[data-filter="approved"]', 'กรองเฉพาะรายการที่อนุมัติแล้วและรอผล'],
+    ['.admin-status-filter-btn[data-filter="rejected"]', 'กรองเฉพาะรายการที่ไม่อนุมัติ'],
+    ['.admin-status-filter-btn[data-filter="decided"]', 'กรองเฉพาะรายการที่ประกาศผลแล้ว'],
+    ['#btn-add-soldout', 'เพิ่มเลขที่เลือกเข้าในรายการปิดรับทาย'],
+    ['#btn-remove-soldout', 'นำเลขที่เลือกออกจากรายการปิดรับทาย'],
+    ['#btn-save-guess-points-cycle', 'บันทึกรอบวันสำหรับคำนวณแต้มการทายเลข'],
+    ['#btn-recheck-guess-points', 'สั่งระบบตรวจสอบและคำนวณแต้มทายเลขใหม่อีกครั้ง'],
+    ['#btn-load-chart', 'โหลดกราฟสรุปข้อมูลการทายเลขตามช่วงหรือเงื่อนไขที่เลือก'],
+    ['#btn-announce', 'ประกาศผลเลขที่ออกให้กับงวดที่เลือกและอัปเดตรายการที่เกี่ยวข้อง'],
+    ['#btn-refresh-admin-accounts', 'รีเฟรชรายชื่อบัญชีผู้ดูแลล่าสุดจากระบบ'],
+    ['#btn-save-admin-account', 'สร้างบัญชีผู้ดูแลใหม่หรือบันทึกการแก้ไขบัญชีที่เลือก'],
+    ['#btn-reset-admin-password', 'รีเซ็ตรหัสผ่านของบัญชีผู้ดูแลที่เลือก'],
+    ['#btn-delete-admin-account', 'ลบบัญชีผู้ดูแลที่เลือกออกจากระบบถาวร'],
+    ['.excel-admin-panel a[href="/EXCEL_ADMIN_GUIDE.md"]', 'เปิดคู่มือการใช้งานระบบ Excel ในแท็บใหม่'],
+    ['#btn-export-csv', 'ส่งออกข้อมูลชุดที่เลือกเป็นไฟล์ CSV'],
+    ['#btn-export-xlsx', 'ส่งออกข้อมูลชุดที่เลือกเป็นไฟล์ Excel แบบอ่านอย่างเดียว'],
+    ['#btn-download-editable-xlsx', 'ดาวน์โหลดไฟล์ Excel ที่แก้ไขได้เพื่อนำไปปรับข้อมูลภายนอกระบบ'],
+    ['#btn-import-excel', 'อัปโหลดไฟล์ Excel ที่แก้ไขแล้วกลับเข้าระบบเพื่ออัปเดตข้อมูล'],
+    ['#btn-refresh-import-logs', 'โหลดประวัติการ import Excel ล่าสุดอีกครั้ง'],
+    ['#img-modal-close', 'ปิดหน้าต่างแสดงรูปภาพ'],
+    ['#user-detail-modal-close', 'ปิดหน้าต่างรายละเอียดผู้ใช้'],
+    ['#btn-save-user', 'บันทึกข้อมูลผู้ใช้ที่แก้ไขในหน้ารายละเอียด'],
+    ['#btn-delete-user', 'ลบผู้ใช้นี้ออกจากระบบอย่างถาวร'],
+    ['#btn-user-claim-remaining', 'ใส่ยอดคงเหลือของสิทธิ์ที่เลือกลงฟอร์มผู้ใช้อัตโนมัติ'],
+    ['#btn-save-user-reward-claim', 'บันทึกการใช้สิทธิ์ของผู้ใช้จากหน้ารายละเอียด'],
+    ['#btn-clear-user-reward-claim', 'ล้างค่าฟอร์มการใช้สิทธิ์ในหน้ารายละเอียดผู้ใช้'],
+    ['#btn-self-password', 'เปิดฟอร์มเปลี่ยนรหัสผ่านของบัญชีผู้ดูแลที่ล็อกอินอยู่'],
+    ['#self-pwd-save', 'บันทึกรหัสผ่านใหม่ของบัญชีผู้ดูแลนี้'],
+    ['#self-pwd-cancel', 'ปิดฟอร์มเปลี่ยนรหัสผ่านโดยไม่บันทึก'],
+    ['[data-view-user]', 'เปิดหน้าต่างรายละเอียดของผู้ใช้รายการนี้'],
+    ['[data-delete-reward-claim]', 'ลบประวัติการใช้สิทธิ์รายการนี้ออกจากระบบ'],
+    ['[data-select-user-reward]', 'เลือกสิทธิ์รางวัลรายการนี้ไปใส่ในฟอร์มด้านล่าง'],
+    ['[data-select-reward]', 'โหลดรายการสิทธิ์นี้เข้าแบบฟอร์มบันทึกการใช้สิทธิ์'],
+    ['[data-delete-history]', 'ลบประวัติรายการนี้ออกจากระบบถาวร'],
+    ['.btn-approve[data-approve]', 'อนุมัติรายการนี้เพื่อให้ระบบนับแต้มและอัปเดตสถานะ'],
+    ['.btn-reject[data-reject]', 'ปฏิเสธรายการนี้และบันทึกว่าไม่ผ่านการตรวจสอบ'],
+    ['.staff-ranking-avatar-btn', 'คลิกเพื่อดูรูปโปรไฟล์พนักงานขนาดใหญ่'],
+    ['.staff-card-avatar-btn', 'คลิกเพื่อดูรูปโปรไฟล์พนักงานขนาดใหญ่'],
+    ['#staff-edit-save', 'บันทึกการแก้ไขข้อมูลพนักงานรายการนี้'],
+    ['#staff-edit-cancel', 'ปิดหน้าต่างแก้ไขพนักงานโดยไม่บันทึก'],
+    ['[data-edit-staff]', 'เปิดฟอร์มแก้ไขชื่อเล่น ชื่อจริง หรือรูปของพนักงาน'],
+    ['[data-deactivate-staff]', 'ปิดใช้งานพนักงานชั่วคราวแต่ยังเก็บข้อมูลไว้'],
+    ['[data-activate-staff]', 'เปิดใช้งานพนักงานรายการนี้กลับมาแสดงผลอีกครั้ง'],
+    ['[data-delete-staff]', 'ลบข้อมูลพนักงานรายการนี้ออกจากระบบถาวร'],
+    ['.admin-account-item', 'เลือกบัญชีผู้ดูแลนี้เพื่อแก้ไขข้อมูลหรือรีเซ็ตรหัสผ่าน']
+];
+
+function setAdminTooltip(element, message) {
+    if (!element || !message) return;
+    element.dataset.adminTooltip = message;
+    element.title = message;
+    element.classList.add('has-admin-tooltip');
+    if (!element.getAttribute('aria-description')) {
+        element.setAttribute('aria-description', message);
+    }
+}
+
+function applyAdminButtonTooltips(root = document) {
+    const applyToElement = (element, message) => {
+        if (!element || !(element instanceof Element)) return;
+        setAdminTooltip(element, message);
+    };
+
+    ADMIN_BUTTON_TOOLTIPS.forEach(([selector, message]) => {
+        if (root instanceof Element && root.matches(selector)) {
+            applyToElement(root, message);
+        }
+        root.querySelectorAll?.(selector).forEach((element) => applyToElement(element, message));
+    });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     let currentAdminSession = {
         username: sessionStorage.getItem('admin_user') || '',
@@ -160,6 +260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const headerInfo = document.querySelector('.admin-header-info');
         if (headerInfo) {
             const selfPwdBtn = document.createElement('button');
+            selfPwdBtn.id = 'btn-self-password';
             selfPwdBtn.className = 'btn-blue';
             selfPwdBtn.textContent = '🔑 เปลี่ยนรหัสผ่าน';
             selfPwdBtn.style.marginLeft = '10px';
@@ -238,6 +339,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         div.appendChild(document.createTextNode(text));
         return div.innerHTML;
     }
+
+    let tooltipRefreshQueued = false;
+    function scheduleAdminTooltipRefresh() {
+        if (tooltipRefreshQueued) return;
+        tooltipRefreshQueued = true;
+        requestAnimationFrame(() => {
+            tooltipRefreshQueued = false;
+            applyAdminButtonTooltips(document);
+        });
+    }
+
+    applyAdminButtonTooltips(document);
+    const adminTooltipObserver = new MutationObserver(() => {
+        scheduleAdminTooltipRefresh();
+    });
+    adminTooltipObserver.observe(document.body, { childList: true, subtree: true });
 
     function formatBreakableIdentifier(value) {
         const normalized = String(value || '').trim();
@@ -3005,4 +3122,3 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Auto-refresh every 15 seconds
     setInterval(adminLoadStatusData, 15000);
 });
-
