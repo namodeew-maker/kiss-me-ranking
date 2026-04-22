@@ -302,7 +302,7 @@ function spawnParticles() {
     }
 }
 
-// ==================== ROUND SELECT & TABS ====================
+// ==================== ROUND SELECT ====================
 async function fetchAvailableRounds() {
     try {
         const res = await fetch(`${API_BASE}/round`);
@@ -322,15 +322,6 @@ async function fetchAvailableRounds() {
 function getSelectedRounds() {
     const select = document.getElementById('round-select');
     return select?.value ? [select.value] : ['all'];
-}
-
-function switchTab(tab) {
-    document.querySelectorAll('.rank-tab-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tab === tab);
-    });
-    document.querySelectorAll('.rank-tab-content').forEach(sec => {
-        sec.classList.toggle('rank-tab-hidden', sec.id !== `tab-${tab}`);
-    });
 }
 
 async function loadCustomerRanking(rounds) {
@@ -372,47 +363,9 @@ async function loadCustomerRanking(rounds) {
     }
 }
 
-async function loadStaffUsageRanking(rounds) {
-    const list = document.getElementById('staff-usage-ranking-list');
-    try {
-        // TODO: ส่ง rounds ไป filter ที่ backend ถ้ามี endpoint รองรับ
-        const res = await fetch(`${API_BASE}/ranking/staff-usage`);
-        const staffs = await res.json();
-        if (!Array.isArray(staffs) || !staffs.length) {
-            list.innerHTML = '<div class="ranking-loading">ยังไม่มีข้อมูลอันดับ</div>';
-            return;
-        }
-        const top3 = staffs.slice(0, 3);
-        list.innerHTML = renderLeaderboardBoard(top3, {
-            boardLabel: 'Service Usage Leaderboard',
-            metricHeader: 'ยอดแจ้งใช้บริการ',
-            hideTable: true,
-            hideMetric: true,
-            getAvatar: (staff) => getAvatarSrc(staff, staff.nickname || staff.name || 'U'),
-            getDisplayName: (staff) => staff.nickname || staff.name || '—',
-            getSubtitle: () => '',
-            getTier: null,
-            getMetric: (staff) => formatMetricNumber(staff.total_submissions || 0),
-            getBestMeta: (staff) => [
-                { label: 'แจ้งใช้บริการทั้งหมด', value: formatMetricNumber(staff.total_submissions || 0) },
-                { label: 'อนุมัติแล้ว', value: formatMetricNumber(staff.approved_submissions || 0) },
-                { label: 'ล่าสุด', value: staff.last_service_at ? new Date(staff.last_service_at).toLocaleDateString('th-TH') : '—' }
-            ]
-        });
-        bindRankingImagePreview(list);
-    } catch (err) {
-        list.innerHTML = '<div class="ranking-loading">ไม่สามารถโหลดอันดับได้</div>';
-    }
-}
-
 async function reloadRanking() {
-    const tab = document.querySelector('.rank-tab-btn.active')?.dataset.tab || 'customer';
     const rounds = getSelectedRounds();
-    if (tab === 'customer') {
-        await loadCustomerRanking(rounds);
-        return;
-    }
-    await loadStaffUsageRanking(rounds);
+    await loadCustomerRanking(rounds);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -426,13 +379,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         roundSelectWrap.hidden = false;
         roundSelect.addEventListener('change', reloadRanking);
     }
-
-    document.getElementById('ranking-tabs').addEventListener('click', (e) => {
-        if (e.target.classList.contains('rank-tab-btn')) {
-            switchTab(e.target.dataset.tab);
-            reloadRanking();
-        }
-    });
 
     reloadRanking();
 });
