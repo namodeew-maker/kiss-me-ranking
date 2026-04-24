@@ -434,6 +434,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         return formatDateDDMMYYYY(value);
     }
 
+    function getTodayDateOnly() {
+        return new Date().toISOString().split('T')[0];
+    }
+
+    function isFutureDateOnly(value) {
+        if (!value) return false;
+        const raw = String(value).trim();
+        return /^\d{4}-\d{2}-\d{2}$/.test(raw) && raw > getTodayDateOnly();
+    }
+
+    function getDisplayedRankApprovedCount(source) {
+        if (!source) return 0;
+        const resetDate = source.rank_reset_date || null;
+        if (isFutureDateOnly(resetDate)) {
+            return Number(
+                source.approved_count
+                ?? source.lifetime_approved
+                ?? source.total_lifetime_approved
+                ?? source.rank_approved_count
+                ?? 0
+            );
+        }
+        return Number(source.rank_approved_count ?? source.approved_count ?? source.lifetime_approved ?? 0);
+    }
+
     function formatDateTime(value) {
         if (!value) return '—';
         const date = new Date(value);
@@ -524,7 +549,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function renderUserRankCell(user) {
-        const approvedForRank = Number(user.rank_approved_count ?? user.approved_count ?? 0);
+        const approvedForRank = getDisplayedRankApprovedCount(user);
         const rank = getCustomerRankInfo(approvedForRank);
         return `
             <div class="user-rank-cell" style="--user-rank-color:${rank.color}">
@@ -538,7 +563,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const currentRoundPoints = Number(user.current_round_points || 0);
         const guessCredits = Math.max(0, Math.floor(currentRoundPoints / 5));
         const totalPoints = Number(user.total_points || 0);
-        const approvedForRank = Number(user.rank_approved_count ?? user.approved_count ?? 0);
+        const approvedForRank = getDisplayedRankApprovedCount(user);
         const rank = getCustomerRankInfo(approvedForRank);
         const cashbackRemaining = Number(user.cashback_remaining || 0);
         const gvRemaining = Number(user.gv_remaining || 0);
@@ -1518,7 +1543,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             userEditDisplayName.value = data.user.display_name || '';
             userEditPictureUrl.value = data.user.picture_url || '';
 
-            const rankApprovedCount = Number(data.stats?.rank_approved_count || 0);
+            const rankApprovedCount = getDisplayedRankApprovedCount({
+                ...data.stats,
+                lifetime_approved: data.stats?.approved_count,
+                rank_reset_date: data.stats?.rank_reset_date
+            });
             const rankInfo = getCustomerRankInfo(rankApprovedCount);
 
             userDetailTags.innerHTML = [
