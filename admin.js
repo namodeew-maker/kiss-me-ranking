@@ -412,9 +412,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function formatServiceDate(value) {
         if (!value) return '—';
-        const date = new Date(`${value}T00:00:00`);
+        const raw = String(value).trim();
+        const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+        const date = isDateOnly ? new Date(`${raw}T00:00:00`) : new Date(raw);
         if (Number.isNaN(date.getTime())) return value;
-        return date.toLocaleDateString('th-TH');
+        return date.toLocaleDateString('th-TH', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
     }
 
     function formatDateTime(value) {
@@ -429,6 +435,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) return value;
         return `${date.toLocaleDateString('th-TH')} ${date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
+    function renderHistoryDateCell(value) {
+        if (!value) {
+            return '<div class="history-date-stack"><span class="history-date-main">—</span></div>';
+        }
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            return `<div class="history-date-stack"><span class="history-date-main">${escapeHtml(String(value))}</span></div>`;
+        }
+        return `
+            <div class="history-date-stack">
+                <span class="history-date-main">${escapeHtml(date.toLocaleDateString('th-TH', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric'
+                }))}</span>
+                <span class="history-date-sub">${escapeHtml(date.toLocaleTimeString('th-TH', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }))} น.</span>
+            </div>
+        `;
+    }
+
+    function renderHistoryServiceDateCell(value) {
+        return `
+            <div class="history-date-stack history-service-date-stack">
+                <span class="history-date-main">${escapeHtml(formatServiceDate(value))}</span>
+            </div>
+        `;
     }
 
     function renderUserRewardBalanceCell(user) {
@@ -903,6 +940,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnSaveRewardClaim = document.getElementById('btn-save-reward-claim');
     const btnClearRewardClaim = document.getElementById('btn-clear-reward-claim');
     const guessPointsCycleStart = document.getElementById('guess-points-cycle-start');
+    const guessPointsCycleEndInput = document.getElementById('guess-points-cycle-end-input');
     const guessPointsCycleCurrent = document.getElementById('guess-points-cycle-current');
     const guessPointsCycleEnd = document.getElementById('guess-points-cycle-end');
     const guessPointsRecheckStatus = document.getElementById('guess-points-recheck-status');
@@ -1609,8 +1647,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     resultBadge = '<span class="badge badge-pending">รอผล</span>';
                 }
 
-                const dateStr = formatShortDateTime(h.date || h.created_at);
-                const serviceDate = formatServiceDate(h.service_date);
                 const customerName = h.customer_name || h.name || '—';
                 const staffName = h.staff_name || '—';
                 const customerMeta = [h.platform, h.platform_id].filter(Boolean).join(' • ');
@@ -1623,8 +1659,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 return `<tr>
                     <td>${i + 1}</td>
-                    <td>${serviceDate}</td>
-                    <td>${dateStr}</td>
+                    <td class="history-service-date-cell">${renderHistoryServiceDateCell(h.service_date)}</td>
+                    <td class="history-date-cell">${renderHistoryDateCell(h.date || h.created_at)}</td>
                     <td class="history-customer-cell">
                         <div class="history-customer-name">${escapeHtml(customerName)}</div>
                         <div class="history-customer-meta">${escapeHtml(customerMeta || '—')}</div>
@@ -2351,12 +2387,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function loadGuessPointsCycle() {
-        if (!guessPointsCycleCurrent || !guessPointsCycleEnd || !guessPointsCycleStart) return;
+        if (!guessPointsCycleCurrent || !guessPointsCycleEnd || !guessPointsCycleStart || !guessPointsCycleEndInput) return;
         try {
             const res = await authFetch(`${API_BASE}/admin/guess-points/cycle`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'load-guess-cycle-failed');
             guessPointsCycleStart.value = data.start_date || '';
+            guessPointsCycleEndInput.value = data.end_date || '';
             guessPointsCycleCurrent.textContent = data.start_date ? formatServiceDate(data.start_date) : 'ยังไม่ได้ตั้งค่า';
             guessPointsCycleEnd.textContent = data.end_date ? formatServiceDate(data.end_date) : '—';
         } catch (err) {
@@ -2799,8 +2836,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     btnSaveGuessPointsCycle?.addEventListener('click', async () => {
         const startDate = guessPointsCycleStart?.value;
-        if (!startDate) {
-            showToast('กรุณาเลือกวันที่เริ่มนับแต้มทายเลข', 'error');
+        const endDate = guessPointsCycleEndInput?.value;
+        if (!startDate || !endDate) {
+            showToast('กรุณาเลือกวันที่เริ่มต้นและวันที่สิ้นสุดของรอบแต้มทายเลข', 'error');
+            return;
+        }
+        if (endDate < startDate) {
+            showToast('วันที่สิ้นสุดต้องไม่น้อยกว่าวันที่เริ่มต้น', 'error');
             return;
         }
 
@@ -2808,11 +2850,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const res = await authFetch(`${API_BASE}/admin/guess-points/cycle`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ start_date: startDate })
+                body: JSON.stringify({ start_date: startDate, end_date: endDate })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'save-guess-cycle-failed');
-            showToast(`ตั้งรอบสะสมแต้มทายเลขเริ่ม ${formatServiceDate(startDate)} แล้ว`, 'success');
+            showToast(`ตั้งรอบสะสมแต้มทายเลข ${formatServiceDate(startDate)} ถึง ${formatServiceDate(endDate)} แล้ว`, 'success');
             loadGuessPointsCycle();
             if (selectedUserId) loadUserDetail(selectedUserId);
             renderUsers(currentUserPage);

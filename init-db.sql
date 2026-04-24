@@ -67,6 +67,24 @@ CREATE TABLE IF NOT EXISTS transactions (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_transactions_user_created_at
+    ON transactions (user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_user_status_round
+    ON transactions (user_id, status, round_label);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_user_service_date
+    ON transactions (user_id, service_date DESC);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_staff_status_created_at
+    ON transactions (staff_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_status_created_at
+    ON transactions (status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_round_status
+    ON transactions (round_label, status);
+
 -- ============================================
 -- 4. ตาราง ratings — คะแนนลับ 3 ด้าน
 -- Admin จะมองไม่เห็นคะแนนเหล่านี้
@@ -103,6 +121,9 @@ CREATE TABLE IF NOT EXISTS lottery_guesses (
 DROP INDEX IF EXISTS uq_user_lottery_round;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_user_lottery_round_number
     ON lottery_guesses (user_id, round_label, guess_number);
+
+CREATE INDEX IF NOT EXISTS idx_lottery_guesses_user_round_created_at
+    ON lottery_guesses (user_id, round_label, created_at DESC);
 
 -- ============================================
 -- 5.1 ตาราง lottery_reward_claims — บันทึกการใช้สิทธิ์รางวัล

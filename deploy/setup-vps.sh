@@ -9,6 +9,7 @@ set -euo pipefail
 APP_DIR="/var/www/kiss-me-ranking"
 APP_USER="kissme"
 LOG_DIR="/var/log/kiss-me-ranking"
+CACHE_DIR="/var/cache/nginx/kiss-me-ranking"
 DOMAIN="ranking.kissme-vip.com"
 
 echo "========================================"
@@ -43,7 +44,8 @@ echo "[5/8] Setting up application directory..."
 if ! id "$APP_USER" &>/dev/null; then
     useradd --system --shell /bin/bash --home "$APP_DIR" "$APP_USER"
 fi
-mkdir -p "$APP_DIR" "$LOG_DIR"
+mkdir -p "$APP_DIR" "$LOG_DIR" "$CACHE_DIR"
+chown -R www-data:www-data "$CACHE_DIR"
 
 # ---------- 6. Copy project files ----------
 echo "[6/8] Project directory ready at: $APP_DIR"
@@ -102,6 +104,7 @@ echo "    cd $APP_DIR && npm install --omit=dev"
 echo ""
 echo " 4. Set permissions:"
 echo "    chown -R $APP_USER:$APP_USER $APP_DIR $LOG_DIR"
+echo "    mkdir -p $CACHE_DIR && chown -R www-data:www-data $CACHE_DIR"
 echo ""
 echo " 5. Start with PM2:"
 echo "    cd $APP_DIR && pm2 start deploy/ecosystem.config.js"

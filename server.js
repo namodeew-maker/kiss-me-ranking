@@ -504,14 +504,38 @@ async function migrateAssetsToR2OnStartup() {
 
 // ============ POSTGRESQL ============
 
+function parseEnvInt(name, fallback, minValue = null) {
+    const rawValue = process.env[name];
+    const parsed = Number.parseInt(rawValue, 10);
+    if (!Number.isFinite(parsed)) return fallback;
+    if (minValue !== null && parsed < minValue) return fallback;
+    return parsed;
+}
+
+const pgPoolOptions = {
+    max: parseEnvInt('PG_POOL_MAX', process.env.NODE_ENV === 'production' ? 20 : 10, 1),
+    idleTimeoutMillis: parseEnvInt('PG_IDLE_TIMEOUT_MS', 30000, 1000),
+    connectionTimeoutMillis: parseEnvInt('PG_CONNECTION_TIMEOUT_MS', 10000, 1000),
+    maxUses: parseEnvInt('PG_MAX_USES', 7500, 1),
+    keepAlive: true,
+    query_timeout: parseEnvInt('PG_QUERY_TIMEOUT_MS', 15000, 1000),
+    statement_timeout: parseEnvInt('PG_STATEMENT_TIMEOUT_MS', 15000, 1000),
+    application_name: process.env.PG_APP_NAME || 'kiss-me-ranking'
+};
+
 const pool = process.env.DATABASE_URL
-    ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: true })
+    ? new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: true,
+        ...pgPoolOptions
+    })
     : new Pool({
         user: process.env.DB_USER || 'postgres',
         host: process.env.DB_HOST || 'localhost',
         database: process.env.DB_NAME || 'kissme_ranking',
         password: process.env.DB_PASSWORD || '',
         port: parseInt(process.env.DB_PORT, 10) || 5432,
+        ...pgPoolOptions
     });
 
 // ============ SECURITY HEADERS ============
@@ -531,24 +555,63 @@ app.use(cors({
 }));
 app.use(express.json());
 
+function getClientIP(req) {
+    return req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip;
+}
+
 // ============ RATE LIMITING ============
-const globalLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000,   // 1 minute
-    max: 120,                   // 120 requests per minute per IP
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'คำขอมากเกินไป กรุณารอสักครู่' },
+function createApiLimiter({ windowMs, max, message }) {
+    return rateLimit({
+        windowMs,
+        max,
+        standardHeaders: true,
+        legacyHeaders: false,
+        keyGenerator: getClientIP,
+        message: { error: message },
+    });
+}
+
+const readApiLimiter = createApiLimiter({
+    windowMs: 1 * 60 * 1000,
+    max: parseEnvInt('READ_API_RATE_LIMIT_MAX', process.env.NODE_ENV === 'production' ? 900 : 300, 30),
+    message: 'คำขออ่านข้อมูลมากเกินไป กรุณารอสักครู่'
 });
-app.use('/api/', globalLimiter);
+
+const writeApiLimiter = createApiLimiter({
+    windowMs: 1 * 60 * 1000,
+    max: parseEnvInt('WRITE_API_RATE_LIMIT_MAX', process.env.NODE_ENV === 'production' ? 180 : 120, 10),
+    message: 'คำขอมากเกินไป กรุณารอสักครู่'
+});
+
+app.use('/api/', (req, res, next) => {
+    if (req.path === '/login') return next();
+    if (req.method === 'GET' || req.method === 'HEAD') {
+        return readApiLimiter(req, res, next);
+    }
+    return writeApiLimiter(req, res, next);
+});
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,  // 15 minutes
-    max: 5,                     // 5 login attempts per 15 min per IP
+    max: parseEnvInt('LOGIN_RATE_LIMIT_MAX', 5, 1),
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: getClientIP,
     message: { error: 'พยายามเข้าสู่ระบบมากเกินไป กรุณารอ 15 นาที' },
     skipSuccessfulRequests: true,
 });
+
+const PUBLIC_API_CACHE_SECONDS = parseEnvInt('PUBLIC_API_CACHE_SECONDS', process.env.NODE_ENV === 'production' ? 15 : 5, 0);
+const PUBLIC_API_CACHE_STALE_SECONDS = parseEnvInt('PUBLIC_API_CACHE_STALE_SECONDS', process.env.NODE_ENV === 'production' ? 45 : 15, 0);
+
+function setPublicApiCacheHeaders(res, maxAgeSeconds = PUBLIC_API_CACHE_SECONDS, staleSeconds = PUBLIC_API_CACHE_STALE_SECONDS) {
+    if (maxAgeSeconds <= 0) {
+        res.setHeader('Cache-Control', 'no-store');
+        return;
+    }
+    res.setHeader('Cache-Control', `public, max-age=${maxAgeSeconds}, stale-while-revalidate=${Math.max(staleSeconds, maxAgeSeconds)}`);
+    res.setHeader('Surrogate-Control', `max-age=${maxAgeSeconds}, stale-while-revalidate=${Math.max(staleSeconds, maxAgeSeconds)}`);
+}
 
 // Skip ngrok browser warning for all requests (especially LIFF redirects)
 app.use((req, res, next) => {
@@ -702,6 +765,13 @@ async function ensureDatabaseStructure() {
         await pool.query('DROP INDEX IF EXISTS uq_user_staff_round_cycle');
         await pool.query('DROP INDEX IF EXISTS uq_user_lottery_round');
         await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_user_lottery_round_number ON lottery_guesses (user_id, round_label, guess_number)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_transactions_user_created_at ON transactions (user_id, created_at DESC)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_transactions_user_status_round ON transactions (user_id, status, round_label)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_transactions_user_service_date ON transactions (user_id, service_date DESC)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_transactions_staff_status_created_at ON transactions (staff_id, status, created_at DESC)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_transactions_status_created_at ON transactions (status, created_at DESC)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_transactions_round_status ON transactions (round_label, status)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_lottery_guesses_user_round_created_at ON lottery_guesses (user_id, round_label, created_at DESC)');
         await pool.query(`
             DO $$
             BEGIN
@@ -854,6 +924,12 @@ function addMonths(date, months) {
     return next;
 }
 
+function addDays(date, days) {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+}
+
 function getDefaultGuessPointCycleStart() {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
@@ -861,19 +937,36 @@ function getDefaultGuessPointCycleStart() {
 
 async function getGuessPointCycleConfig(queryable = pool) {
     const result = await queryable.query(
-        "SELECT value FROM app_settings WHERE key = 'guess_points_cycle_start_date' LIMIT 1"
+        `SELECT key, value
+         FROM app_settings
+         WHERE key IN ('guess_points_cycle_start_date', 'guess_points_cycle_end_date')`
     );
 
-    const savedValue = String(result.rows[0]?.value || '').trim();
-    const hasValidSavedDate = /^\d{4}-\d{2}-\d{2}$/.test(savedValue);
-    const startAt = hasValidSavedDate
-        ? new Date(`${savedValue}T00:00:00`)
+    const settings = new Map(
+        result.rows.map((row) => [String(row.key || '').trim(), String(row.value || '').trim()])
+    );
+    const savedStartValue = settings.get('guess_points_cycle_start_date') || '';
+    const savedEndValue = settings.get('guess_points_cycle_end_date') || '';
+    const hasValidSavedStartDate = /^\d{4}-\d{2}-\d{2}$/.test(savedStartValue);
+    const hasValidSavedEndDate = /^\d{4}-\d{2}-\d{2}$/.test(savedEndValue);
+
+    const startAt = hasValidSavedStartDate
+        ? new Date(`${savedStartValue}T00:00:00`)
         : getDefaultGuessPointCycleStart();
-    const endAt = addMonths(startAt, 1);
+
+    let endDateInclusive = hasValidSavedEndDate
+        ? new Date(`${savedEndValue}T00:00:00`)
+        : addDays(addMonths(startAt, 1), -1);
+
+    if (endDateInclusive < startAt) {
+        endDateInclusive = addDays(addMonths(startAt, 1), -1);
+    }
+
+    const endAt = addDays(endDateInclusive, 1);
 
     return {
-        start_date: hasValidSavedDate ? savedValue : formatDateOnly(startAt),
-        end_date: formatDateOnly(endAt),
+        start_date: hasValidSavedStartDate ? savedStartValue : formatDateOnly(startAt),
+        end_date: formatDateOnly(endDateInclusive),
         startAt,
         endAt
     };
@@ -881,30 +974,116 @@ async function getGuessPointCycleConfig(queryable = pool) {
 
 // ============ AUTH ============
 
-const authTokens = new Map();
 const failedLoginAttempts = new Map(); // IP -> { count, firstAttempt, lockedUntil }
-const TOKEN_EXPIRY_MS = 8 * 60 * 60 * 1000; // 8 hours
+const TOKEN_EXPIRY_MS = parseEnvInt('ADMIN_SESSION_TTL_MS', 8 * 60 * 60 * 1000, 5 * 60 * 1000);
 const LOCKOUT_THRESHOLD = 10;         // lock after 10 failed attempts
 const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minute lockout
 const FAILED_ATTEMPT_WINDOW_MS = 15 * 60 * 1000; // 15 minute window
 const ADMIN_ROLES = ['admin', 'editor'];
 const GOOGLE_SHEETS_EXPORT_SECRET = String(process.env.EXPORT_SYNC_SECRET || '').trim();
+const AUTH_SESSION_SECRET_RAW = String(
+    process.env.AUTH_SESSION_SECRET
+    || process.env.EXPORT_SYNC_SECRET
+    || ''
+).trim();
 
-function cleanExpiredTokens() {
-    const now = Date.now();
-    for (const [token, data] of authTokens) {
-        if (now - data.createdAt > TOKEN_EXPIRY_MS) authTokens.delete(token);
+if (!AUTH_SESSION_SECRET_RAW && process.env.NODE_ENV === 'production') {
+    throw new Error('AUTH_SESSION_SECRET (or EXPORT_SYNC_SECRET) is required in production for stateless admin sessions.');
+}
+
+const AUTH_SESSION_SECRET = AUTH_SESSION_SECRET_RAW || crypto.randomBytes(32).toString('hex');
+
+if (!AUTH_SESSION_SECRET_RAW) {
+    console.warn('AUTH_SESSION_SECRET is not set. Falling back to a process-local secret; admin sessions will be invalid after restart.');
+}
+
+function base64UrlEncodeJson(value) {
+    return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+function base64UrlDecodeJson(value) {
+    return JSON.parse(Buffer.from(String(value || ''), 'base64url').toString('utf8'));
+}
+
+function createPasswordHashTag(passwordHash) {
+    return crypto.createHash('sha256').update(String(passwordHash || '')).digest('hex').slice(0, 16);
+}
+
+function signAdminSessionPayload(encodedPayload) {
+    return crypto.createHmac('sha256', AUTH_SESSION_SECRET).update(encodedPayload).digest('base64url');
+}
+
+function safeCompareString(a, b) {
+    const left = Buffer.from(String(a || ''));
+    const right = Buffer.from(String(b || ''));
+    if (left.length !== right.length) return false;
+    return crypto.timingSafeEqual(left, right);
+}
+
+function issueAdminSessionToken(user) {
+    const payload = {
+        v: 1,
+        uid: user.id,
+        exp: Date.now() + TOKEN_EXPIRY_MS,
+        pwd: createPasswordHashTag(user.password_hash)
+    };
+    const encodedPayload = base64UrlEncodeJson(payload);
+    return `${encodedPayload}.${signAdminSessionPayload(encodedPayload)}`;
+}
+
+function verifyAdminSessionToken(token) {
+    if (!token || typeof token !== 'string') return null;
+    const parts = token.split('.');
+    if (parts.length !== 2) return null;
+    const [encodedPayload, signature] = parts;
+    if (!encodedPayload || !signature) return null;
+
+    const expectedSignature = signAdminSessionPayload(encodedPayload);
+    if (!safeCompareString(signature, expectedSignature)) return null;
+
+    try {
+        const payload = base64UrlDecodeJson(encodedPayload);
+        if (!payload || payload.v !== 1) return null;
+        if (!Number.isInteger(payload.uid) || payload.uid <= 0) return null;
+        if (!Number.isInteger(payload.exp) || Date.now() >= payload.exp) return null;
+        if (typeof payload.pwd !== 'string' || payload.pwd.length < 8) return null;
+        return payload;
+    } catch {
+        return null;
     }
 }
 
-function requireAuth(req, res, next) {
+async function authenticateAdminToken(token) {
+    const payload = verifyAdminSessionToken(token);
+    if (!payload) return null;
+
+    const result = await pool.query(
+        'SELECT id, username, role, password_hash FROM admin_users WHERE id = $1 LIMIT 1',
+        [payload.uid]
+    );
+    const user = result.rows[0];
+    if (!user) return null;
+    if (!safeCompareString(createPasswordHashTag(user.password_hash), payload.pwd)) return null;
+
+    return {
+        username: user.username,
+        userId: user.id,
+        role: normalizeAdminRole(user.role) || 'admin'
+    };
+}
+
+async function resolveAdminSessionFromRequest(req) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบก่อน' });
+        return null;
     }
-    const token = authHeader.slice(7);
-    cleanExpiredTokens();
-    const session = authTokens.get(token);
+    const token = authHeader.slice(7).trim();
+    if (!token) return null;
+    return authenticateAdminToken(token);
+}
+
+async function requireAuth(req, res, next) {
+    const session = await resolveAdminSessionFromRequest(req);
     if (!session) {
         return res.status(401).json({ error: 'Session หมดอายุ กรุณาเข้าสู่ระบบใหม่' });
     }
@@ -933,7 +1112,7 @@ function requireAdminOnly(req, res, next) {
     next();
 }
 
-function requireGoogleSheetsExportAuth(req, res, next) {
+async function requireGoogleSheetsExportAuth(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ error: 'Missing Bearer token' });
@@ -944,8 +1123,7 @@ function requireGoogleSheetsExportAuth(req, res, next) {
         return res.status(401).json({ error: 'Missing Bearer token' });
     }
 
-    cleanExpiredTokens();
-    const session = authTokens.get(token);
+    const session = await authenticateAdminToken(token);
     if (session) {
         req.adminUser = session.username;
         req.adminUserId = session.userId;
@@ -1339,10 +1517,6 @@ async function getRewardRowByGuessId(client, lotteryGuessId) {
 }
 
 // ============ BRUTE FORCE PROTECTION ============
-function getClientIP(req) {
-    return req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip;
-}
-
 function checkAccountLockout(ip) {
     const record = failedLoginAttempts.get(ip);
     if (!record) return null;
@@ -1408,8 +1582,7 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         }
         clearFailedLogin(clientIP);
         const role = normalizeAdminRole(user.role) || 'admin';
-        const token = crypto.randomBytes(32).toString('hex');
-        authTokens.set(token, { username: user.username, userId: user.id, role, createdAt: Date.now() });
+        const token = issueAdminSessionToken(user);
         console.log(`[AUTH] Admin login: ${user.username} from ${clientIP}`);
         res.json({ token, username: user.username, role });
     } catch (err) {
@@ -1830,12 +2003,6 @@ app.put('/api/admin/accounts/:id', requireAuth, requireAdminManager, async (req,
 
         await client.query('COMMIT');
 
-        for (const [token, session] of authTokens.entries()) {
-            if (session.userId === accountId) {
-                authTokens.set(token, { ...session, username, role });
-            }
-        }
-
         res.json({ success: true });
     } catch (err) {
         await client.query('ROLLBACK');
@@ -1882,12 +2049,6 @@ app.delete('/api/admin/accounts/:id', requireAuth, requireAdminManager, async (r
 
         await client.query('DELETE FROM admin_users WHERE id = $1', [accountId]);
         await client.query('COMMIT');
-
-        for (const [token, session] of authTokens.entries()) {
-            if (session.userId === accountId) {
-                authTokens.delete(token);
-            }
-        }
 
         res.json({ success: true });
     } catch (err) {
@@ -2210,10 +2371,6 @@ app.post('/api/admin/guess-points/reconcile', requireAuth, async (req, res) => {
 
 // POST /api/logout
 app.post('/api/logout', (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        authTokens.delete(authHeader.slice(7));
-    }
     res.json({ success: true });
 });
 
@@ -2222,6 +2379,7 @@ app.post('/api/logout', (req, res) => {
 // GET /api/staffs — list active staff for dropdown
 app.get('/api/staffs', async (req, res) => {
     try {
+        setPublicApiCacheHeaders(res);
         const result = await pool.query(
             'SELECT id, name, nickname, avatar_url FROM staffs WHERE is_active = TRUE ORDER BY name'
         );
@@ -2394,6 +2552,7 @@ app.post('/api/admin/customers/reset-rank', requireAuth, async (req, res) => {
 // GET /api/ranking/staff — staff ranking by approved transaction count and rating averages
 app.get('/api/ranking/staff', async (req, res) => {
     try {
+        setPublicApiCacheHeaders(res);
         const resetDate = await getRankingResetDate();
         // Only apply reset date filter if the reset date is today or in the past
         const today = new Date().toISOString().split('T')[0];
@@ -2431,6 +2590,7 @@ app.get('/api/ranking/staff', async (req, res) => {
 //    (ถ้าหลังรีแรงค์ยังไม่มีสลิป → total_approved = 0, ได้แรงค์ Unranked)
 app.get('/api/ranking/customers', async (req, res) => {
     try {
+        setPublicApiCacheHeaders(res);
         const resetDate = await getCustomerRankResetDate();
         // Apply the reset filter when the reset date is today or in the past
         const today = new Date().toISOString().split('T')[0];
@@ -3777,6 +3937,10 @@ app.post('/api/lottery/guess', async (req, res) => {
             return res.status(400).json({ error: 'ผู้ใช้นี้ยังไม่มี global_user_id จึงยังใช้พ้อยทายเลขไม่ได้' });
         }
 
+        // Serialize guess spending per global user to prevent concurrent requests
+        // from double-spending the same 5 points and causing negative balance.
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [user.global_user_id]);
+
         const availableGuessPoints = await getRoundPointsForGlobalUser(client, user.global_user_id, roundLabel);
         if (availableGuessPoints < 5) {
             await client.query('ROLLBACK');
@@ -3830,6 +3994,12 @@ app.post('/api/lottery/guess', async (req, res) => {
         );
 
         const remainingPoints = await getRoundPointsForGlobalUser(client, user.global_user_id, roundLabel);
+        if (remainingPoints < 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+                error: 'ระบบตรวจพบพ้อยคงเหลือติดลบหลังทำรายการ จึงยกเลิกรายการนี้อัตโนมัติ กรุณาลองใหม่อีกครั้ง'
+            });
+        }
 
         await client.query('COMMIT');
 
@@ -4076,6 +4246,7 @@ app.get('/api/history/pending/count', async (req, res) => {
 app.get('/api/sold-out', async (req, res) => {
     const roundLabel = getCurrentRoundLabel();
     try {
+        setPublicApiCacheHeaders(res, Math.max(5, Math.min(PUBLIC_API_CACHE_SECONDS, 10)), Math.max(15, PUBLIC_API_CACHE_STALE_SECONDS));
         const result = await pool.query(
             'SELECT number FROM sold_out WHERE round_label = $1 ORDER BY number',
             [roundLabel]
@@ -4119,6 +4290,7 @@ app.delete('/api/sold-out/:number', requireAuth, async (req, res) => {
 // ============ ROUND INFO API ============
 
 app.get('/api/round', (req, res) => {
+    setPublicApiCacheHeaders(res, Math.max(10, PUBLIC_API_CACHE_SECONDS), Math.max(30, PUBLIC_API_CACHE_STALE_SECONDS));
     const now = new Date();
     const day = now.getDate();
     const month = now.getMonth();
@@ -4485,23 +4657,39 @@ app.get('/api/admin/guess-points/cycle', requireAuth, async (req, res) => {
 });
 
 app.post('/api/admin/guess-points/cycle', requireAuth, async (req, res) => {
-    const { start_date } = req.body || {};
+    const { start_date, end_date } = req.body || {};
     if (!start_date || !/^\d{4}-\d{2}-\d{2}$/.test(start_date)) {
         return res.status(400).json({ error: 'กรุณาระบุวันที่เริ่มนับแต้ม (YYYY-MM-DD)' });
     }
+    if (!end_date || !/^\d{4}-\d{2}-\d{2}$/.test(end_date)) {
+        return res.status(400).json({ error: 'กรุณาระบุวันที่สิ้นสุดนับแต้ม (YYYY-MM-DD)' });
+    }
+    if (end_date < start_date) {
+        return res.status(400).json({ error: 'วันที่สิ้นสุดต้องไม่น้อยกว่าวันที่เริ่มต้น' });
+    }
 
+    const client = await pool.connect();
     try {
-        await pool.query(
+        await client.query('BEGIN');
+        await client.query(
             `INSERT INTO app_settings (key, value, updated_at)
-             VALUES ('guess_points_cycle_start_date', $1, NOW())
+             VALUES
+                ('guess_points_cycle_start_date', $1, NOW()),
+                ('guess_points_cycle_end_date', $2, NOW())
              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-            [start_date]
+            [start_date, end_date]
         );
-        const cycle = await getGuessPointCycleConfig(pool);
+        await client.query('COMMIT');
+        const cycle = await getGuessPointCycleConfig(client);
         res.json({ success: true, ...cycle });
     } catch (err) {
+        try {
+            await client.query('ROLLBACK');
+        } catch {}
         console.error('Save guess point cycle error:', err);
         res.status(500).json({ error: 'ไม่สามารถบันทึกรอบสะสมแต้มทายเลขได้' });
+    } finally {
+        client.release();
     }
 });
 
@@ -4628,6 +4816,7 @@ app.get('/auth/line/callback', async (req, res) => {
 // GET /api/ranking/staff-usage — staff ranking by total service notifications
 app.get('/api/ranking/staff-usage', async (req, res) => {
     try {
+        setPublicApiCacheHeaders(res);
         const result = await pool.query(`
             SELECT
                 s.id, s.name, s.nickname, s.avatar_url,

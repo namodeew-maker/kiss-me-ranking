@@ -498,12 +498,12 @@
 
 .admin-table-wrap-history #history-table th:nth-child(2),
 .admin-table-wrap-history #history-table td:nth-child(2) {
-    width: 142px;
+    width: 168px;
 }
 
 .admin-table-wrap-history #history-table th:nth-child(3),
 .admin-table-wrap-history #history-table td:nth-child(3) {
-    width: 128px;
+    width: 138px;
 }
 
 .admin-table-wrap-history #history-table th:nth-child(4),
@@ -1219,6 +1219,35 @@
 .cashback-gv {
     font-weight: bold;
     color: var(--neon-cyan, #00f0ff);
+}
+
+.history-service-date-cell,
+.history-date-cell {
+    white-space: normal;
+    vertical-align: middle;
+}
+
+.history-date-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    line-height: 1.2;
+}
+
+.history-date-main {
+    font-weight: 700;
+    color: #ffe4e8;
+    white-space: nowrap;
+}
+
+.history-date-sub {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.66);
+    white-space: nowrap;
+}
+
+.history-service-date-stack .history-date-main {
+    color: #ffd2d8;
 }
 
 .reward-ledger-panel {

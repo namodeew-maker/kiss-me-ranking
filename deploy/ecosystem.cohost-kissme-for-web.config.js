@@ -8,19 +8,21 @@
 //   - kissme-for-web can stay on its current port
 //   - Kiss Me Ranking runs on :3010
 //   - This profile uses a distinct PM2 name to avoid confusion with older runs
-//   - Admin auth is stored in-memory today, so this app must stay on 1 instance
+
+const WEB_CONCURRENCY = 3;
 
 module.exports = {
     apps: [{
         name: 'kiss-me-ranking-prod',
         script: 'server.js',
         cwd: '/var/www/kiss-me-ranking',
-        instances: 1,
-        exec_mode: 'fork',
+        instances: WEB_CONCURRENCY,
+        exec_mode: 'cluster',
         env: {
             NODE_ENV: 'production',
             PORT: 3010,
             ADMIN_LOGIN_PATH: 'ranking-admin',
+            WEB_CONCURRENCY,
         },
         max_restarts: 10,
         min_uptime: '10s',
@@ -30,6 +32,8 @@ module.exports = {
         out_file: '/var/log/kiss-me-ranking/app.log',
         merge_logs: true,
         max_memory_restart: '512M',
+        listen_timeout: 10000,
+        kill_timeout: 5000,
         watch: false,
     }]
 };
