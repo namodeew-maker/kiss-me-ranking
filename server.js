@@ -823,6 +823,12 @@ async function getCustomerRankResetDate() {
     return result.rows[0]?.value || null;
 }
 
+async function getEffectiveCustomerRankResetDate() {
+    const resetDate = await getCustomerRankResetDate();
+    const today = new Date().toISOString().split('T')[0];
+    return resetDate && resetDate <= today ? resetDate : null;
+}
+
 // ============ ROUND LOGIC ============
 // Round A: day 1-14, draw on 16th
 // Round B: day 16-29, draw on 1st of next month
@@ -2592,9 +2598,7 @@ app.get('/api/ranking/customers', async (req, res) => {
     try {
         setPublicApiCacheHeaders(res);
         const resetDate = await getCustomerRankResetDate();
-        // Apply the reset filter when the reset date is today or in the past
-        const today = new Date().toISOString().split('T')[0];
-        const effectiveResetDate = resetDate && resetDate <= today ? resetDate : null;
+        const effectiveResetDate = await getEffectiveCustomerRankResetDate();
         const result = await pool.query(`
             SELECT
                 u.id, u.display_name, u.picture_url, u.platform,
@@ -2765,7 +2769,7 @@ const GOOGLE_SHEETS_REPORT_DEFINITIONS = {
 };
 
 async function getLeaderboardExportData() {
-    const resetDate = await getCustomerRankResetDate();
+    const resetDate = await getEffectiveCustomerRankResetDate();
     const generatedAt = new Date();
     const exportDate = formatDateOnlyValue(generatedAt);
     const exportDatetime = formatDateTimeValue(generatedAt);
@@ -2852,7 +2856,7 @@ async function getLeaderboardExportData() {
 }
 
 async function getMembersExportData() {
-    const resetDate = await getCustomerRankResetDate();
+    const resetDate = await getEffectiveCustomerRankResetDate();
     const generatedAt = new Date();
     const exportDate = formatDateOnlyValue(generatedAt);
     const exportDatetime = formatDateTimeValue(generatedAt);
@@ -3619,6 +3623,7 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
 
         // Approved transactions used for customer rank, respecting the rank reset date.
         const customerRankResetDate = await getCustomerRankResetDate();
+        const effectiveCustomerRankResetDate = await getEffectiveCustomerRankResetDate();
         const lifetimeResult = await pool.query(
             `SELECT
                 COUNT(*) FILTER (
@@ -3629,7 +3634,7 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
              FROM transactions
              WHERE user_id = $1
                AND status = 'approved'`,
-            [user.id, customerRankResetDate]
+            [user.id, effectiveCustomerRankResetDate]
         );
 
         // Total points (if global_user_id exists)
@@ -4412,6 +4417,7 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
 
     try {
         const customerRankResetDate = await getCustomerRankResetDate();
+        const effectiveCustomerRankResetDate = await getEffectiveCustomerRankResetDate();
         const [summaryResult, usersResult] = await Promise.all([
             pool.query(
                 `SELECT
@@ -4486,7 +4492,7 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                 FROM user_rows
                 ORDER BY COALESCE(last_activity_at, created_at) DESC, created_at DESC
                 LIMIT $4 OFFSET $5`,
-                [search, like, platform, limit, offset, currentRoundLabel, customerRankResetDate]
+                [search, like, platform, limit, offset, currentRoundLabel, effectiveCustomerRankResetDate]
             )
         ]);
 
@@ -4549,6 +4555,7 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
 
         const linkedUserIds = linkedAccounts.map((account) => account.id);
         const customerRankResetDate = await getCustomerRankResetDate();
+        const effectiveCustomerRankResetDate = await getEffectiveCustomerRankResetDate();
         const [statsResult, lotteryResult, recentTransactionsResult] = await Promise.all([
             client.query(
                 `SELECT
@@ -4564,7 +4571,7 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
                     MAX(COALESCE(service_date::timestamp, created_at)) AS last_activity_at
                  FROM transactions
                  WHERE user_id = ANY($1::int[])`,
-                [linkedUserIds, customerRankResetDate]
+                [linkedUserIds, effectiveCustomerRankResetDate]
             ),
             client.query(
                 `SELECT COUNT(*)::int AS lottery_guess_count
