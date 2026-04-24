@@ -456,6 +456,10 @@
     table-layout: fixed;
 }
 
+.admin-table-wrap-history #history-table {
+    min-width: 1380px;
+}
+
 .admin-table-wrap-users #users-table {
     min-width: 1100px;
 }
@@ -498,47 +502,52 @@
 
 .admin-table-wrap-history #history-table th:nth-child(2),
 .admin-table-wrap-history #history-table td:nth-child(2) {
-    width: 168px;
+    width: 136px;
 }
 
 .admin-table-wrap-history #history-table th:nth-child(3),
 .admin-table-wrap-history #history-table td:nth-child(3) {
-    width: 138px;
+    width: 124px;
 }
 
 .admin-table-wrap-history #history-table th:nth-child(4),
 .admin-table-wrap-history #history-table td:nth-child(4) {
-    width: 190px;
+    width: 220px;
+}
+
+.admin-table-wrap-history #history-table th:nth-child(5),
+.admin-table-wrap-history #history-table td:nth-child(5) {
+    width: 150px;
 }
 
 .admin-table-wrap-history #history-table th:nth-child(6),
 .admin-table-wrap-history #history-table td:nth-child(6) {
-    width: 92px;
+    width: 100px;
 }
 
 .admin-table-wrap-history #history-table th:nth-child(7),
 .admin-table-wrap-history #history-table td:nth-child(7) {
-    width: 108px;
+    width: 96px;
 }
 
 .admin-table-wrap-history #history-table th:nth-child(8),
 .admin-table-wrap-history #history-table td:nth-child(8) {
-    width: 88px;
+    width: 92px;
 }
 
 .admin-table-wrap-history #history-table th:nth-child(9),
 .admin-table-wrap-history #history-table td:nth-child(9) {
-    width: 100px;
+    width: 108px;
 }
 
 .admin-table-wrap-history #history-table th:nth-child(10),
 .admin-table-wrap-history #history-table td:nth-child(10) {
-    width: 160px;
+    width: 176px;
 }
 
 .admin-table-wrap-history #history-table th:nth-child(11),
 .admin-table-wrap-history #history-table td:nth-child(11) {
-    width: 96px;
+    width: 92px;
 }
 
 .admin-table th,
@@ -1225,13 +1234,14 @@
 .history-date-cell {
     white-space: normal;
     vertical-align: middle;
+    text-align: left;
 }
 
 .history-date-stack {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    line-height: 1.2;
+    gap: 5px;
+    line-height: 1.15;
 }
 
 .history-date-main {
@@ -1248,6 +1258,31 @@
 
 .history-service-date-stack .history-date-main {
     color: #ffd2d8;
+}
+
+.history-customer-cell,
+.history-staff-cell,
+.history-cashback-cell {
+    vertical-align: top;
+}
+
+.history-customer-name,
+.history-staff-name {
+    font-weight: 700;
+    line-height: 1.35;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.history-customer-meta {
+    margin-top: 6px;
+    line-height: 1.4;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.history-cashback-cell {
+    line-height: 1.35;
 }
 
 .reward-ledger-panel {

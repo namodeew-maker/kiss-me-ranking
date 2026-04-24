@@ -410,17 +410,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `ยอดคงเหลือ ${formatCurrency(amount)} • ถอนได้สุทธิ ${formatCurrency(netAmount)}`;
     }
 
-    function formatServiceDate(value) {
-        if (!value) return '—';
+    function parseFlexibleDate(value) {
+        if (!value) return null;
         const raw = String(value).trim();
+        if (!raw) return null;
         const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
         const date = isDateOnly ? new Date(`${raw}T00:00:00`) : new Date(raw);
-        if (Number.isNaN(date.getTime())) return value;
-        return date.toLocaleDateString('th-TH', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric'
-        });
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function formatDateDDMMYYYY(value) {
+        const date = parseFlexibleDate(value);
+        if (!date) return value || '—';
+        return [
+            String(date.getDate()).padStart(2, '0'),
+            String(date.getMonth() + 1).padStart(2, '0'),
+            String(date.getFullYear()).padStart(4, '0')
+        ].join('/');
+    }
+
+    function formatServiceDate(value) {
+        if (!value) return '—';
+        return formatDateDDMMYYYY(value);
     }
 
     function formatDateTime(value) {
@@ -432,26 +443,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function formatShortDateTime(value) {
         if (!value) return '—';
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return value;
-        return `${date.toLocaleDateString('th-TH')} ${date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`;
+        const date = parseFlexibleDate(value);
+        if (!date) return value;
+        return `${formatDateDDMMYYYY(value)} ${date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`;
     }
 
     function renderHistoryDateCell(value) {
         if (!value) {
             return '<div class="history-date-stack"><span class="history-date-main">—</span></div>';
         }
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) {
+        const date = parseFlexibleDate(value);
+        if (!date) {
             return `<div class="history-date-stack"><span class="history-date-main">${escapeHtml(String(value))}</span></div>`;
         }
         return `
             <div class="history-date-stack">
-                <span class="history-date-main">${escapeHtml(date.toLocaleDateString('th-TH', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric'
-                }))}</span>
+                <span class="history-date-main">${escapeHtml(formatDateDDMMYYYY(value))}</span>
                 <span class="history-date-sub">${escapeHtml(date.toLocaleTimeString('th-TH', {
                     hour: '2-digit',
                     minute: '2-digit'
@@ -1665,7 +1672,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <div class="history-customer-name">${escapeHtml(customerName)}</div>
                         <div class="history-customer-meta">${escapeHtml(customerMeta || '—')}</div>
                     </td>
-                    <td>${escapeHtml(staffName)}</td>
+                    <td class="history-staff-cell"><div class="history-staff-name">${escapeHtml(staffName)}</div></td>
                     <td>${imageHtml}</td>
                     <td class="history-status-cell"><span class="badge ${statusClass}">${statusText}</span></td>
                     <td class="lottery-num-cell">${lotteryNum}</td>
