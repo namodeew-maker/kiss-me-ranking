@@ -18,6 +18,7 @@
 ## ไฟล์ที่มีตอนนี้
 
 - `k6-public-read.js`
+- `http-stage-bench.mjs`
 
 ## ตัวอย่างใช้งาน
 
@@ -29,6 +30,18 @@ k6 run bench/k6-public-read.js
 
 ```bash
 k6 run -e BASE_URL=https://ranking.kissme-vip.com -e VUS=80 -e DURATION=2m bench/k6-public-read.js
+```
+
+Benchmark แบบ stage โดยไม่ต้องติดตั้งเครื่องมือเพิ่ม:
+
+```bash
+node bench/http-stage-bench.mjs
+```
+
+หรือกำหนด stage เอง:
+
+```bash
+BASE_URL=https://ranking.kissme-vip.com STAGES=50:20,100:20,200:20,300:20 node bench/http-stage-bench.mjs
 ```
 
 ## สิ่งที่ควรดูระหว่างรัน
