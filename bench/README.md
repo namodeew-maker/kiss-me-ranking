@@ -19,6 +19,8 @@
 
 - `k6-public-read.js`
 - `http-stage-bench.mjs`
+- `http-write-safe-bench.mjs`
+- `neon-latency.mjs`
 
 ## ตัวอย่างใช้งาน
 
@@ -42,6 +44,18 @@ node bench/http-stage-bench.mjs
 
 ```bash
 BASE_URL=https://ranking.kissme-vip.com STAGES=50:20,100:20,200:20,300:20 node bench/http-stage-bench.mjs
+```
+
+Write-safe benchmark:
+
+```bash
+BASE_URL=https://ranking.kissme-vip.com STAGES=20:20,40:20,80:20,120:20 node bench/http-write-safe-bench.mjs
+```
+
+Neon latency probe:
+
+```bash
+DATABASE_URL=... node bench/neon-latency.mjs
 ```
 
 ## สิ่งที่ควรดูระหว่างรัน

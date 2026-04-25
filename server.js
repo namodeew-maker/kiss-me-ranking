@@ -640,7 +640,7 @@ function clearPublicReadCache() {
     publicReadCache.clear();
 }
 
-function invalidatePublicReadState(prefixes = ['ranking:', 'stats:']) {
+function invalidatePublicReadState(prefixes = ['ranking:', 'stats:', 'user-progress:', 'user-history:']) {
     clearPublicReadCache();
 
     if (!Array.isArray(prefixes) || prefixes.length === 0) {
@@ -947,6 +947,14 @@ async function getEffectiveCustomerRankResetDate() {
     const resetDate = await getCustomerRankResetDate();
     const today = new Date().toISOString().split('T')[0];
     return resetDate && resetDate <= today ? resetDate : null;
+}
+
+function buildUserProgressSummaryKey(platform, platformId, roundLabel) {
+    return `user-progress:${platform}:${platformId}:${roundLabel}`;
+}
+
+function buildUserHistorySummaryKey(platform, platformId, roundLabel, effectiveResetDate) {
+    return `user-history:${platform}:${platformId}:${roundLabel}:${effectiveResetDate || 'none'}`;
 }
 
 // ============ ROUND LOGIC ============
@@ -3641,6 +3649,7 @@ app.post('/api/users/upsert', async (req, res) => {
              RETURNING *`,
             [plat, pid, display_name || '', mergedPictureUrl]
         );
+        invalidatePublicReadState();
         res.json(result.rows[0]);
     } catch (err) {
         console.error('User upsert error:', err);
@@ -3658,46 +3667,56 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
     }
     const roundLabel = getCurrentRoundLabel();
     try {
-        const userResult = await pool.query(
-            'SELECT * FROM users WHERE platform = $1 AND platform_id = $2',
-            [platform, platform_id]
-        );
-        if (userResult.rows.length === 0) {
+        const cacheKey = buildUserProgressSummaryKey(platform, platform_id, roundLabel);
+        const payload = await getOrSetPublicReadCache(cacheKey, async () => {
+            return getOrRefreshPublicApiSummary(cacheKey, async () => {
+                const userResult = await pool.query(
+                    'SELECT * FROM users WHERE platform = $1 AND platform_id = $2',
+                    [platform, platform_id]
+                );
+                if (userResult.rows.length === 0) {
+                    return null;
+                }
+                const user = userResult.rows[0];
+
+                const approvedCount = await getCurrentRoundApprovedCount(user.id, roundLabel);
+                const guessPointBalance = await getRoundPointsForGlobalUser(pool, user.global_user_id, roundLabel);
+                const guessCreditsRemaining = getGuessCreditsFromPoints(guessPointBalance);
+                const currentGuessCycle = await getCurrentGuessCycle(pool, user.id, roundLabel);
+                const guessPointCycle = await getGuessPointCycleConfig(pool);
+
+                const guessResult = await pool.query(
+                    'SELECT * FROM lottery_guesses WHERE user_id = $1 AND round_label = $2 ORDER BY created_at DESC, id DESC',
+                    [user.id, roundLabel]
+                );
+
+                return {
+                    user_id: user.id,
+                    display_name: user.display_name,
+                    picture_url: user.picture_url,
+                    progress_count: approvedCount,
+                    round_label: roundLabel,
+                    guess_point_balance: guessPointBalance,
+                    guess_point_target: 5,
+                    guess_point_cycle_start_date: guessPointCycle.start_date,
+                    guess_point_cycle_end_date: guessPointCycle.end_date,
+                    guess_credits_remaining: guessCreditsRemaining,
+                    points_needed_for_next_guess: getPointsNeededForNextGuess(guessPointBalance),
+                    can_guess_lottery: isRoundOpen() && guessCreditsRemaining > 0,
+                    is_round_open: isRoundOpen(),
+                    lottery_guess: guessResult.rows[0] || null,
+                    lottery_guesses: guessResult.rows,
+                    guess_count: guessResult.rows.length,
+                    current_guess_cycle: currentGuessCycle
+                };
+            });
+        });
+
+        if (!payload) {
             return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
         }
-        const user = userResult.rows[0];
 
-        // Count approved unique staff in this round
-        const approvedCount = await getCurrentRoundApprovedCount(user.id, roundLabel);
-        const guessPointBalance = await getRoundPointsForGlobalUser(pool, user.global_user_id, roundLabel);
-        const guessCreditsRemaining = getGuessCreditsFromPoints(guessPointBalance);
-        const currentGuessCycle = await getCurrentGuessCycle(pool, user.id, roundLabel);
-        const guessPointCycle = await getGuessPointCycleConfig(pool);
-
-        const guessResult = await pool.query(
-            'SELECT * FROM lottery_guesses WHERE user_id = $1 AND round_label = $2 ORDER BY created_at DESC, id DESC',
-            [user.id, roundLabel]
-        );
-
-        res.json({
-            user_id: user.id,
-            display_name: user.display_name,
-            picture_url: user.picture_url,
-            progress_count: approvedCount,
-            round_label: roundLabel,
-            guess_point_balance: guessPointBalance,
-            guess_point_target: 5,
-            guess_point_cycle_start_date: guessPointCycle.start_date,
-            guess_point_cycle_end_date: guessPointCycle.end_date,
-            guess_credits_remaining: guessCreditsRemaining,
-            points_needed_for_next_guess: getPointsNeededForNextGuess(guessPointBalance),
-            can_guess_lottery: isRoundOpen() && guessCreditsRemaining > 0,
-            is_round_open: isRoundOpen(),
-            lottery_guess: guessResult.rows[0] || null,
-            lottery_guesses: guessResult.rows,
-            guess_count: guessResult.rows.length,
-            current_guess_cycle: currentGuessCycle
-        });
+        res.json(payload);
     } catch (err) {
         console.error('Progress fetch error:', err);
         res.status(500).json({ error: 'ไม่สามารถโหลดข้อมูลความคืบหน้าได้' });
@@ -3714,98 +3733,104 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
     }
     try {
         const roundLabel = getCurrentRoundLabel();
-        // Find user
-        const userResult = await pool.query(
-            'SELECT id, display_name, picture_url, progress_count, global_user_id FROM users WHERE platform = $1 AND platform_id = $2',
-            [platform, platform_id]
-        );
-        if (userResult.rows.length === 0) {
-            return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
-        }
-        const user = userResult.rows[0];
-        const currentProgressCount = await getCurrentRoundApprovedCount(user.id, roundLabel);
-
-        // Transaction history with staff name
-        const txResult = await pool.query(
-            `SELECT
-                t.id,
-                t.created_at,
-                t.service_date,
-                t.status,
-                t.round_label,
-                t.slip_image_url,
-                t.reject_reason,
-                s.name AS staff_name,
-                s.nickname AS staff_nickname
-             FROM transactions t
-             JOIN staffs s ON s.id = t.staff_id
-             WHERE t.user_id = $1
-             ORDER BY t.created_at DESC`,
-            [user.id]
-        );
-
-        // Lottery guess history
-        const guessResult = await pool.query(
-            `SELECT
-                id,
-                guess_number,
-                round_label,
-                result,
-                reward_amount,
-                created_at
-             FROM lottery_guesses
-             WHERE user_id = $1
-             ORDER BY created_at DESC`,
-            [user.id]
-        );
-
-        // Approved transactions used for customer rank, respecting the rank reset date.
         const customerRankResetDate = await getCustomerRankResetDate();
         const effectiveCustomerRankResetDate = await getEffectiveCustomerRankResetDate();
-        const lifetimeResult = await pool.query(
-            `SELECT
-                COUNT(*) FILTER (
-                    WHERE $2::date IS NULL
-                       OR COALESCE(service_date, created_at::date) >= $2::date
-                )::int AS total_approved,
-                COUNT(*)::int AS total_lifetime_approved
-             FROM transactions
-             WHERE user_id = $1
-               AND status = 'approved'`,
-            [user.id, effectiveCustomerRankResetDate]
-        );
+        const cacheKey = buildUserHistorySummaryKey(platform, platform_id, roundLabel, effectiveCustomerRankResetDate);
+        const payload = await getOrSetPublicReadCache(cacheKey, async () => {
+            return getOrRefreshPublicApiSummary(cacheKey, async () => {
+                const userResult = await pool.query(
+                    'SELECT id, display_name, picture_url, progress_count, global_user_id FROM users WHERE platform = $1 AND platform_id = $2',
+                    [platform, platform_id]
+                );
+                if (userResult.rows.length === 0) {
+                    return null;
+                }
+                const user = userResult.rows[0];
+                const currentProgressCount = await getCurrentRoundApprovedCount(user.id, roundLabel);
 
-        // Total points (if global_user_id exists)
-        let totalPoints = 0;
-        let currentRoundPoints = 0;
-        if (user.global_user_id) {
-            totalPoints = await getTotalPointsForGlobalUser(pool, user.global_user_id);
-            currentRoundPoints = await getRoundPointsForGlobalUser(pool, user.global_user_id, roundLabel);
-        }
-        const guessPointCycle = await getGuessPointCycleConfig(pool);
+                const txResult = await pool.query(
+                    `SELECT
+                        t.id,
+                        t.created_at,
+                        t.service_date,
+                        t.status,
+                        t.round_label,
+                        t.slip_image_url,
+                        t.reject_reason,
+                        s.name AS staff_name,
+                        s.nickname AS staff_nickname
+                     FROM transactions t
+                     JOIN staffs s ON s.id = t.staff_id
+                     WHERE t.user_id = $1
+                     ORDER BY t.created_at DESC`,
+                    [user.id]
+                );
 
-        res.json({
-            user: {
-                id: user.id,
-                display_name: user.display_name,
-                picture_url: user.picture_url,
-                progress_count: currentProgressCount,
-                global_user_id: user.global_user_id
-            },
-            transactions: txResult.rows,
-            guesses: guessResult.rows,
-            lifetime_approved: lifetimeResult.rows[0].total_approved,
-            total_lifetime_approved: lifetimeResult.rows[0].total_lifetime_approved,
-            rank_reset_date: customerRankResetDate,
-            total_points: totalPoints,
-            current_round_label: roundLabel,
-            current_round_progress: currentProgressCount,
-            current_round_points: currentRoundPoints,
-            guess_point_cycle_start_date: guessPointCycle.start_date,
-            guess_point_cycle_end_date: guessPointCycle.end_date,
-            current_round_guess_credits: getGuessCreditsFromPoints(currentRoundPoints),
-            points_needed_for_next_guess: getPointsNeededForNextGuess(currentRoundPoints)
+                const guessResult = await pool.query(
+                    `SELECT
+                        id,
+                        guess_number,
+                        round_label,
+                        result,
+                        reward_amount,
+                        created_at
+                     FROM lottery_guesses
+                     WHERE user_id = $1
+                     ORDER BY created_at DESC`,
+                    [user.id]
+                );
+
+                const lifetimeResult = await pool.query(
+                    `SELECT
+                        COUNT(*) FILTER (
+                            WHERE $2::date IS NULL
+                               OR COALESCE(service_date, created_at::date) >= $2::date
+                        )::int AS total_approved,
+                        COUNT(*)::int AS total_lifetime_approved
+                     FROM transactions
+                     WHERE user_id = $1
+                       AND status = 'approved'`,
+                    [user.id, effectiveCustomerRankResetDate]
+                );
+
+                let totalPoints = 0;
+                let currentRoundPoints = 0;
+                if (user.global_user_id) {
+                    totalPoints = await getTotalPointsForGlobalUser(pool, user.global_user_id);
+                    currentRoundPoints = await getRoundPointsForGlobalUser(pool, user.global_user_id, roundLabel);
+                }
+                const guessPointCycle = await getGuessPointCycleConfig(pool);
+
+                return {
+                    user: {
+                        id: user.id,
+                        display_name: user.display_name,
+                        picture_url: user.picture_url,
+                        progress_count: currentProgressCount,
+                        global_user_id: user.global_user_id
+                    },
+                    transactions: txResult.rows,
+                    guesses: guessResult.rows,
+                    lifetime_approved: lifetimeResult.rows[0].total_approved,
+                    total_lifetime_approved: lifetimeResult.rows[0].total_lifetime_approved,
+                    rank_reset_date: customerRankResetDate,
+                    total_points: totalPoints,
+                    current_round_label: roundLabel,
+                    current_round_progress: currentProgressCount,
+                    current_round_points: currentRoundPoints,
+                    guess_point_cycle_start_date: guessPointCycle.start_date,
+                    guess_point_cycle_end_date: guessPointCycle.end_date,
+                    current_round_guess_credits: getGuessCreditsFromPoints(currentRoundPoints),
+                    points_needed_for_next_guess: getPointsNeededForNextGuess(currentRoundPoints)
+                };
+            });
         });
+
+        if (!payload) {
+            return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+        }
+
+        res.json(payload);
     } catch (err) {
         console.error('User history fetch error:', err);
         res.status(500).json({ error: 'ไม่สามารถโหลดประวัติได้' });
@@ -3852,6 +3877,7 @@ app.post('/api/users/:platform_id/avatar', upload.single('avatar'), async (req, 
         );
 
         await client.query('COMMIT');
+        invalidatePublicReadState();
         res.json({ success: true, picture_url: avatarUrl, updated_count: targetIds.length });
     } catch (err) {
         await client.query('ROLLBACK');
@@ -4149,6 +4175,7 @@ app.post('/api/lottery/guess', async (req, res) => {
 
         await client.query('COMMIT');
 
+        invalidatePublicReadState();
         res.json({
             success: true,
             guess: guessResult.rows[0],
@@ -4839,6 +4866,7 @@ app.post('/api/admin/guess-points/cycle', requireAuth, async (req, res) => {
             [start_date, end_date]
         );
         await client.query('COMMIT');
+        invalidatePublicReadState();
         const cycle = await getGuessPointCycleConfig(client);
         res.json({ success: true, ...cycle });
     } catch (err) {
@@ -4907,6 +4935,7 @@ app.put('/api/admin/users/:id', requireAuth, async (req, res) => {
         );
 
         await client.query('COMMIT');
+        invalidatePublicReadState();
         res.json({ success: true, updated_count: targetIds.length });
     } catch (err) {
         await client.query('ROLLBACK');
@@ -4951,6 +4980,7 @@ app.delete('/api/admin/users/:id', requireAuth, requireAdminOnly, async (req, re
         await client.query('DELETE FROM users WHERE id = ANY($1::int[])', [targetIds]);
 
         await client.query('COMMIT');
+        invalidatePublicReadState();
         res.json({
             success: true,
             deleted_count: targetIds.length,
