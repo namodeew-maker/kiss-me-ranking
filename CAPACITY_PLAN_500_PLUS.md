@@ -6,10 +6,19 @@
 
 Production ปัจจุบันของ `ranking.kissme-vip.com` ใช้สถาปัตยกรรม:
 
-- `VPS + Nginx + PM2 + PostgreSQL`
+- `VPS + Nginx + PM2 + external PostgreSQL (Neon)`
 - Node/Express app รันที่ `PORT=3010`
 - PM2 รัน `kiss-me-ranking` แบบ `cluster` จำนวน `3 instances`
-- PostgreSQL รันในเครื่องเดียวกันกับ app
+- ฐานข้อมูล production ของโปรเจกต์นี้ชี้ไปที่ `Neon pooler`
+
+### Important Shared-VPS Note
+
+VPS เครื่องนี้ยังมีอีกโปรเจกต์หนึ่งคือ `kissme-vip.com / kissme-for-web`
+
+- `Kiss Me Ranking` ใช้ app/runtime บน VPS แต่ใช้ DB ภายนอก
+- `kissme-for-web` ใช้ app/runtime บน VPS และใช้ PostgreSQL local ของเครื่อง
+- ดังนั้นการกิน CPU/RAM ของ `Kiss Me Ranking` ยังแชร์กับอีกโปรเจกต์
+- แต่การใช้ DB connection ของ `Kiss Me Ranking` ไม่ได้แย่ง PostgreSQL local โดยตรง
 
 ### VPS Spec
 
@@ -36,15 +45,20 @@ Production ปัจจุบันของ `ranking.kissme-vip.com` ใช้�
 - `maintenance_work_mem = 256MB`
 - `checkpoint_completion_target = 0.9`
 - `wal_compression = on`
+- `shared_preload_libraries = pg_stat_statements`
 
 หมายเหตุ:
 
+- ค่ากลุ่มนี้มีผลกับ PostgreSQL local บน VPS ซึ่งใช้โดย `kissme-for-web`
+- production ของ `Kiss Me Ranking` ใช้ `Neon` จึงไม่ได้รับผลจาก tuning ชุดนี้โดยตรง
 - app default `PG_POOL_MAX` ในโค้ดยังเป็น `20` ต่อ process
-- ถ้าใช้ `3 instances` จะมีเพดาน theoretical ของ app-side pool ราว `60 connections`
+- ถ้าใช้ `3 instances` จะมีเพดาน theoretical ของ app-side pool ราว `60 connections` ไปที่ `Neon`
 
 ## Practical Capacity Estimate
 
 ตัวเลขนี้เป็นการประเมินจากสเปกจริง + config ปัจจุบัน + รูปแบบ endpoint ในระบบ ไม่ใช่ stress test เต็มรูปแบบ
+
+การประเมินนี้คิดเผื่อว่า VPS ยังต้องเหลือ headroom ให้ `kissme-for-web` อยู่ด้วย
 
 ### Safe Range
 
@@ -68,6 +82,7 @@ Production ปัจจุบันของ `ranking.kissme-vip.com` ใช้�
 - report/export/import ยังใช้ process เดียวกับ web app
 - app ยังไม่มี dedicated background worker
 - ยังไม่มี materialized summary สำหรับ leaderboard / dashboard
+- production DB ของโปรเจกต์นี้อยู่ที่ `Neon` ดังนั้น latency ภายนอกและ pooler behavior มีผลกับเพดานจริงด้วย
 
 ## Highest-Impact Endpoints to Optimize First
 
@@ -126,13 +141,14 @@ Production ปัจจุบันของ `ranking.kissme-vip.com` ใช้�
 เป้าหมาย: ให้ production เด้งน้อยและเก็บ metric ได้พอ
 
 - เพิ่ม `swap 4 GB`
-- จูน PostgreSQL ตาม RAM จริง
+- จูน PostgreSQL local ตาม RAM จริงเพื่อไม่ให้กระทบ `kissme-for-web`
 - ยืนยันว่า PM2 / Nginx / Postgres restart ได้ปลอดภัย
 - เก็บ baseline metric ช่วงใช้งานจริง
 
 สถานะ:
 
 - ทำแล้วในวันที่ `2026-04-25`
+- เปิด `pg_stat_statements` บน PostgreSQL local แล้ว
 
 ## Step 2: Measure Before Guessing
 
@@ -272,3 +288,4 @@ Production ปัจจุบันของ `ranking.kissme-vip.com` ใช้�
 4. แยก Excel export/import เป็น background worker
 
 5. ปรับ env production ให้ควบคุม `PG_POOL_MAX` ชัดเจนแทนการใช้ default
+6. วัดจริงทั้ง `VPS resource` และ `Neon query latency` พร้อมกัน
