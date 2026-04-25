@@ -21,6 +21,7 @@
 - `http-stage-bench.mjs`
 - `http-write-safe-bench.mjs`
 - `neon-latency.mjs`
+- `summarize-nginx-timing.py`
 
 ## ตัวอย่างใช้งาน
 
@@ -58,6 +59,12 @@ Neon latency probe:
 DATABASE_URL=... node bench/neon-latency.mjs
 ```
 
+สรุป `request_time` / `upstream_response_time` จาก nginx access log:
+
+```bash
+python3 bench/summarize-nginx-timing.py /var/log/nginx/ranking.kissme-vip.com.access.log
+```
+
 ## สิ่งที่ควรดูระหว่างรัน
 
 - response time avg / p95 / p99
@@ -66,6 +73,7 @@ DATABASE_URL=... node bench/neon-latency.mjs
 - CPU / RAM บน VPS
 - PM2 restarts
 - nginx upstream latency
+- Neon baseline latency
 
 ## ข้อควรระวัง
 

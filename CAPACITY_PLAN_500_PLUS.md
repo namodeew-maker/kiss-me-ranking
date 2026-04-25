@@ -118,6 +118,11 @@ VPS เครื่องนี้ยังมีอีกโปรเจกต�
 - ลด query ซ้ำ เช่น current round progress / points / guess cycle
 - รวมบางค่าไว้ใน summary table หรือ denormalized state
 
+สถานะล่าสุด:
+
+- ทำ DB-backed summary flow + in-memory microcache ให้ `/api/users/:platform_id/progress` และ `/api/users/:platform_id/history` แล้ว
+- endpoint สองตัวนี้ผ่าน production check จริงกับ synthetic user `bench_write_safe_0`
+
 ### Tier 3: Admin / Internal Heavy
 
 กลุ่มนี้ไม่จำเป็นต้อง optimize ก่อน public traffic แต่ถ้า admin ใช้งานพร้อมกันมากจะกระทบระบบได้
@@ -271,6 +276,93 @@ VPS เครื่องนี้ยังมีอีกโปรเจกต�
 - no sustained DB connection starvation
 - no PM2 restart loop
 - no swap thrashing
+
+## Latest Measured Production Baseline
+
+อัปเดตจาก benchmark จริงบน `2026-04-25` หลังเพิ่ม summary flow สำหรับ public + personalized read
+
+### Neon Latency Probe
+
+วัดจาก `SELECT 1` ไปที่ production `DATABASE_URL` (Neon)
+
+- samples: `20`
+- p50: `242.76 ms`
+- p95: `248.11 ms`
+- p99: `253.20 ms`
+- max: `253.20 ms`
+
+ข้อสังเกต:
+
+- baseline ของ DB latency ฝั่ง production ไม่ได้ต่ำระดับหลักหน่วยมิลลิวินาที
+- ดังนั้น endpoint ที่ยังต้อง query สดจะโดนผลจาก network + pooler ของ Neon โดยตรง
+
+### Read-Heavy Benchmark
+
+scenario:
+
+- endpoints: `/`, `/ranking.html`, `/api/ranking/staff`, `/api/ranking/customers`, `/api/stats`, `/api/sold-out`, `/api/round`
+- think time: `250-1200 ms`
+- stages: `50 -> 100 -> 200 -> 300 VUs`
+- error rate: `0`
+
+ผลจาก app benchmark:
+
+- `50 VUs`: p95 `1363.91 ms`, p99 `3109.56 ms`, `47.31 req/s`
+- `100 VUs`: p95 `521.04 ms`, p99 `1479.60 ms`, `103.92 req/s`
+- `200 VUs`: p95 `859.12 ms`, p99 `1366.60 ms`, `206.19 req/s`
+- `300 VUs`: p95 `917.98 ms`, p99 `1566.84 ms`, `304.77 req/s`
+
+ผลจาก nginx timing log:
+
+- samples: `14080`
+- status: `200=14078`, `404=2`
+- request_time p50/p95/p99: `0.004 / 0.506 / 1.470 s`
+- upstream_time p50/p95/p99: `0.004 / 0.505 / 1.470 s`
+- max request/upstream time: `3.938 s`
+
+ข้อสังเกต:
+
+- nginx `request_time` กับ `upstream_time` แทบเท่ากัน แปลว่าเวลาส่วนใหญ่หมดไปที่ app/origin จริง ไม่ได้หายที่ proxy layer
+- p50 ต่ำมากเพราะ summary + cache hit ช่วยได้เยอะ แต่ tail latency ยังสูงในบางช่วง
+- มี `404` เล็กน้อยจาก asset/noise ระหว่าง benchmark ไม่ใช่ failure ของ API หลัก
+
+### Write-Heavy Benchmark
+
+scenario:
+
+- endpoint หลัก: `/api/users/upsert`
+- synthetic users หมุน `5` keys
+- think time: `250-1000 ms`
+- stages: `20 -> 40 -> 80 -> 120 VUs`
+- error rate: `0`
+
+ผลจาก app benchmark:
+
+- `20 VUs`: p95 `1431.01 ms`, p99 `2147.89 ms`, `16.70 req/s`
+- `40 VUs`: p95 `538.17 ms`, p99 `2105.13 ms`, `34.59 req/s`
+- `80 VUs`: p95 `609.67 ms`, p99 `1462.96 ms`, `68.78 req/s`
+- `120 VUs`: p95 `846.38 ms`, p99 `1353.28 ms`, `87.43 req/s`
+
+ผลจาก nginx timing log:
+
+- samples: `4434`
+- status: `200=4429`, `304=5`
+- request_time p50/p95/p99: `0.502 / 0.770 / 1.549 s`
+- upstream_time p50/p95/p99: `0.502 / 0.770 / 1.549 s`
+- max request/upstream time: `2.513 s`
+
+ข้อสังเกต:
+
+- write path มี p50 สูงกว่าฝั่ง read ชัดเจน เพราะชน DB/query path โดยตรง
+- ณ ตอนนี้ระบบดูพร้อมสำหรับ read-heavy ที่ระดับใกล้ `300 VUs` มากกว่า write-heavy burst
+
+### Current Capacity Readout
+
+จาก benchmark และ timing log รอบล่าสุด:
+
+- `read-heavy`: พร้อมใช้งานจริงที่ `200-300 concurrent users` ได้ค่อนข้างมั่นใจ ถ้า traffic ส่วนใหญ่เป็น public GET
+- `mixed usage`: ยังควรตีกรอบแบบปลอดภัยที่ `120-220 concurrent users`
+- `500+ concurrent users`: ยังไม่ควรเคลมใน mixed traffic จนกว่าจะลด tail latency ของ write/personalized path และวัดซ้ำพร้อม endpoint ที่ใกล้ production behavior มากขึ้น
 
 ## Recommended Next Changes in Code / Infra
 
