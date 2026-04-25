@@ -2143,6 +2143,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('กรุณากรอกเลข 00-99');
             return;
         }
+        const btn = document.getElementById('btn-add-soldout');
+        btn.disabled = true;
         try {
             const res = await authFetch(`${API_BASE}/sold-out`, {
                 method: 'POST',
@@ -2156,6 +2158,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             showToast(`เพิ่มเลข ${String(num).padStart(2, '0')} เป็น Sold Out แล้ว`, 'success');
         } catch (err) {
             showToast(err.message || 'ไม่สามารถเพิ่มเลข Sold Out ได้', 'error');
+        } finally {
+            btn.disabled = false;
         }
     });
 
@@ -2166,6 +2170,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('กรุณากรอกเลข 00-99');
             return;
         }
+        const btn = document.getElementById('btn-remove-soldout');
+        btn.disabled = true;
         try {
             const res = await authFetch(`${API_BASE}/sold-out/${num}`, { method: 'DELETE' });
             const data = await res.json();
@@ -2175,6 +2181,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             showToast(`ปลดเลข ${String(num).padStart(2, '0')} ออกจาก Sold Out แล้ว`, 'success');
         } catch (err) {
             showToast(err.message || 'ไม่สามารถปลด Sold Out ได้', 'error');
+        } finally {
+            btn.disabled = false;
         }
     });
 

@@ -999,6 +999,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const serviceScore = document.getElementById('score-service') ? document.getElementById('score-service').value : 5;
         const valueScore = document.getElementById('score-value') ? document.getElementById('score-value').value : 5;
 
+        const submitBtn = form.querySelector('.btn-submit');
+        const btnText = submitBtn ? submitBtn.querySelector('.btn-text') : null;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            if (btnText) btnText.textContent = '⏳ กำลังส่ง...';
+        }
+
         try {
             const formData = new FormData();
             formData.append('platform', currentUser.platform);
@@ -1040,6 +1047,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error('Submit error:', err);
             alert('ไม่สามารถเชื่อมต่อ Server ได้');
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                if (btnText) btnText.textContent = '🚀 ส่งแจ้งใช้บริการ';
+            }
         }
     });
 
