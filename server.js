@@ -603,6 +603,9 @@ const loginLimiter = rateLimit({
 
 const PUBLIC_API_CACHE_SECONDS = parseEnvInt('PUBLIC_API_CACHE_SECONDS', process.env.NODE_ENV === 'production' ? 15 : 5, 0);
 const PUBLIC_API_CACHE_STALE_SECONDS = parseEnvInt('PUBLIC_API_CACHE_STALE_SECONDS', process.env.NODE_ENV === 'production' ? 45 : 15, 0);
+const PUBLIC_READ_CACHE_TTL_MS = parseEnvInt('PUBLIC_READ_CACHE_TTL_MS', process.env.NODE_ENV === 'production' ? 10000 : 3000, 0);
+const PUBLIC_READ_CACHE_MAX_ENTRIES = parseEnvInt('PUBLIC_READ_CACHE_MAX_ENTRIES', 64, 1);
+const publicReadCache = new Map();
 
 function setPublicApiCacheHeaders(res, maxAgeSeconds = PUBLIC_API_CACHE_SECONDS, staleSeconds = PUBLIC_API_CACHE_STALE_SECONDS) {
     if (maxAgeSeconds <= 0) {
@@ -611,6 +614,46 @@ function setPublicApiCacheHeaders(res, maxAgeSeconds = PUBLIC_API_CACHE_SECONDS,
     }
     res.setHeader('Cache-Control', `public, max-age=${maxAgeSeconds}, stale-while-revalidate=${Math.max(staleSeconds, maxAgeSeconds)}`);
     res.setHeader('Surrogate-Control', `max-age=${maxAgeSeconds}, stale-while-revalidate=${Math.max(staleSeconds, maxAgeSeconds)}`);
+}
+
+function prunePublicReadCache(now = Date.now()) {
+    for (const [key, entry] of publicReadCache.entries()) {
+        if (!entry || entry.expiresAt <= now) {
+            publicReadCache.delete(key);
+        }
+    }
+
+    while (publicReadCache.size > PUBLIC_READ_CACHE_MAX_ENTRIES) {
+        const oldestKey = publicReadCache.keys().next().value;
+        if (!oldestKey) break;
+        publicReadCache.delete(oldestKey);
+    }
+}
+
+function clearPublicReadCache() {
+    publicReadCache.clear();
+}
+
+async function getOrSetPublicReadCache(cacheKey, loadValue, ttlMs = PUBLIC_READ_CACHE_TTL_MS) {
+    if (ttlMs <= 0) {
+        return loadValue();
+    }
+
+    const now = Date.now();
+    prunePublicReadCache(now);
+
+    const cachedEntry = publicReadCache.get(cacheKey);
+    if (cachedEntry && cachedEntry.expiresAt > now) {
+        return cachedEntry.value;
+    }
+
+    const value = await loadValue();
+    publicReadCache.set(cacheKey, {
+        value,
+        expiresAt: now + ttlMs
+    });
+    prunePublicReadCache(now);
+    return value;
 }
 
 // Skip ngrok browser warning for all requests (especially LIFF redirects)
@@ -2426,6 +2469,7 @@ app.post('/api/staffs', requireAuth, upload.single('avatar'), async (req, res) =
              RETURNING *`,
             [name.trim(), nickname ? nickname.trim() : null, avatarUrl]
         );
+        clearPublicReadCache();
         res.json({ success: true, staff: result.rows[0] });
     } catch (err) {
         console.error('Staff create error:', err);
@@ -2457,6 +2501,7 @@ app.put('/api/staffs/:id', requireAuth, upload.single('avatar'), async (req, res
             values
         );
         if (result.rows.length === 0) return res.status(404).json({ error: 'ไม่พบพนักงาน' });
+        clearPublicReadCache();
         res.json({ success: true, staff: result.rows[0] });
     } catch (err) {
         console.error('Staff update error:', err);
@@ -2470,6 +2515,7 @@ app.delete('/api/staffs/:id', requireAuth, async (req, res) => {
     if (isNaN(staffId)) return res.status(400).json({ error: 'Invalid ID' });
     try {
         await pool.query('UPDATE staffs SET is_active = FALSE WHERE id = $1', [staffId]);
+        clearPublicReadCache();
         res.json({ success: true });
     } catch (err) {
         console.error('Staff delete error:', err);
@@ -2486,6 +2532,7 @@ app.delete('/api/staffs/:id/permanent', requireAuth, requireAdminOnly, async (re
         await pool.query('DELETE FROM ratings WHERE transaction_id IN (SELECT id FROM transactions WHERE staff_id = $1)', [staffId]);
         await pool.query('DELETE FROM transactions WHERE staff_id = $1', [staffId]);
         await pool.query('DELETE FROM staffs WHERE id = $1', [staffId]);
+        clearPublicReadCache();
         res.json({ success: true });
     } catch (err) {
         console.error('Staff hard delete error:', err);
@@ -2517,6 +2564,7 @@ app.post('/api/staffs/reset-ranking', requireAuth, requireAdminOnly, async (req,
              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
             [date]
         );
+        clearPublicReadCache();
         res.json({ success: true, reset_date: date });
     } catch (err) {
         console.error('Reset staff ranking error:', err);
@@ -2548,6 +2596,7 @@ app.post('/api/admin/customers/reset-rank', requireAuth, async (req, res) => {
              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
             [date]
         );
+        clearPublicReadCache();
         res.json({ success: true, reset_date: date });
     } catch (err) {
         console.error('Reset customer rank error:', err);
@@ -2560,28 +2609,32 @@ app.get('/api/ranking/staff', async (req, res) => {
     try {
         setPublicApiCacheHeaders(res);
         const resetDate = await getRankingResetDate();
-        // Only apply reset date filter if the reset date is today or in the past
-        const today = new Date().toISOString().split('T')[0];
-        const effectiveResetDate = resetDate && resetDate < today ? resetDate : null;
-        const result = await pool.query(`
-            SELECT
-                s.id, s.name, s.nickname, s.avatar_url,
-                COUNT(t.id)::int AS total_votes,
-                COALESCE(ROUND(AVG((r.looks_score + r.service_score + r.value_score) / 3.0)::numeric, 2), 0)::float AS avg_score,
-                COALESCE(ROUND(AVG(r.looks_score)::numeric, 2), 0)::float AS avg_looks_score,
-                COALESCE(ROUND(AVG(r.service_score)::numeric, 2), 0)::float AS avg_service_score,
-                COALESCE(ROUND(AVG(r.value_score)::numeric, 2), 0)::float AS avg_value_score,
-                MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_service_at
-            FROM staffs s
-            LEFT JOIN transactions t ON t.staff_id = s.id
-                AND t.status = 'approved'
-                AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
-            LEFT JOIN ratings r ON r.transaction_id = t.id
-            WHERE s.is_active = TRUE
-            GROUP BY s.id, s.name, s.nickname, s.avatar_url
-            ORDER BY total_votes DESC, avg_score DESC, MAX(COALESCE(t.service_date::timestamp, t.created_at)) DESC, s.id ASC
-        `, [effectiveResetDate]);
-        res.json(result.rows);
+        const cacheKey = `ranking:staff:${resetDate || 'none'}`;
+        const rows = await getOrSetPublicReadCache(cacheKey, async () => {
+            // Only apply reset date filter if the reset date is today or in the past
+            const today = new Date().toISOString().split('T')[0];
+            const effectiveResetDate = resetDate && resetDate < today ? resetDate : null;
+            const result = await pool.query(`
+                SELECT
+                    s.id, s.name, s.nickname, s.avatar_url,
+                    COUNT(t.id)::int AS total_votes,
+                    COALESCE(ROUND(AVG((r.looks_score + r.service_score + r.value_score) / 3.0)::numeric, 2), 0)::float AS avg_score,
+                    COALESCE(ROUND(AVG(r.looks_score)::numeric, 2), 0)::float AS avg_looks_score,
+                    COALESCE(ROUND(AVG(r.service_score)::numeric, 2), 0)::float AS avg_service_score,
+                    COALESCE(ROUND(AVG(r.value_score)::numeric, 2), 0)::float AS avg_value_score,
+                    MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_service_at
+                FROM staffs s
+                LEFT JOIN transactions t ON t.staff_id = s.id
+                    AND t.status = 'approved'
+                    AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
+                LEFT JOIN ratings r ON r.transaction_id = t.id
+                WHERE s.is_active = TRUE
+                GROUP BY s.id, s.name, s.nickname, s.avatar_url
+                ORDER BY total_votes DESC, avg_score DESC, MAX(COALESCE(t.service_date::timestamp, t.created_at)) DESC, s.id ASC
+            `, [effectiveResetDate]);
+            return result.rows;
+        });
+        res.json(rows);
     } catch (err) {
         console.error('Staff ranking error:', err);
         res.status(500).json({ error: 'ไม่สามารถโหลดอันดับพนักงานได้' });
@@ -2599,37 +2652,41 @@ app.get('/api/ranking/customers', async (req, res) => {
         setPublicApiCacheHeaders(res);
         const resetDate = await getCustomerRankResetDate();
         const effectiveResetDate = await getEffectiveCustomerRankResetDate();
-        const result = await pool.query(`
-            SELECT
-                u.id, u.display_name, u.picture_url, u.platform,
-                COALESCE(ranked.total_approved, 0) AS total_approved,
-                lifetime.total_lifetime_approved,
-                COALESCE(ranked.last_service_at, lifetime.last_service_at) AS last_service_at
-            FROM users u
-            INNER JOIN (
+        const cacheKey = `ranking:customers:${resetDate || 'none'}:${effectiveResetDate || 'none'}`;
+        const rows = await getOrSetPublicReadCache(cacheKey, async () => {
+            const result = await pool.query(`
                 SELECT
-                    t_all.user_id,
-                    COUNT(*)::int AS total_lifetime_approved,
-                    MAX(COALESCE(t_all.service_date::timestamp, t_all.created_at)) AS last_service_at
-                FROM transactions t_all
-                WHERE t_all.status = 'approved'
-                GROUP BY t_all.user_id
-            ) lifetime ON lifetime.user_id = u.id
-            LEFT JOIN (
-                SELECT
-                    t.user_id,
-                    COUNT(*)::int AS total_approved,
-                    MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_service_at
-                FROM transactions t
-                WHERE t.status = 'approved'
-                  AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
-                GROUP BY t.user_id
-            ) ranked ON ranked.user_id = u.id
-            ORDER BY COALESCE(ranked.total_approved, 0) DESC,
-                     COALESCE(ranked.last_service_at, lifetime.last_service_at) DESC NULLS LAST,
-                     u.id ASC
-        `, [effectiveResetDate]);
-        res.json(result.rows.map((row) => ({
+                    u.id, u.display_name, u.picture_url, u.platform,
+                    COALESCE(ranked.total_approved, 0) AS total_approved,
+                    lifetime.total_lifetime_approved,
+                    COALESCE(ranked.last_service_at, lifetime.last_service_at) AS last_service_at
+                FROM users u
+                INNER JOIN (
+                    SELECT
+                        t_all.user_id,
+                        COUNT(*)::int AS total_lifetime_approved,
+                        MAX(COALESCE(t_all.service_date::timestamp, t_all.created_at)) AS last_service_at
+                    FROM transactions t_all
+                    WHERE t_all.status = 'approved'
+                    GROUP BY t_all.user_id
+                ) lifetime ON lifetime.user_id = u.id
+                LEFT JOIN (
+                    SELECT
+                        t.user_id,
+                        COUNT(*)::int AS total_approved,
+                        MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_service_at
+                    FROM transactions t
+                    WHERE t.status = 'approved'
+                      AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
+                    GROUP BY t.user_id
+                ) ranked ON ranked.user_id = u.id
+                ORDER BY COALESCE(ranked.total_approved, 0) DESC,
+                         COALESCE(ranked.last_service_at, lifetime.last_service_at) DESC NULLS LAST,
+                         u.id ASC
+            `, [effectiveResetDate]);
+            return result.rows;
+        });
+        res.json(rows.map((row) => ({
             ...row,
             rank_reset_date: resetDate
         })));
@@ -3802,6 +3859,7 @@ app.post('/api/transactions', upload.single('slip'), async (req, res) => {
 
         await client.query('COMMIT');
 
+        clearPublicReadCache();
         res.json({
             success: true,
             transaction_id: txId,
@@ -3859,6 +3917,7 @@ app.put('/api/history/:id/approve', requireAuth, async (req, res) => {
 
         await client.query('COMMIT');
 
+        clearPublicReadCache();
         res.json({
             success: true,
             approved_count: approvedCount,
@@ -3892,6 +3951,7 @@ app.put('/api/history/:id/reject', requireAuth, async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'ไม่พบรายการหรือรายการถูกตรวจสอบแล้ว' });
         }
+        clearPublicReadCache();
         res.json({ success: true, message: 'ปฏิเสธรายการเรียบร้อย' });
     } catch (err) {
         console.error('Reject error:', err);
@@ -4074,6 +4134,7 @@ app.post('/api/draw', requireAuth, async (req, res) => {
 
         await client.query('COMMIT');
 
+        clearPublicReadCache();
         res.json({
             winningNumber,
             drawDateLabel: drawDateLabel || roundLabel,
@@ -4220,6 +4281,7 @@ app.delete('/api/history/:id', requireAuth, requireAdminOnly, async (req, res) =
         }
 
         await client.query('COMMIT');
+        clearPublicReadCache();
         res.json({
             success: true,
             current_round_progress: syncResult.currentApprovedCount,
@@ -4274,6 +4336,7 @@ app.post('/api/sold-out', requireAuth, async (req, res) => {
             'INSERT INTO sold_out (number, round_label) VALUES ($1, $2) ON CONFLICT (number, round_label) DO NOTHING',
             [number, roundLabel]
         );
+        clearPublicReadCache();
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -4286,6 +4349,7 @@ app.delete('/api/sold-out/:number', requireAuth, async (req, res) => {
     const roundLabel = getCurrentRoundLabel();
     try {
         await pool.query('DELETE FROM sold_out WHERE number = $1 AND round_label = $2', [number, roundLabel]);
+        clearPublicReadCache();
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -4383,20 +4447,25 @@ app.get('/api/stats/guesses-by-number', async (req, res) => {
 app.get('/api/stats', async (req, res) => {
     const roundLabel = getCurrentRoundLabel();
     try {
-        const [soldOut, totalUsers, pending, totalTx] = await Promise.all([
-            pool.query('SELECT COUNT(*)::int AS count FROM sold_out WHERE round_label = $1', [roundLabel]),
-            pool.query('SELECT COUNT(*)::int AS count FROM users'),
-            pool.query("SELECT COUNT(*)::int AS count FROM transactions WHERE status = 'pending'"),
-            pool.query('SELECT COUNT(*)::int AS count FROM transactions')
-        ]);
-        res.json({
-            totalSlots: 100,
-            soldSlots: soldOut.rows[0].count,
-            availableSlots: 100 - soldOut.rows[0].count,
-            totalUsers: totalUsers.rows[0].count,
-            pendingCount: pending.rows[0].count,
-            totalTransactions: totalTx.rows[0].count
+        setPublicApiCacheHeaders(res);
+        const cacheKey = `stats:${roundLabel}`;
+        const payload = await getOrSetPublicReadCache(cacheKey, async () => {
+            const [soldOut, totalUsers, pending, totalTx] = await Promise.all([
+                pool.query('SELECT COUNT(*)::int AS count FROM sold_out WHERE round_label = $1', [roundLabel]),
+                pool.query('SELECT COUNT(*)::int AS count FROM users'),
+                pool.query("SELECT COUNT(*)::int AS count FROM transactions WHERE status = 'pending'"),
+                pool.query('SELECT COUNT(*)::int AS count FROM transactions')
+            ]);
+            return {
+                totalSlots: 100,
+                soldSlots: soldOut.rows[0].count,
+                availableSlots: 100 - soldOut.rows[0].count,
+                totalUsers: totalUsers.rows[0].count,
+                pendingCount: pending.rows[0].count,
+                totalTransactions: totalTx.rows[0].count
+            };
         });
+        res.json(payload);
     } catch (err) {
         console.error('Stats error:', err);
         res.status(500).json({ error: 'ไม่สามารถโหลดสถิติได้' });
