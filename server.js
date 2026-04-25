@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 const { Pool } = require('pg');
 const path = require('path');
 const multer = require('multer');
@@ -559,6 +560,10 @@ function getClientIP(req) {
     return req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip;
 }
 
+function getClientRateLimitKey(req) {
+    return ipKeyGenerator(getClientIP(req));
+}
+
 // ============ RATE LIMITING ============
 function createApiLimiter({ windowMs, max, message }) {
     return rateLimit({
@@ -566,7 +571,7 @@ function createApiLimiter({ windowMs, max, message }) {
         max,
         standardHeaders: true,
         legacyHeaders: false,
-        keyGenerator: getClientIP,
+        keyGenerator: getClientRateLimitKey,
         message: { error: message },
     });
 }
@@ -596,7 +601,7 @@ const loginLimiter = rateLimit({
     max: parseEnvInt('LOGIN_RATE_LIMIT_MAX', 5, 1),
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: getClientIP,
+    keyGenerator: getClientRateLimitKey,
     message: { error: 'พยายามเข้าสู่ระบบมากเกินไป กรุณารอ 15 นาที' },
     skipSuccessfulRequests: true,
 });
