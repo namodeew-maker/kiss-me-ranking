@@ -4,6 +4,8 @@ uploads/
 .env
 .codacy/
 .vscode/
+.claude/
+sync_obsidian_kissmeweb.ps1
 
 # Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
