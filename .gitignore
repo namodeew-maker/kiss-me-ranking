@@ -14,18 +14,32 @@ codacy-analysis-cli.jar
 # Obsidian vault junction (do not commit)
 .obsidian-vault/
 
-# ---- Internal docs (keep locally, not on GitHub) ----
+# ================================================================
+# INTERNAL DOCS — DO NOT COMMIT TO GIT UNDER ANY CIRCUMSTANCES
+# ข้อมูลภายใน — ห้าม commit ขึ้น GitHub เด็ดขาด
+# ================================================================
+
+# Obsidian vault notes (project documentation)
 Kissme-rankingObsidian/
+
+# Project documentation & guides
 PROJECT_DOCS.md
-WORKLOG_*.md
-CAPACITY_PLAN_500_PLUS.md
 EXCEL_ADMIN_GUIDE.md
 POSTGRES_TO_GOOGLE_SHEETS_ARCHITECTURE.md
+CAPACITY_PLAN_500_PLUS.md
 ข้อกฎหมาย.md
 
-# Benchmark & legacy reference scripts
+# Work logs (all future WORKLOG files)
+WORKLOG_*.md
+WORKLOG*.md
+
+# Benchmark scripts (not production code)
 bench/
+
+# Legacy reference scripts (not production code)
 examples/
 
-# Staff photos (personal data)
+# Staff & personal photos
 Pictures/
+
+# ================================================================
