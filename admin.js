@@ -1640,67 +1640,76 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateStats();
     }
 
-    async function renderHistory() {
-        const tbody = document.getElementById('history-body');
-        const noMsg = document.getElementById('no-history');
-        try {
-            const res = await fetch(`${API_BASE}/history`);
-            const history = await res.json();
+    // --- History State (filter + pagination) ---
+    let _historyAllData = [];
+    let _historyCurrentPage = 1;
+    const HISTORY_PAGE_SIZE = 20;
+    let _historyFilter = { query: '', type: 'all', status: 'all', result: 'all' };
 
-            if (history.length === 0) {
-                tbody.innerHTML = '';
-                noMsg.classList.remove('hidden');
-                return;
+    function getHistoryFiltered() {
+        return _historyAllData.filter(h => {
+            if (_historyFilter.query) {
+                const q = _historyFilter.query.toLowerCase();
+                const name = (h.customer_name || h.name || '').toLowerCase();
+                const staff = (h.staff_name || '').toLowerCase();
+                if (!name.includes(q) && !staff.includes(q)) return false;
             }
+            if (_historyFilter.type !== 'all' && h.history_type !== _historyFilter.type) return false;
+            if (_historyFilter.status !== 'all') {
+                if (_historyFilter.status === 'pending' && !(h.history_type === 'transaction' && h.approved === 'pending')) return false;
+                if (_historyFilter.status === 'approved' && !(h.history_type === 'transaction' && h.approved !== 'pending' && h.approved !== 'rejected')) return false;
+                if (_historyFilter.status === 'rejected' && h.approved !== 'rejected') return false;
+            }
+            if (_historyFilter.result !== 'all') {
+                if (h.history_type !== 'guess') return false;
+                const resultKey = _historyFilter.result === 'pending_result' ? 'pending' : _historyFilter.result;
+                if (h.lottery_result !== resultKey) return false;
+            }
+            return true;
+        });
+    }
 
-            noMsg.classList.add('hidden');
-            tbody.innerHTML = history.map((h, i) => {
-                let statusClass = 'badge-active';
-                let statusText = 'อนุมัติ';
-                if (h.history_type === 'guess') {
-                    statusClass = 'badge-pending';
-                    statusText = 'ทายเลขแล้ว';
-                } else if (h.approved === 'rejected') {
-                    statusClass = 'badge-revoked';
-                    statusText = 'ไม่อนุมัติ';
-                } else if (h.approved === 'pending') {
-                    statusClass = 'badge-pending';
-                    statusText = 'รออนุมัติ';
-                }
-
-                let lotteryNum = '—';
-                let resultBadge = '';
-                let cashbackCell = '—';
-
-                if (h.guess_number) {
-                    lotteryNum = h.guess_number;
-                }
-
-                if (h.lottery_result === 'won') {
-                    resultBadge = '<span class="badge badge-won">🎯 ถูกรางวัล!</span>';
-                    const grossAmount = h.reward_amount || 0;
-                    const tax = grossAmount * 0.10;
-                    const netAmount = grossAmount - tax;
-                    cashbackCell = `<span class="cashback-won">${formatCurrency(netAmount)}</span><br><span class="cashback-detail">ถอนสุทธิหลังหัก 10% • ใช้ซ้ำได้ ${formatCurrency(grossAmount)}</span>`;
-                } else if (h.lottery_result === 'lost') {
-                    resultBadge = '<span class="badge badge-lost">ไม่ถูก</span>';
-                    cashbackCell = '<span class="cashback-gv">GV 300 ฿</span>';
-                } else if (h.lottery_result === 'pending') {
-                    resultBadge = '<span class="badge badge-pending">รอผล</span>';
-                }
-
-                const customerName = h.customer_name || h.name || '—';
-                const staffName = h.staff_name || '—';
-                const customerMeta = [h.platform, h.platform_id].filter(Boolean).join(' • ');
-                const imageHtml = h.history_type === 'transaction'
-                    ? imageCell(h.image_path || h.slip_image_url)
-                    : '<span class="history-empty-image">ไม่มีสลิป</span>';
-                const actionHtml = h.history_type === 'transaction'
-                    ? (isEditor ? '' : `<button class="btn-small" data-delete-history="${h.id}">ลบ</button>`)
-                    : `<button class="btn-small" data-view-user="${h.user_id}">ดู user</button>`;
-
-                return `<tr>
-                    <td>${i + 1}</td>
+    function buildHistoryRow(h, rowNum) {
+        let statusClass = 'badge-active';
+        let statusText = 'อนุมัติ';
+        if (h.history_type === 'guess') {
+            statusClass = 'badge-pending';
+            statusText = 'ทายเลขแล้ว';
+        } else if (h.approved === 'rejected') {
+            statusClass = 'badge-revoked';
+            statusText = 'ไม่อนุมัติ';
+        } else if (h.approved === 'pending') {
+            statusClass = 'badge-pending';
+            statusText = 'รออนุมัติ';
+        }
+        let lotteryNum = '—';
+        let resultBadge = '';
+        let cashbackCell = '—';
+        if (h.guess_number) lotteryNum = h.guess_number;
+        if (h.lottery_result === 'won') {
+            resultBadge = '<span class="badge badge-won">🎯 ถูกรางวัล!</span>';
+            const grossAmount = h.reward_amount || 0;
+            const netAmount = grossAmount * CASHBACK_WITHDRAWAL_RATE;
+            cashbackCell = `<span class="cashback-won">${formatCurrency(netAmount)}</span><br><span class="cashback-detail">ใช้ซ้ำได้ ${formatCurrency(grossAmount)}</span>`;
+        } else if (h.lottery_result === 'lost') {
+            resultBadge = '<span class="badge badge-lost">ไม่ถูก</span>';
+            cashbackCell = '<span class="cashback-gv">GV 300 ฿</span>';
+        } else if (h.lottery_result === 'pending') {
+            resultBadge = '<span class="badge badge-pending">รอผล</span>';
+        }
+        const customerName = h.customer_name || h.name || '—';
+        const staffName = h.staff_name || '—';
+        const pid = h.platform_id || '';
+        const pidShort = pid.length > 10 ? pid.slice(0, 8) + '…' : pid;
+        const customerMeta = [h.platform, pidShort].filter(Boolean).join(' • ');
+        const imageHtml = h.history_type === 'transaction'
+            ? imageCell(h.image_path || h.slip_image_url)
+            : '<span class="history-empty-image">ไม่มีสลิป</span>';
+        const actionHtml = h.history_type === 'transaction'
+            ? (isEditor ? '' : `<button class="btn-small" data-delete-history="${h.id}">ลบ</button>`)
+            : `<button class="btn-small" data-view-user="${h.user_id}">ดู user</button>`;
+        return `<tr>
+                    <td>${rowNum}</td>
                     <td class="history-service-date-cell">${renderHistoryServiceDateCell(h.service_date)}</td>
                     <td class="history-date-cell">${renderHistoryDateCell(h.date || h.created_at)}</td>
                     <td class="history-customer-cell">
@@ -1715,26 +1724,88 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td class="history-cashback-cell">${cashbackCell}</td>
                     <td><div class="history-action-group">${actionHtml}</div></td>
                 </tr>`;
-            }).join('');
+    }
 
-            bindThumbnails(tbody);
+    function renderHistoryPage() {
+        const tbody = document.getElementById('history-body');
+        const noMsg = document.getElementById('no-history');
+        const filtered = getHistoryFiltered();
+        const totalPages = Math.max(1, Math.ceil(filtered.length / HISTORY_PAGE_SIZE));
+        if (_historyCurrentPage > totalPages) _historyCurrentPage = totalPages;
+        if (_historyCurrentPage < 1) _historyCurrentPage = 1;
+        const startIdx = (_historyCurrentPage - 1) * HISTORY_PAGE_SIZE;
+        const pageData = filtered.slice(startIdx, startIdx + HISTORY_PAGE_SIZE);
 
-            tbody.querySelectorAll('[data-delete-history]').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    await authFetch(`${API_BASE}/history/${btn.dataset.deleteHistory}`, { method: 'DELETE' });
-                    renderHistory();
-                    renderApproval();
-                    renderCashbackSummary();
-                    updateStats();
-                });
-            });
+        const countEl = document.getElementById('history-filter-count');
+        if (countEl) countEl.textContent = filtered.length + ' รายการ';
+        const resetBtn = document.getElementById('history-filter-reset');
+        const hasFilter = _historyFilter.query || _historyFilter.type !== 'all' || _historyFilter.status !== 'all' || _historyFilter.result !== 'all';
+        if (resetBtn) resetBtn.style.display = hasFilter ? '' : 'none';
 
-            tbody.querySelectorAll('[data-view-user]').forEach(btn => {
-                btn.addEventListener('click', () => loadUserDetail(btn.dataset.viewUser));
-            });
-        } catch (err) {
+        if (pageData.length === 0) {
             tbody.innerHTML = '';
             noMsg.classList.remove('hidden');
+            renderHistoryPagination(filtered.length, totalPages);
+            return;
+        }
+        noMsg.classList.add('hidden');
+        tbody.innerHTML = pageData.map((h, i) => buildHistoryRow(h, startIdx + i + 1)).join('');
+        bindThumbnails(tbody);
+        tbody.querySelectorAll('[data-delete-history]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                await authFetch(`${API_BASE}/history/${btn.dataset.deleteHistory}`, { method: 'DELETE' });
+                renderHistory();
+                renderApproval();
+                renderCashbackSummary();
+                updateStats();
+            });
+        });
+        tbody.querySelectorAll('[data-view-user]').forEach(btn => {
+            btn.addEventListener('click', () => loadUserDetail(btn.dataset.viewUser));
+        });
+        renderHistoryPagination(filtered.length, totalPages);
+    }
+
+    function renderHistoryPagination(total, totalPages) {
+        const container = document.getElementById('history-pagination');
+        if (!container) return;
+        if (total === 0 || totalPages <= 1) { container.innerHTML = ''; return; }
+        const p = _historyCurrentPage;
+        const pages = [];
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || Math.abs(i - p) <= 1) pages.push(i);
+            else if (Math.abs(i - p) === 2) pages.push('…');
+        }
+        const deduped = pages.filter((v, idx, arr) => v !== '…' || arr[idx - 1] !== '…');
+        const btns = deduped.map(v => v === '…'
+            ? `<span class="page-ellipsis">…</span>`
+            : `<button class="page-btn${v === p ? ' active' : ''}" data-hpage="${v}">${v}</button>`
+        ).join('');
+        container.innerHTML = `<button class="page-btn page-prev" data-hpage="prev" ${p <= 1 ? 'disabled' : ''}>◀</button>${btns}<button class="page-btn page-next" data-hpage="next" ${p >= totalPages ? 'disabled' : ''}>▶</button><span class="pagination-info">หน้า ${p}/${totalPages} • ${total} รายการ</span>`;
+        container.querySelectorAll('[data-hpage]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const val = btn.dataset.hpage;
+                if (val === 'prev') _historyCurrentPage = Math.max(1, p - 1);
+                else if (val === 'next') _historyCurrentPage = Math.min(totalPages, p + 1);
+                else _historyCurrentPage = parseInt(val, 10);
+                renderHistoryPage();
+                document.getElementById('history-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+    }
+
+    async function renderHistory() {
+        const tbody = document.getElementById('history-body');
+        const noMsg = document.getElementById('no-history');
+        try {
+            const res = await fetch(`${API_BASE}/history`);
+            if (!res.ok) throw new Error('fetch-failed');
+            _historyAllData = await res.json();
+            _historyCurrentPage = 1;
+            renderHistoryPage();
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:#f87171;padding:16px;">⚠️ โหลดประวัติไม่สำเร็จ — <button class="btn-small" onclick="renderHistory()">ลองใหม่</button></td></tr>`;
+            noMsg.classList.add('hidden');
         }
     }
 
@@ -1805,8 +1876,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             });
         } catch (err) {
-            tbody.innerHTML = '';
-            noMsg.classList.remove('hidden');
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#f87171;padding:16px;">⚠️ โหลดคิวไม่สำเร็จ — <button class="btn-small" onclick="renderApproval()">ลองใหม่</button></td></tr>`;
+            noMsg.classList.add('hidden');
         }
     }
 
@@ -2246,6 +2317,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderUsers();
     renderStorageStatus();
     updateRewardClaimSelection(null);
+
+    // --- History Filter Bindings ---
+    document.getElementById('history-search-input')?.addEventListener('input', e => {
+        _historyFilter.query = e.target.value.trim();
+        _historyCurrentPage = 1;
+        renderHistoryPage();
+    });
+    document.querySelectorAll('[data-hfilter-type]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('[data-hfilter-type]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            _historyFilter.type = btn.dataset.hfilterType;
+            _historyCurrentPage = 1;
+            renderHistoryPage();
+        });
+    });
+    document.querySelectorAll('[data-hfilter-status]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('[data-hfilter-status]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            _historyFilter.status = btn.dataset.hfilterStatus;
+            _historyCurrentPage = 1;
+            renderHistoryPage();
+        });
+    });
+    document.querySelectorAll('[data-hfilter-result]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('[data-hfilter-result]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            _historyFilter.result = btn.dataset.hfilterResult;
+            _historyCurrentPage = 1;
+            renderHistoryPage();
+        });
+    });
+    document.getElementById('history-filter-reset')?.addEventListener('click', () => {
+        _historyFilter = { query: '', type: 'all', status: 'all', result: 'all' };
+        _historyCurrentPage = 1;
+        const searchInput = document.getElementById('history-search-input');
+        if (searchInput) searchInput.value = '';
+        document.querySelectorAll('[data-hfilter-type]').forEach(b => b.classList.toggle('active', b.dataset.hfilterType === 'all'));
+        document.querySelectorAll('[data-hfilter-status]').forEach(b => b.classList.toggle('active', b.dataset.hfilterStatus === 'all'));
+        document.querySelectorAll('[data-hfilter-result]').forEach(b => b.classList.toggle('active', b.dataset.hfilterResult === 'all'));
+        renderHistoryPage();
+    });
 
     // --- Load Round Info ---
     try {

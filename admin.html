@@ -470,18 +470,56 @@
                 <!-- Submission History (Transactions + Lottery Results) -->
                 <section class="admin-panel">
                     <h3>📊 ประวัติการใช้บริการ & ผลทายเลข</h3>
+
+                    <!-- History Filter Bar -->
+                    <div class="history-filter-bar" id="history-filter-bar">
+                        <div class="history-filter-row">
+                            <input type="text" id="history-search-input" placeholder="🔍 ค้นหาชื่อลูกค้า / พนักงาน..." class="history-search-input">
+                            <div class="history-filter-group">
+                                <span class="hfilter-label">ประเภท</span>
+                                <div class="hfilter-btn-group">
+                                    <button class="hfilter-btn active" data-hfilter-type="all">ทั้งหมด</button>
+                                    <button class="hfilter-btn" data-hfilter-type="transaction">🧾 สลิป</button>
+                                    <button class="hfilter-btn" data-hfilter-type="guess">🎯 ทายเลข</button>
+                                </div>
+                            </div>
+                            <div class="history-filter-group">
+                                <span class="hfilter-label">สถานะ</span>
+                                <div class="hfilter-btn-group">
+                                    <button class="hfilter-btn active" data-hfilter-status="all">ทั้งหมด</button>
+                                    <button class="hfilter-btn" data-hfilter-status="pending">⏳ รอ</button>
+                                    <button class="hfilter-btn" data-hfilter-status="approved">✅ อนุมัติ</button>
+                                    <button class="hfilter-btn" data-hfilter-status="rejected">❌ ไม่อนุมัติ</button>
+                                </div>
+                            </div>
+                            <div class="history-filter-group">
+                                <span class="hfilter-label">ผลรางวัล</span>
+                                <div class="hfilter-btn-group">
+                                    <button class="hfilter-btn active" data-hfilter-result="all">ทั้งหมด</button>
+                                    <button class="hfilter-btn" data-hfilter-result="won">🎯 ถูก</button>
+                                    <button class="hfilter-btn" data-hfilter-result="lost">❌ ไม่ถูก</button>
+                                    <button class="hfilter-btn" data-hfilter-result="pending_result">⏳ รอผล</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="history-filter-summary">
+                            <span id="history-filter-count" class="hfilter-count"></span>
+                            <button class="btn-small hfilter-reset-btn" id="history-filter-reset" style="display:none;">✕ ล้างตัวกรอง</button>
+                        </div>
+                    </div>
+
                     <div class="admin-table-wrap admin-table-wrap-history">
                         <table class="admin-table" id="history-table">
                             <thead>
                                 <tr>
                                     <th>#</th>
-                                    <th class="highlight-service-date">📅 วันที่ใช้บริการ</th>
-                                    <th>วันที่</th>
+                                    <th class="highlight-service-date">📅 วันใช้บริการ</th>
+                                    <th>วันที่ส่ง</th>
                                     <th>ชื่อลูกค้า</th>
                                     <th>ชื่อพนักงาน</th>
                                     <th>รูปสลิป</th>
                                     <th>สถานะ</th>
-                                    <th>เลขที่ทาย</th>
+                                    <th>เลขทาย</th>
                                     <th>ผลรางวัล</th>
                                     <th>Cashback / GV</th>
                                     <th>จัดการ</th>
@@ -493,6 +531,7 @@
                         </table>
                     </div>
                     <p class="empty-msg" id="no-history">ยังไม่มีประวัติ</p>
+                    <div class="history-pagination" id="history-pagination"></div>
                 </section>
 
             </div>
