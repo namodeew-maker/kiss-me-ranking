@@ -10,3 +10,22 @@ sync_obsidian_kissmeweb.ps1
 # Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
 codacy-analysis-cli.jar
+
+# Obsidian vault junction (do not commit)
+.obsidian-vault/
+
+# ---- Internal docs (keep locally, not on GitHub) ----
+Kissme-rankingObsidian/
+PROJECT_DOCS.md
+WORKLOG_*.md
+CAPACITY_PLAN_500_PLUS.md
+EXCEL_ADMIN_GUIDE.md
+POSTGRES_TO_GOOGLE_SHEETS_ARCHITECTURE.md
+ข้อกฎหมาย.md
+
+# Benchmark & legacy reference scripts
+bench/
+examples/
+
+# Staff photos (personal data)
+Pictures/
