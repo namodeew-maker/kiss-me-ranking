@@ -705,6 +705,53 @@ document.addEventListener('DOMContentLoaded', () => {
     if (roundPeriod) roundPeriod.textContent = roundInfo.period;
     if (roundDrawDate) roundDrawDate.textContent = roundInfo.drawDate;
 
+    // ==================== DRAW SCHEDULE TABLE ====================
+    (async function populateDrawSchedule() {
+        const tbody = document.getElementById('schedule-tbody');
+        if (!tbody) return;
+        try {
+            const res = await fetch(`${API_BASE}/round`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const dates = Array.isArray(data.drawDates) ? data.drawDates : [];
+            if (!dates.length) return;
+            const todayStr = new Date().toISOString().slice(0, 10);
+            // Find the next upcoming entry
+            const upcoming = dates.find(e => e.date >= todayStr);
+            // Group by month
+            const THAI_M = ['\u0e21\u0e01\u0e23\u0e32\u0e04\u0e21','\u0e01\u0e38\u0e21\u0e20\u0e32\u0e1e\u0e31\u0e19\u0e18\u0e4c','\u0e21\u0e35\u0e19\u0e32\u0e04\u0e21','\u0e40\u0e21\u0e29\u0e32\u0e22\u0e19','\u0e1e\u0e24\u0e29\u0e20\u0e32\u0e04\u0e21','\u0e21\u0e34\u0e16\u0e38\u0e19\u0e32\u0e22\u0e19',
+                            '\u0e01\u0e23\u0e01\u0e0e\u0e32\u0e04\u0e21','\u0e2a\u0e34\u0e07\u0e2b\u0e32\u0e04\u0e21','\u0e01\u0e31\u0e19\u0e22\u0e32\u0e22\u0e19','\u0e15\u0e38\u0e25\u0e32\u0e04\u0e21','\u0e1e\u0e24\u0e28\u0e08\u0e34\u0e01\u0e32\u0e22\u0e19','\u0e18\u0e31\u0e19\u0e27\u0e32\u0e04\u0e21'];
+            const byMonth = {};
+            for (const e of dates) {
+                if (!byMonth[e.month]) byMonth[e.month] = {};
+                byMonth[e.month][e.slot] = e;
+            }
+            let html = '';
+            for (let m = 1; m <= 12; m++) {
+                const a = byMonth[m]?.A;
+                const b = byMonth[m]?.B;
+                if (!a && !b) continue;
+                const hasCurrentMonth = (a?.date === todayStr || b?.date === todayStr ||
+                    (a?.date <= todayStr && b?.date >= todayStr));
+                const trClass = hasCurrentMonth ? ' class="current-month-row"' : '';
+                const tagA = a ? getScheduleTagClass(a.date, todayStr, upcoming?.date) : '';
+                const tagB = b ? getScheduleTagClass(b.date, todayStr, upcoming?.date) : '';
+                html += `<tr${trClass}>
+                    <td class="month-cell">\ud83d\uddc3\ufe0f ${THAI_M[m-1]}</td>
+                    <td>${a ? `<span class="draw-date-tag ${tagA}">${a.labelShort}</span><br><span class="draw-day">${a.dayOfWeek || ''}</span>` : '—'}</td>
+                    <td>${b ? `<span class="draw-date-tag ${tagB}">${b.labelShort}</span><br><span class="draw-day">${b.dayOfWeek || ''}</span>` : '—'}</td>
+                </tr>`;
+            }
+            tbody.innerHTML = html;
+        } catch (_e) { /* silent fail — table stays empty */ }
+    })();
+
+    function getScheduleTagClass(dateStr, todayStr, upcomingDateStr) {
+        if (dateStr < todayStr) return 'past';
+        if (dateStr === upcomingDateStr) return 'upcoming';
+        return 'future';
+    }
+
     // ==================== MAIN LOGIC ====================
     const lottoGrid = document.getElementById('lotto-grid');
     const selectedNumber = document.getElementById('selected-number');

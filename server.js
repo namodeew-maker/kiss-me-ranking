@@ -985,8 +985,38 @@ function getCurrentRoundLabel(dateOverride) {
     }
 }
 
-function isRoundOpen() {
-    const day = new Date().getDate();
+// In-memory cache for admin-set guess lock (shared across reads, 15 s TTL)
+let _guessLockCache = { lockFrom: null, lockUntil: null, loadedAt: 0 };
+const GUESS_LOCK_CACHE_TTL = 15 * 1000;
+
+async function isRoundOpen() {
+    const now = Date.now();
+    if (now - _guessLockCache.loadedAt > GUESS_LOCK_CACHE_TTL) {
+        try {
+            const res = await pool.query(
+                "SELECT key, value FROM app_settings WHERE key IN ('guess_lock_from', 'guess_lock_until')"
+            );
+            const map = {};
+            for (const row of res.rows) map[row.key] = row.value;
+            _guessLockCache = {
+                lockFrom: map['guess_lock_from'] ? new Date(map['guess_lock_from']) : null,
+                lockUntil: map['guess_lock_until'] ? new Date(map['guess_lock_until']) : null,
+                loadedAt: now
+            };
+        } catch {
+            _guessLockCache.loadedAt = now; // prevent retry spam on transient error
+        }
+    }
+    const nowDate = new Date();
+    const { lockFrom, lockUntil } = _guessLockCache;
+    // If both set: lock is a scheduled window (lockFrom → lockUntil)
+    // If only lockUntil: locked immediately until lockUntil
+    // If only lockFrom: ignored (incomplete config)
+    if (lockUntil) {
+        const windowStart = lockFrom || new Date(0);
+        if (nowDate >= windowStart && nowDate < lockUntil) return false;
+    }
+    const day = nowDate.getDate();
     return (day >= 1 && day <= 14) || (day >= 16 && day <= 29);
 }
 
@@ -1021,6 +1051,83 @@ function getRoundWindowFromLabel(roundLabel) {
 
 function getCurrentRoundWindow(dateOverride) {
     return getRoundWindowFromLabel(getCurrentRoundLabel(dateOverride));
+}
+
+// ============ DRAW SCHEDULE ============
+
+const THAI_DAYS_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+const THAI_MONTHS_FULL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+                           'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+
+// Default schedule: 1st and 16th of every month for a given CE year
+function getDefaultDrawSchedule(ceYear = 2026) {
+    const entries = [];
+    for (let m = 1; m <= 12; m++) {
+        entries.push({ month: m, slot: 'A', date: `${ceYear}-${String(m).padStart(2, '0')}-01` });
+        entries.push({ month: m, slot: 'B', date: `${ceYear}-${String(m).padStart(2, '0')}-16` });
+    }
+    return entries;
+}
+
+// Load schedule from DB, fill missing entries with defaults, enrich with Thai labels
+let _drawScheduleCache = { data: null, loadedAt: 0 };
+const DRAW_SCHEDULE_CACHE_TTL = 30 * 1000;
+
+async function getDrawSchedule(queryable = pool) {
+    const now = Date.now();
+    if (_drawScheduleCache.data && now - _drawScheduleCache.loadedAt < DRAW_SCHEDULE_CACHE_TTL) {
+        return _drawScheduleCache.data;
+    }
+    try {
+        const res = await queryable.query(
+            "SELECT value FROM app_settings WHERE key = 'lottery_draw_schedule' LIMIT 1"
+        );
+        const raw = res.rows[0]?.value;
+        let stored = [];
+        if (raw) {
+            try { stored = JSON.parse(raw); } catch { stored = []; }
+        }
+        const defaults = getDefaultDrawSchedule();
+        // Merge: stored overrides defaults by month+slot
+        const map = new Map(defaults.map(e => [`${e.month}-${e.slot}`, { ...e }]));
+        for (const s of stored) {
+            if (s.month && s.slot && s.date) map.set(`${s.month}-${s.slot}`, s);
+        }
+        const schedule = Array.from(map.values()).map(e => {
+            const d = new Date(e.date + 'T00:00:00');
+            const dow = THAI_DAYS_FULL[d.getDay()];
+            const ceYear = d.getFullYear();
+            const beYear = ceYear + 543;
+            const thShort = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][e.month - 1];
+            return {
+                month: e.month,
+                slot: e.slot,
+                date: e.date,
+                day: d.getDate(),
+                dayOfWeek: dow,
+                labelShort: `${d.getDate()} ${thShort} ${String(beYear).slice(-2)}`,
+                labelFull: `${d.getDate()} ${THAI_MONTHS_FULL[e.month - 1]} ${beYear}`,
+                year: beYear
+            };
+        });
+        _drawScheduleCache = { data: schedule, loadedAt: now };
+        return schedule;
+    } catch (err) {
+        console.error('getDrawSchedule error:', err);
+        // Return defaults without caching on error
+        return getDefaultDrawSchedule().map(e => {
+            const d = new Date(e.date + 'T00:00:00');
+            const thShort = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][e.month - 1];
+            const beYear = d.getFullYear() + 543;
+            return { ...e, day: d.getDate(), dayOfWeek: THAI_DAYS_FULL[d.getDay()],
+                     labelShort: `${d.getDate()} ${thShort} ${String(beYear).slice(-2)}`,
+                     labelFull: `${d.getDate()} ${THAI_MONTHS_FULL[e.month - 1]} ${beYear}`, year: beYear };
+        });
+    }
+}
+
+function invalidateDrawScheduleCache() {
+    _drawScheduleCache.loadedAt = 0;
 }
 
 function getRoundScopedPointsClause(roundLabelParamIndex, startAtParamIndex, endAtParamIndex) {
@@ -3702,8 +3809,8 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
                     guess_point_cycle_end_date: guessPointCycle.end_date,
                     guess_credits_remaining: guessCreditsRemaining,
                     points_needed_for_next_guess: getPointsNeededForNextGuess(guessPointBalance),
-                    can_guess_lottery: isRoundOpen() && guessCreditsRemaining > 0,
-                    is_round_open: isRoundOpen(),
+                    can_guess_lottery: (await isRoundOpen()) && guessCreditsRemaining > 0,
+                    is_round_open: await isRoundOpen(),
                     lottery_guess: guessResult.rows[0] || null,
                     lottery_guesses: guessResult.rows,
                     guess_count: guessResult.rows.length,
@@ -4030,7 +4137,7 @@ app.put('/api/history/:id/approve', requireAuth, async (req, res) => {
             approved_count: approvedCount,
             current_round_points: currentRoundPoints,
             guess_credits_remaining: getGuessCreditsFromPoints(currentRoundPoints),
-            can_guess_lottery: isRoundOpen() && getGuessCreditsFromPoints(currentRoundPoints) > 0,
+            can_guess_lottery: (await isRoundOpen()) && getGuessCreditsFromPoints(currentRoundPoints) > 0,
             message: `อนุมัติสำเร็จ — ลูกค้าได้รับ 1 พ้อย ตอนนี้เหลือ ${currentRoundPoints} พ้อยในรอบนี้`
         });
     } catch (err) {
@@ -4087,9 +4194,9 @@ app.post('/api/lottery/guess', async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        if (!isRoundOpen()) {
+        if (!(await isRoundOpen())) {
             await client.query('ROLLBACK');
-            return res.status(403).json({ error: 'รอบนี้ปิดรับทายเลขแล้ว กรุณารอรอบประกาศถัดไป' });
+            return res.status(403).json({ error: 'ช่วงนี้ปิดไม่สามารถทายได้แล้ว ให้กลับมาทายในรอบถัดไป' });
         }
 
         // Get user
@@ -4466,7 +4573,7 @@ app.delete('/api/sold-out/:number', requireAuth, async (req, res) => {
 
 // ============ ROUND INFO API ============
 
-app.get('/api/round', (req, res) => {
+app.get('/api/round', async (req, res) => {
     setPublicApiCacheHeaders(res, Math.max(10, PUBLIC_API_CACHE_SECONDS), Math.max(30, PUBLIC_API_CACHE_STALE_SECONDS));
     const now = new Date();
     const day = now.getDate();
@@ -4478,7 +4585,7 @@ app.get('/api/round', (req, res) => {
                              'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
     const roundLabel = getCurrentRoundLabel();
-    const open = isRoundOpen();
+    const open = await isRoundOpen();
 
     let round, drawDate;
     if (day >= 1 && day <= 14) {
@@ -4506,12 +4613,18 @@ app.get('/api/round', (req, res) => {
     }
     const drawLabel = `งวดวันที่ ${nextDrawDay} ${thaiMonthsFull[nextDrawMonth]} ${nextDrawYear + 543}`;
 
-    // Build 24 draw dates for พ.ศ. 2569 (2026)
-    const drawDates = [];
-    for (let m = 0; m < 12; m++) {
-        drawDates.push({ day: 1, month: m + 1, year: 2569, label: `1 ${thaiMonthsFull[m]} 2569` });
-        drawDates.push({ day: 16, month: m + 1, year: 2569, label: `16 ${thaiMonthsFull[m]} 2569` });
-    }
+    // Build draw dates from DB schedule
+    const schedule = await getDrawSchedule();
+    const drawDates = schedule.map(e => ({
+        day: e.day,
+        month: e.month,
+        slot: e.slot,
+        year: e.year,
+        date: e.date,
+        label: e.labelFull,
+        labelShort: e.labelShort,
+        dayOfWeek: e.dayOfWeek
+    }));
 
     res.json({
         round,
@@ -4877,6 +4990,148 @@ app.post('/api/admin/guess-points/cycle', requireAuth, async (req, res) => {
         res.status(500).json({ error: 'ไม่สามารถบันทึกรอบสะสมแต้มทายเลขได้' });
     } finally {
         client.release();
+    }
+});
+
+// ============ GUESS LOCK ADMIN API ============
+
+// GET /api/admin/guess-lock — return current lock settings and live round-open status
+app.get('/api/admin/guess-lock', requireAuth, async (req, res) => {
+    try {
+        const dbRes = await pool.query(
+            "SELECT key, value, updated_at FROM app_settings WHERE key IN ('guess_lock_from', 'guess_lock_until')"
+        );
+        const map = {};
+        for (const row of dbRes.rows) map[row.key] = { value: row.value, updated_at: row.updated_at };
+        const open = await isRoundOpen();
+        res.json({
+            lock_from: map['guess_lock_from']?.value || null,
+            lock_until: map['guess_lock_until']?.value || null,
+            updated_at: map['guess_lock_until']?.updated_at || map['guess_lock_from']?.updated_at || null,
+            is_round_open: open
+        });
+    } catch (err) {
+        console.error('GET guess-lock error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดสถานะการล็อครับทายเลขได้' });
+    }
+});
+
+// POST /api/admin/guess-lock — set or clear admin lock
+// Body: { lock_from: "2026-04-29T00:00:00", lock_until: "2026-04-30T18:00:00" }
+// Body: { lock_until: null } or {} — clear both
+app.post('/api/admin/guess-lock', requireAuth, async (req, res) => {
+    const { lock_from, lock_until } = req.body || {};
+    const clearing = !lock_until;
+
+    if (!clearing) {
+        const parsedUntil = new Date(lock_until);
+        if (isNaN(parsedUntil.getTime())) {
+            return res.status(400).json({ error: 'รูปแบบวันเวลา lock_until ไม่ถูกต้อง' });
+        }
+        if (lock_from) {
+            const parsedFrom = new Date(lock_from);
+            if (isNaN(parsedFrom.getTime())) {
+                return res.status(400).json({ error: 'รูปแบบวันเวลา lock_from ไม่ถูกต้อง' });
+            }
+            if (parsedFrom >= parsedUntil) {
+                return res.status(400).json({ error: 'วันเวลาเริ่มต้นต้องน้อยกว่าวันเวลาสิ้นสุด' });
+            }
+        }
+    }
+
+    try {
+        if (clearing) {
+            await pool.query(
+                "DELETE FROM app_settings WHERE key IN ('guess_lock_from', 'guess_lock_until')"
+            );
+        } else {
+            // Upsert lock_until (required)
+            await pool.query(
+                `INSERT INTO app_settings (key, value, updated_at) VALUES ('guess_lock_until', $1, NOW())
+                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+                [lock_until]
+            );
+            if (lock_from) {
+                await pool.query(
+                    `INSERT INTO app_settings (key, value, updated_at) VALUES ('guess_lock_from', $1, NOW())
+                     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+                    [lock_from]
+                );
+            } else {
+                // No lock_from means "lock immediately" — remove any old lock_from
+                await pool.query("DELETE FROM app_settings WHERE key = 'guess_lock_from'");
+            }
+        }
+        _guessLockCache.loadedAt = 0;
+        invalidatePublicReadState();
+
+        const open = await isRoundOpen();
+        const msgParts = clearing
+            ? ['ยกเลิกการล็อครับทายเลขแล้ว']
+            : [lock_from ? `ตั้งเวลาปิดรับทายเลข ${lock_from} ถึง ${lock_until}` : `ล็อครับทายเลขทันทีจนถึง ${lock_until}`];
+        res.json({
+            success: true,
+            lock_from: clearing ? null : (lock_from || null),
+            lock_until: clearing ? null : lock_until,
+            is_round_open: open,
+            message: msgParts[0]
+        });
+    } catch (err) {
+        console.error('POST guess-lock error:', err);
+        res.status(500).json({ error: 'ไม่สามารถบันทึกการตั้งค่าล็อครับทายเลขได้' });
+    }
+});
+
+// ============ DRAW SCHEDULE ADMIN API ============
+
+// GET /api/admin/draw-schedule — return current schedule (24 entries)
+app.get('/api/admin/draw-schedule', requireAuth, async (req, res) => {
+    try {
+        const schedule = await getDrawSchedule();
+        res.json({ schedule });
+    } catch (err) {
+        console.error('GET draw-schedule error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดตารางวันออกรางวัลได้' });
+    }
+});
+
+// POST /api/admin/draw-schedule — save updated schedule
+// Body: { schedule: [{month, slot, date}, ...] }  — all 24 entries, or partial overrides
+app.post('/api/admin/draw-schedule', requireAuth, async (req, res) => {
+    const { schedule } = req.body || {};
+    if (!Array.isArray(schedule) || schedule.length === 0) {
+        return res.status(400).json({ error: 'กรุณาส่งข้อมูล schedule เป็น array' });
+    }
+    for (const e of schedule) {
+        if (!e.month || !e.slot || !e.date) {
+            return res.status(400).json({ error: 'ทุก entry ต้องมี month, slot, date' });
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) {
+            return res.status(400).json({ error: `รูปแบบ date ไม่ถูกต้อง (YYYY-MM-DD): ${e.date}` });
+        }
+        if (!['A', 'B'].includes(e.slot)) {
+            return res.status(400).json({ error: `slot ต้องเป็น A หรือ B: ${e.slot}` });
+        }
+    }
+    try {
+        // Merge incoming with defaults to always store full 24-entry schedule
+        const defaults = getDefaultDrawSchedule();
+        const map = new Map(defaults.map(e => [`${e.month}-${e.slot}`, { ...e }]));
+        for (const s of schedule) map.set(`${s.month}-${s.slot}`, { month: s.month, slot: s.slot, date: s.date });
+        const merged = Array.from(map.values());
+
+        await pool.query(
+            `INSERT INTO app_settings (key, value, updated_at) VALUES ('lottery_draw_schedule', $1, NOW())
+             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+            [JSON.stringify(merged)]
+        );
+        invalidateDrawScheduleCache();
+        invalidatePublicReadState();
+        const updated = await getDrawSchedule();
+        res.json({ success: true, schedule: updated });
+    } catch (err) {
+        console.error('POST draw-schedule error:', err);
+        res.status(500).json({ error: 'ไม่สามารถบันทึกตารางวันออกรางวัลได้' });
     }
 });
 

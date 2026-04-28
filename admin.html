@@ -6,7 +6,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260411c">
-    <link rel="stylesheet" href="admin.css?v=20260424d">
+    <link rel="stylesheet" href="admin.css?v=20260428">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -563,6 +563,26 @@
             <!-- ======================== TAB 4: การทายเลข ======================== -->
             <div class="tab-content" id="tab-lottery">
 
+                <!-- Guess Lock Control -->
+                <section class="admin-panel">
+                    <h3>🔒 ควบคุมการเปิด/ปิดรับทายเลข</h3>
+                    <p class="panel-caption">กำหนดช่วงเวลาปิดรับทาย — ระบุแค่ "ปิดจนถึง" เพื่อล็อกทันที หรือระบุทั้ง "เริ่มปิด" และ "ปิดจนถึง" เพื่อตั้งเวลาล่วงหน้า เมื่อพ้นเวลาระบบจะกลับมาเปิดอัตโนมัติ</p>
+                    <div class="guess-lock-status-row">
+                        <span class="guess-lock-status-label">สถานะปัจจุบัน:</span>
+                        <span class="guess-lock-status-badge" id="guess-lock-status-badge">กำลังโหลด...</span>
+                        <span class="guess-lock-status-until hidden" id="guess-lock-status-until"></span>
+                    </div>
+                    <div class="input-row" style="flex-wrap:wrap;gap:8px;">
+                        <label for="guess-lock-from-input" class="panel-caption ranking-reset-label">เริ่มปิด (ไม่ระบุ = ทันที)</label>
+                        <input type="datetime-local" id="guess-lock-from-input" title="วันเวลาที่จะเริ่มปิดรับทาย (ไม่ระบุหมายถึงปิดทันที)">
+                        <label for="guess-lock-until-input" class="panel-caption ranking-reset-label">ปิดจนถึง</label>
+                        <input type="datetime-local" id="guess-lock-until-input" title="เลือกวันเวลาที่จะปิดรับทายเลขจนถึง">
+                        <button class="btn-action btn-red" id="btn-guess-lock">🔒 ปิดรับทายเลข</button>
+                        <button class="btn-action btn-green" id="btn-guess-unlock">🔓 ยกเลิกการล็อก</button>
+                    </div>
+                    <p class="panel-caption" id="guess-lock-hint" style="margin-top:6px;">ตัวอย่าง: เริ่มปิด = 29 เม.ย. 00:00 / ปิดจนถึง = 30 เม.ย. 18:00 → ระบบจะปิดในช่วงนั้นแล้วเปิดอัตโนมัติ</p>
+                </section>
+
                 <section class="admin-panel">
                     <h3>🔢 จัดการเลขที่ปิดขาย (Sold Out)</h3>
                     <div class="sold-out-controls">
@@ -623,6 +643,20 @@
                         <canvas id="guesses-chart"></canvas>
                     </div>
                     <p class="empty-msg hidden" id="no-chart-data">ไม่มีข้อมูลในช่วงวันที่เลือก</p>
+                </section>
+
+                <!-- Draw Schedule Editor -->
+                <section class="admin-panel">
+                    <h3>📅 ตารางวันออกรางวัล</h3>
+                    <p class="panel-caption">แก้ไขวันที่ออกรางวัลจริงตามสำนักงานสลากฯ — ตารางนี้จะแสดงในหน้า Index ด้วย กด "บันทึกตาราง" หลังแก้ไขเสร็จ</p>
+                    <div class="draw-schedule-grid" id="admin-draw-schedule-grid">
+                        <p class="empty-msg">กำลังโหลดตาราง...</p>
+                    </div>
+                    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn-action btn-gold" id="btn-save-draw-schedule">💾 บันทึกตาราง</button>
+                        <button class="btn-action btn-blue" id="btn-reload-draw-schedule" type="button">รีเฟรช</button>
+                        <button class="btn-action" id="btn-reset-draw-schedule" type="button" style="background:rgba(255,255,255,0.06);color:#aaa;border:1px solid #555;">คืนค่าเริ่มต้น (1 และ 16)</button>
+                    </div>
                 </section>
 
                 <!-- Draw Result -->
@@ -904,6 +938,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260424d"></script>
+    <script src="admin.js?v=20260428"></script>
 </body>
 </html>

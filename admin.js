@@ -981,6 +981,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const customerRankResetDateInput = document.getElementById('customer-rank-reset-date');
     const customerRankResetCurrent = document.getElementById('customer-rank-reset-current');
     const btnSaveCustomerRankReset = document.getElementById('btn-save-customer-rank-reset');
+    const guessLockStatusBadge = document.getElementById('guess-lock-status-badge');
+    const guessLockStatusUntil = document.getElementById('guess-lock-status-until');
+    const guessLockFromInput = document.getElementById('guess-lock-from-input');
+    const guessLockUntilInput = document.getElementById('guess-lock-until-input');
+    const btnGuessLock = document.getElementById('btn-guess-lock');
+    const btnGuessUnlock = document.getElementById('btn-guess-unlock');
     let selectedUserId = null;
     let selectedRewardRow = null;
     let rewardLedgerState = { summary: {}, rewards: [], recentClaims: [] };
@@ -2446,6 +2452,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    async function loadGuessLockStatus() {
+        if (!guessLockStatusBadge) return;
+        try {
+            const res = await authFetch(`${API_BASE}/admin/guess-lock`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'load-guess-lock-failed');
+
+            const lockFrom = data.lock_from;
+            const lockUntil = data.lock_until;
+            const now = new Date();
+            const isWindowLocked = lockUntil && new Date(lockUntil) > now &&
+                                    (!lockFrom || new Date(lockFrom) <= now);
+            const isPending = lockFrom && new Date(lockFrom) > now;
+            const roundOpen = data.is_round_open;
+
+            if (isWindowLocked) {
+                guessLockStatusBadge.textContent = '🔴 ปิดรับทาย (ล็อกโดย Admin)';
+                guessLockStatusBadge.className = 'guess-lock-status-badge locked';
+                if (guessLockStatusUntil) {
+                    const d = new Date(lockUntil);
+                    const fromLabel = lockFrom ? ` (ตั้งแต่ ${new Date(lockFrom).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })})` : '';
+                    guessLockStatusUntil.textContent = `จนถึง: ${d.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}${fromLabel}`;
+                    guessLockStatusUntil.classList.remove('hidden');
+                }
+            } else if (isPending) {
+                guessLockStatusBadge.textContent = '🟡 ตั้งเวลาปิดไว้ (ยังไม่ถึงเวลา)';
+                guessLockStatusBadge.className = 'guess-lock-status-badge pending';
+                if (guessLockStatusUntil) {
+                    const fromD = new Date(lockFrom);
+                    const untilD = lockUntil ? new Date(lockUntil) : null;
+                    guessLockStatusUntil.textContent = `เริ่ม: ${fromD.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}${untilD ? ` → ${untilD.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}` : ''}`;
+                    guessLockStatusUntil.classList.remove('hidden');
+                }
+            } else if (!roundOpen) {
+                guessLockStatusBadge.textContent = '🟠 ปิดรับทาย (ระหว่างรอบอัตโนมัติ)';
+                guessLockStatusBadge.className = 'guess-lock-status-badge auto-closed';
+                if (guessLockStatusUntil) guessLockStatusUntil.classList.add('hidden');
+            } else {
+                guessLockStatusBadge.textContent = '🟢 เปิดรับทายเลขอยู่';
+                guessLockStatusBadge.className = 'guess-lock-status-badge open';
+                if (guessLockStatusUntil) guessLockStatusUntil.classList.add('hidden');
+            }
+        } catch (err) {
+            if (guessLockStatusBadge) guessLockStatusBadge.textContent = 'โหลดไม่สำเร็จ';
+        }
+    }
+
     async function renderStaffRanking() {
         const highlightGrid = document.getElementById('staff-ranking-highlight-grid');
         const tbody = document.getElementById('staff-ranking-body');
@@ -2933,6 +2986,177 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // --- Guess Lock Controls ---
+    btnGuessLock?.addEventListener('click', async () => {
+        const lockUntilVal = guessLockUntilInput?.value;
+        if (!lockUntilVal) {
+            showToast('กรุณาเลือกวันเวลา "ปิดจนถึง" อย่างน้อย', 'error');
+            return;
+        }
+        const isoUntil = new Date(lockUntilVal).toISOString();
+        const lockFromVal = guessLockFromInput?.value;
+        const isoFrom = lockFromVal ? new Date(lockFromVal).toISOString() : null;
+        if (isoFrom && isoFrom >= isoUntil) {
+            showToast('วันเวลาเริ่มปิดต้องน้อยกว่าวันเวลาปิดจนถึง', 'error');
+            return;
+        }
+        try {
+            const res = await authFetch(`${API_BASE}/admin/guess-lock`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lock_from: isoFrom, lock_until: isoUntil })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'lock-failed');
+            showToast(data.message || 'ตั้งเวลาปิดรับทายเลขแล้ว', 'success');
+            loadGuessLockStatus();
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถตั้งเวลาปิดรับทายเลขได้', 'error');
+        }
+    });
+
+    btnGuessUnlock?.addEventListener('click', async () => {
+        try {
+            const res = await authFetch(`${API_BASE}/admin/guess-lock`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lock_from: null, lock_until: null })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'unlock-failed');
+            showToast(data.message || 'ยกเลิกการล็อครับทายเลขแล้ว', 'success');
+            if (guessLockFromInput) guessLockFromInput.value = '';
+            if (guessLockUntilInput) guessLockUntilInput.value = '';
+            loadGuessLockStatus();
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถยกเลิกการล็อคได้', 'error');
+        }
+    });
+
+    // --- Draw Schedule Controls ---
+    const THAI_MONTHS_FULL_ADMIN = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                                     'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+    const adminDrawScheduleGrid = document.getElementById('admin-draw-schedule-grid');
+    const btnSaveDrawSchedule = document.getElementById('btn-save-draw-schedule');
+    const btnReloadDrawSchedule = document.getElementById('btn-reload-draw-schedule');
+    const btnResetDrawSchedule = document.getElementById('btn-reset-draw-schedule');
+
+    function renderDrawScheduleEditor(schedule) {
+        if (!adminDrawScheduleGrid) return;
+        // Group by month
+        const byMonth = {};
+        for (const e of schedule) {
+            if (!byMonth[e.month]) byMonth[e.month] = {};
+            byMonth[e.month][e.slot] = e;
+        }
+        let html = `<table class="schedule-editor-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr>
+                <th style="text-align:left;padding:6px 8px;">เดือน</th>
+                <th style="padding:6px 8px;">งวดที่ 1 (สล็อต A)</th>
+                <th style="padding:6px 8px;">งวดที่ 2 (สล็อต B)</th>
+            </tr></thead><tbody>`;
+        for (let m = 1; m <= 12; m++) {
+            const a = byMonth[m]?.A;
+            const b = byMonth[m]?.B;
+            html += `<tr>
+                <td style="padding:6px 8px;">🗃️ ${THAI_MONTHS_FULL_ADMIN[m-1]}</td>
+                <td style="padding:4px 8px;">
+                    <input type="date" class="schedule-date-input" data-month="${m}" data-slot="A"
+                           value="${a?.date || ''}" style="width:140px;">
+                    <span class="schedule-dow" style="font-size:11px;color:#aaa;margin-left:4px;">${a?.dayOfWeek || ''}</span>
+                </td>
+                <td style="padding:4px 8px;">
+                    <input type="date" class="schedule-date-input" data-month="${m}" data-slot="B"
+                           value="${b?.date || ''}" style="width:140px;">
+                    <span class="schedule-dow" style="font-size:11px;color:#aaa;margin-left:4px;">${b?.dayOfWeek || ''}</span>
+                </td>
+            </tr>`;
+        }
+        html += '</tbody></table>';
+        adminDrawScheduleGrid.innerHTML = html;
+        // Update day-of-week display on change
+        adminDrawScheduleGrid.querySelectorAll('.schedule-date-input').forEach(input => {
+            input.addEventListener('change', () => {
+                const dowSpan = input.nextElementSibling;
+                if (!dowSpan) return;
+                if (input.value) {
+                    const d = new Date(input.value + 'T00:00:00');
+                    const days = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+                    dowSpan.textContent = days[d.getDay()];
+                } else {
+                    dowSpan.textContent = '';
+                }
+            });
+        });
+    }
+
+    async function loadDrawSchedule() {
+        if (!adminDrawScheduleGrid) return;
+        adminDrawScheduleGrid.innerHTML = '<p class="empty-msg">กำลังโหลดตาราง...</p>';
+        try {
+            const res = await authFetch(`${API_BASE}/admin/draw-schedule`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'load-schedule-failed');
+            renderDrawScheduleEditor(data.schedule);
+        } catch (err) {
+            adminDrawScheduleGrid.innerHTML = `<p class="empty-msg" style="color:#e57373;">โหลดตารางไม่สำเร็จ: ${err.message}</p>`;
+        }
+    }
+
+    btnSaveDrawSchedule?.addEventListener('click', async () => {
+        const inputs = adminDrawScheduleGrid?.querySelectorAll('.schedule-date-input') || [];
+        const schedule = [];
+        for (const input of inputs) {
+            const m = parseInt(input.dataset.month, 10);
+            const slot = input.dataset.slot;
+            const date = input.value;
+            if (!date) { showToast(`กรุณากรอกวันที่ เดือน ${THAI_MONTHS_FULL_ADMIN[m-1]} สล็อต ${slot}`, 'error'); return; }
+            schedule.push({ month: m, slot, date });
+        }
+        try {
+            btnSaveDrawSchedule.disabled = true;
+            const res = await authFetch(`${API_BASE}/admin/draw-schedule`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ schedule })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'save-schedule-failed');
+            showToast('บันทึกตารางวันออกรางวัลแล้ว', 'success');
+            renderDrawScheduleEditor(data.schedule);
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถบันทึกตารางวันออกรางวัลได้', 'error');
+        } finally {
+            if (btnSaveDrawSchedule) btnSaveDrawSchedule.disabled = false;
+        }
+    });
+
+    btnReloadDrawSchedule?.addEventListener('click', loadDrawSchedule);
+
+    btnResetDrawSchedule?.addEventListener('click', async () => {
+        if (!confirm('คืนค่าเริ่มต้น (วันที่ 1 และ 16 ทุกเดือน) ใช่หรือไม่?')) return;
+        // Build default schedule
+        const schedule = [];
+        const ceYear = 2026;
+        for (let m = 1; m <= 12; m++) {
+            schedule.push({ month: m, slot: 'A', date: `${ceYear}-${String(m).padStart(2,'0')}-01` });
+            schedule.push({ month: m, slot: 'B', date: `${ceYear}-${String(m).padStart(2,'0')}-16` });
+        }
+        try {
+            const res = await authFetch(`${API_BASE}/admin/draw-schedule`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ schedule })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'reset-schedule-failed');
+            showToast('คืนค่าตารางเริ่มต้นแล้ว', 'success');
+            renderDrawScheduleEditor(data.schedule);
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถคืนค่าเริ่มต้นได้', 'error');
+        }
+    });
+
     adminAccountSelect?.addEventListener('change', () => {
         selectedAdminAccountId = adminAccountSelect.value || '';
         syncAdminAccountForm();
@@ -3090,6 +3314,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadRankingResetDate();
     loadCustomerRankResetDate();
     loadGuessPointsCycle();
+    loadGuessLockStatus();
+    loadDrawSchedule();
 
     // --- Logout ---
     document.getElementById('btn-logout').addEventListener('click', async () => {
