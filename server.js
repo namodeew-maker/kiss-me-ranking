@@ -1171,11 +1171,6 @@ function addDays(date, days) {
     return next;
 }
 
-function getDefaultGuessPointCycleStart() {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-}
-
 async function getGuessPointCycleConfig(queryable = pool) {
     const result = await queryable.query(
         `SELECT key, value
@@ -1190,14 +1185,20 @@ async function getGuessPointCycleConfig(queryable = pool) {
     const savedEndValue = settings.get('guess_points_cycle_end_date') || '';
     const hasValidSavedStartDate = /^\d{4}-\d{2}-\d{2}$/.test(savedStartValue);
     const hasValidSavedEndDate = /^\d{4}-\d{2}-\d{2}$/.test(savedEndValue);
+    const isConfigured = hasValidSavedStartDate && hasValidSavedEndDate;
 
-    const startAt = hasValidSavedStartDate
-        ? new Date(`${savedStartValue}T00:00:00`)
-        : getDefaultGuessPointCycleStart();
+    if (!isConfigured) {
+        return {
+            start_date: null,
+            end_date: null,
+            startAt: null,
+            endAt: null,
+            is_configured: false
+        };
+    }
 
-    let endDateInclusive = hasValidSavedEndDate
-        ? new Date(`${savedEndValue}T00:00:00`)
-        : addDays(addMonths(startAt, 1), -1);
+    const startAt = new Date(`${savedStartValue}T00:00:00`);
+    let endDateInclusive = new Date(`${savedEndValue}T00:00:00`);
 
     if (endDateInclusive < startAt) {
         endDateInclusive = addDays(addMonths(startAt, 1), -1);
@@ -1206,10 +1207,11 @@ async function getGuessPointCycleConfig(queryable = pool) {
     const endAt = addDays(endDateInclusive, 1);
 
     return {
-        start_date: hasValidSavedStartDate ? savedStartValue : formatDateOnly(startAt),
+        start_date: savedStartValue,
         end_date: formatDateOnly(endDateInclusive),
         startAt,
-        endAt
+        endAt,
+        is_configured: true
     };
 }
 
@@ -1408,6 +1410,15 @@ async function getRoundPointsForGlobalUser(client, globalUserId, roundLabel = ge
     if (!globalUserId || !(await tableExists(client, 'points'))) return 0;
 
     const guessPointCycle = await getGuessPointCycleConfig(client);
+    if (!guessPointCycle.is_configured) {
+        const result = await client.query(
+            `SELECT COALESCE(SUM(points), 0)::int AS total_points
+             FROM points
+             WHERE global_user_id = $1`,
+            [globalUserId]
+        );
+        return Number(result.rows[0]?.total_points || 0);
+    }
 
     const result = await client.query(
         `SELECT COALESCE(SUM(points), 0)::int AS total_points
@@ -1536,6 +1547,59 @@ async function reconcileRoundGuessBalance(queryable, userId, globalUserId, round
         await removeLotteryGuessSpendPoint(queryable, globalUserId, latestGuess.id);
         revokedGuessCount += 1;
         currentPointBalance = await getRoundPointsForGlobalUser(queryable, globalUserId, roundLabel);
+    }
+
+    return {
+        revokedGuessCount,
+        currentPointBalance
+    };
+}
+
+async function reconcileGuessPointCycleBalance(queryable, userId, globalUserId) {
+    if (!userId || !globalUserId) {
+        return { revokedGuessCount: 0, currentPointBalance: 0 };
+    }
+
+    const guessPointCycle = await getGuessPointCycleConfig(queryable);
+    let currentPointBalance = await getRoundPointsForGlobalUser(queryable, globalUserId);
+    let revokedGuessCount = 0;
+
+    while (currentPointBalance < 0) {
+        const latestGuessResult = guessPointCycle.is_configured
+            ? await queryable.query(
+                `SELECT lg.id
+                 FROM lottery_guesses lg
+                 JOIN points p
+                   ON p.global_user_id = $2
+                  AND p.activity_type = 'lottery_guess_spend'
+                  AND p.metadata->>'lottery_guess_id' = lg.id::text
+                 WHERE lg.user_id = $1
+                   AND p.created_at >= $3
+                   AND p.created_at < $4
+                 ORDER BY p.created_at DESC, lg.created_at DESC, lg.id DESC
+                 LIMIT 1`,
+                [userId, globalUserId, guessPointCycle.startAt, guessPointCycle.endAt]
+            )
+            : await queryable.query(
+                `SELECT lg.id
+                 FROM lottery_guesses lg
+                 JOIN points p
+                   ON p.global_user_id = $2
+                  AND p.activity_type = 'lottery_guess_spend'
+                  AND p.metadata->>'lottery_guess_id' = lg.id::text
+                 WHERE lg.user_id = $1
+                 ORDER BY p.created_at DESC, lg.created_at DESC, lg.id DESC
+                 LIMIT 1`,
+                [userId, globalUserId]
+            );
+
+        const latestGuess = latestGuessResult.rows[0];
+        if (!latestGuess) break;
+
+        await queryable.query('DELETE FROM lottery_guesses WHERE id = $1', [latestGuess.id]);
+        await removeLotteryGuessSpendPoint(queryable, globalUserId, latestGuess.id);
+        revokedGuessCount += 1;
+        currentPointBalance = await getRoundPointsForGlobalUser(queryable, globalUserId);
     }
 
     return {
@@ -2572,31 +2636,90 @@ app.post('/api/admin/guess-points/reconcile', requireAuth, async (req, res) => {
             if (inserted) insertedApprovedPoints += 1;
         }
 
-        const usersToSyncResult = await client.query(
-            `SELECT DISTINCT user_id
-             FROM transactions
-             WHERE round_label = $1
+        const cycle = await getGuessPointCycleConfig(client);
+        let carriedOverPoints = 0;
+        let carryoverUsers = 0;
 
-             UNION
+        if (!cycle.is_configured) {
+            await client.query("DELETE FROM points WHERE activity_type = 'guess_points_carryover'");
+        } else {
+            await client.query(
+                `DELETE FROM points
+                 WHERE activity_type = 'guess_points_carryover'
+                   AND metadata->>'cycle_start_date' = $1
+                   AND metadata->>'cycle_end_date' = $2`,
+                [cycle.start_date, cycle.end_date]
+            );
 
-             SELECT id AS user_id
-             FROM users
-             WHERE progress_count <> 0`,
-            [getCurrentRoundLabel()]
-        );
-
-        for (const row of usersToSyncResult.rows) {
-            await syncUserRoundState(client, row.user_id);
+            const carryoverResult = await client.query(
+                `WITH prior_balances AS (
+                    SELECT
+                        u.global_user_id,
+                        COALESCE(MIN(u.platform), 'line') AS source_platform,
+                        COALESCE(SUM(p.points), 0)::int AS carryover_points
+                    FROM users u
+                    JOIN points p ON p.global_user_id = u.global_user_id
+                    WHERE u.global_user_id IS NOT NULL
+                      AND p.created_at < $1
+                    GROUP BY u.global_user_id
+                    HAVING COALESCE(SUM(p.points), 0) > 0
+                 )
+                 INSERT INTO points (global_user_id, activity_type, points, source_platform, source_oa_id, metadata, created_at)
+                 SELECT
+                    global_user_id,
+                    'guess_points_carryover',
+                    carryover_points,
+                    CASE WHEN source_platform = 'line' THEN 'line' ELSE 'line' END,
+                    NULL,
+                    jsonb_build_object(
+                        'event_type', 'guess_points_carryover',
+                        'cycle_start_date', $2::text,
+                        'cycle_end_date', $3::text,
+                        'source', 'admin_guess_points_reconcile'
+                    ),
+                    $1::timestamp
+                 FROM prior_balances
+                 RETURNING points`,
+                [cycle.startAt, cycle.start_date, cycle.end_date]
+            );
+            carriedOverPoints = carryoverResult.rows.reduce((sum, row) => sum + Number(row.points || 0), 0);
+            carryoverUsers = carryoverResult.rows.length;
         }
 
-        const cycle = await getGuessPointCycleConfig(client);
+        const usersToSyncResult = await client.query(
+            `SELECT DISTINCT u.id AS user_id, u.global_user_id
+             FROM users u
+             WHERE u.global_user_id IS NOT NULL
+               AND (
+                    u.progress_count <> 0
+                 OR EXISTS (SELECT 1 FROM transactions t WHERE t.user_id = u.id)
+                 OR EXISTS (SELECT 1 FROM lottery_guesses lg WHERE lg.user_id = u.id)
+                 OR EXISTS (SELECT 1 FROM points p WHERE p.global_user_id = u.global_user_id)
+               )
+             ORDER BY u.id`
+        );
+
+        let revokedGuessCount = 0;
+        for (const row of usersToSyncResult.rows) {
+            await syncUserRoundState(client, row.user_id);
+            const reconcileResult = await reconcileGuessPointCycleBalance(
+                client,
+                row.user_id,
+                row.global_user_id
+            );
+            revokedGuessCount += reconcileResult.revokedGuessCount;
+        }
 
         await client.query('COMMIT');
+        invalidatePublicReadState();
         res.json({
             success: true,
             inserted_approved_points: insertedApprovedPoints,
+            carried_over_points: carriedOverPoints,
+            carryover_users: carryoverUsers,
             removed_invalid_approved_points: invalidApprovedPointResult.rowCount || 0,
             removed_orphan_spend_points: orphanSpendPointResult.rowCount || 0,
+            revoked_lottery_guesses: revokedGuessCount,
             synced_users: usersToSyncResult.rows.length,
             cycle_start_date: cycle.start_date,
             cycle_end_date: cycle.end_date
@@ -4452,7 +4575,8 @@ app.get('/api/history', async (req, res) => {
                 FROM lottery_guesses lg
                 JOIN users u ON u.id = lg.user_id
              ) history_rows
-             ORDER BY created_at DESC, id DESC`
+             ORDER BY created_at DESC, id DESC
+             LIMIT 500`
         );
         res.json(result.rows);
     } catch (err) {
@@ -4701,6 +4825,26 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
     if (!['all', 'line'].includes(platform)) {
         return res.status(400).json({ error: 'platform filter ต้องเป็น all หรือ line เท่านั้น' });
     }
+    const activity = String(req.query.activity || 'all').trim().toLowerCase();
+    const pointFilter = String(req.query.points || 'all').trim().toLowerCase();
+    const rewardFilter = String(req.query.rewards || 'all').trim().toLowerCase();
+    const reviewFilter = String(req.query.review || 'all').trim().toLowerCase();
+    const rankFilter = String(req.query.rank || 'all').trim().toLowerCase();
+    if (!['all', 'active', 'inactive'].includes(activity)) {
+        return res.status(400).json({ error: 'activity filter ไม่ถูกต้อง' });
+    }
+    if (!['all', 'has_points', 'has_guess_credit', 'zero_or_less'].includes(pointFilter)) {
+        return res.status(400).json({ error: 'points filter ไม่ถูกต้อง' });
+    }
+    if (!['all', 'has_reward', 'has_cashback', 'has_gv'].includes(rewardFilter)) {
+        return res.status(400).json({ error: 'rewards filter ไม่ถูกต้อง' });
+    }
+    if (!['all', 'has_pending', 'no_pending'].includes(reviewFilter)) {
+        return res.status(400).json({ error: 'review filter ไม่ถูกต้อง' });
+    }
+    if (!['all', 'unranked', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'master', 'grandmaster'].includes(rankFilter)) {
+        return res.status(400).json({ error: 'rank filter ไม่ถูกต้อง' });
+    }
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const offset = (page - 1) * limit;
@@ -4710,98 +4854,137 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
     try {
         const customerRankResetDate = await getCustomerRankResetDate();
         const effectiveCustomerRankResetDate = await getEffectiveCustomerRankResetDate();
-        const [summaryResult, usersResult] = await Promise.all([
-            pool.query(
-                `SELECT
-                    COUNT(*)::int AS total_accounts,
-                    COUNT(*) FILTER (WHERE u.platform = 'line')::int AS line_accounts,
-                    COUNT(*) FILTER (
-                        WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.user_id = u.id)
-                    )::int AS active_accounts
-                 FROM users u
-                 WHERE u.platform = 'line'
-                   AND ($1 = '' OR u.display_name ILIKE $2 OR u.platform_id ILIKE $2 OR COALESCE(u.global_user_id::text, '') ILIKE $2)
-                   AND ($3 = 'all' OR u.platform = $3)`,
-                [search, like, platform]
+        const guessPointCycle = await getGuessPointCycleConfig(pool);
+        const baseParams = [
+            search,
+            like,
+            platform,
+            effectiveCustomerRankResetDate,
+            currentRoundLabel,
+            Boolean(guessPointCycle.is_configured),
+            guessPointCycle.startAt,
+            guessPointCycle.endAt,
+            activity,
+            pointFilter,
+            rewardFilter,
+            reviewFilter,
+            rankFilter
+        ];
+        const userListQuery = `
+            WITH reward_claim_totals AS (
+                SELECT
+                    lottery_guess_id,
+                    COALESCE(SUM(amount), 0)::numeric(10,2) AS redeemed_amount
+                FROM lottery_reward_claims
+                GROUP BY lottery_guess_id
             ),
-            pool.query(
-                `WITH reward_claim_totals AS (
-                    SELECT
-                        lottery_guess_id,
-                        COALESCE(SUM(amount), 0)::numeric(10,2) AS redeemed_amount
-                    FROM lottery_reward_claims
-                    GROUP BY lottery_guess_id
-                ),
-                user_rows AS (
-                    SELECT
-                        u.id,
-                        u.global_user_id,
-                        u.platform,
-                        u.platform_id,
-                        u.display_name,
-                        u.picture_url,
-                        u.created_at,
-                        u.updated_at,
-                        COALESCE((
-                            SELECT COUNT(DISTINCT t2.staff_id)::int
-                            FROM transactions t2
-                            WHERE t2.user_id = u.id AND t2.round_label = $6 AND t2.status = 'approved'
-                        ), 0) AS current_round_progress,
-                        COUNT(t.id)::int AS transaction_count,
-                        COALESCE(SUM(CASE WHEN t.status = 'approved' THEN 1 ELSE 0 END), 0)::int AS approved_count,
-                        COALESCE(SUM(CASE
-                            WHEN t.status = 'approved'
-                             AND ($7::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $7::date)
-                            THEN 1 ELSE 0
-                        END), 0)::int AS rank_approved_count,
-                        COALESCE(SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END), 0)::int AS pending_count,
-                        COALESCE((
-                            SELECT SUM(p.points)::int
-                            FROM points p
-                            WHERE p.global_user_id = u.global_user_id
-                        ), 0) AS total_points,
-                        COALESCE((
-                            SELECT SUM(GREATEST(COALESCE(lg.reward_amount, 0) - COALESCE(rct.redeemed_amount, 0), 0))
-                            FROM lottery_guesses lg
-                            LEFT JOIN reward_claim_totals rct ON rct.lottery_guess_id = lg.id
-                            WHERE lg.user_id = u.id AND lg.result = 'won'
-                        ), 0)::numeric(10,2) AS cashback_remaining,
-                        COALESCE((
-                            SELECT SUM(GREATEST(COALESCE(lg.reward_amount, 0) - COALESCE(rct.redeemed_amount, 0), 0))
-                            FROM lottery_guesses lg
-                            LEFT JOIN reward_claim_totals rct ON rct.lottery_guess_id = lg.id
-                            WHERE lg.user_id = u.id AND lg.result = 'lost'
-                        ), 0)::numeric(10,2) AS gv_remaining,
-                        MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_activity_at
-                                        FROM users u
-                    LEFT JOIN transactions t ON t.user_id = u.id
-                                        WHERE u.platform = 'line'
-                                            AND ($1 = '' OR u.display_name ILIKE $2 OR u.platform_id ILIKE $2 OR COALESCE(u.global_user_id::text, '') ILIKE $2)
-                      AND ($3 = 'all' OR u.platform = $3)
-                    GROUP BY u.id, u.global_user_id, u.platform, u.platform_id, u.display_name, u.picture_url, u.created_at, u.updated_at
-                )
+            point_totals AS (
+                SELECT
+                    p.global_user_id,
+                    COALESCE(SUM(p.points), 0)::int AS total_points,
+                    COALESCE(SUM(CASE
+                        WHEN $6::boolean = false OR (p.created_at >= $7::timestamp AND p.created_at < $8::timestamp)
+                        THEN p.points
+                        ELSE 0
+                    END), 0)::int AS current_round_points
+                FROM points p
+                GROUP BY p.global_user_id
+            ),
+            user_rows AS (
+                SELECT
+                    u.id,
+                    u.global_user_id,
+                    u.platform,
+                    u.platform_id,
+                    u.display_name,
+                    u.picture_url,
+                    u.created_at,
+                    u.updated_at,
+                    COALESCE((
+                        SELECT COUNT(DISTINCT t2.staff_id)::int
+                        FROM transactions t2
+                        WHERE t2.user_id = u.id AND t2.round_label = $5 AND t2.status = 'approved'
+                    ), 0) AS current_round_progress,
+                    COUNT(t.id)::int AS transaction_count,
+                    COALESCE(SUM(CASE WHEN t.status = 'approved' THEN 1 ELSE 0 END), 0)::int AS approved_count,
+                    COALESCE(SUM(CASE
+                        WHEN t.status = 'approved'
+                         AND ($4::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $4::date)
+                        THEN 1 ELSE 0
+                    END), 0)::int AS rank_approved_count,
+                    COALESCE(SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END), 0)::int AS pending_count,
+                    COALESCE(pt.total_points, 0)::int AS total_points,
+                    COALESCE(pt.current_round_points, 0)::int AS current_round_points,
+                    COALESCE((
+                        SELECT SUM(GREATEST(COALESCE(lg.reward_amount, 0) - COALESCE(rct.redeemed_amount, 0), 0))
+                        FROM lottery_guesses lg
+                        LEFT JOIN reward_claim_totals rct ON rct.lottery_guess_id = lg.id
+                        WHERE lg.user_id = u.id AND lg.result = 'won'
+                    ), 0)::numeric(10,2) AS cashback_remaining,
+                    COALESCE((
+                        SELECT SUM(GREATEST(COALESCE(lg.reward_amount, 0) - COALESCE(rct.redeemed_amount, 0), 0))
+                        FROM lottery_guesses lg
+                        LEFT JOIN reward_claim_totals rct ON rct.lottery_guess_id = lg.id
+                        WHERE lg.user_id = u.id AND lg.result = 'lost'
+                    ), 0)::numeric(10,2) AS gv_remaining,
+                    MAX(COALESCE(t.service_date::timestamp, t.created_at)) AS last_activity_at
+                FROM users u
+                LEFT JOIN transactions t ON t.user_id = u.id
+                LEFT JOIN point_totals pt ON pt.global_user_id = u.global_user_id
+                WHERE u.platform = 'line'
+                  AND ($1 = '' OR u.display_name ILIKE $2 OR u.platform_id ILIKE $2 OR COALESCE(u.global_user_id::text, '') ILIKE $2)
+                  AND ($3 = 'all' OR u.platform = $3)
+                GROUP BY u.id, u.global_user_id, u.platform, u.platform_id, u.display_name, u.picture_url, u.created_at, u.updated_at, pt.total_points, pt.current_round_points
+            ),
+            filtered_rows AS (
                 SELECT *
                 FROM user_rows
-                ORDER BY COALESCE(last_activity_at, created_at) DESC, created_at DESC
-                LIMIT $4 OFFSET $5`,
-                [search, like, platform, limit, offset, currentRoundLabel, effectiveCustomerRankResetDate]
+                WHERE ($9 = 'all' OR ($9 = 'active' AND transaction_count > 0) OR ($9 = 'inactive' AND transaction_count = 0))
+                  AND ($10 = 'all' OR ($10 = 'has_points' AND current_round_points > 0) OR ($10 = 'has_guess_credit' AND current_round_points >= 5) OR ($10 = 'zero_or_less' AND current_round_points <= 0))
+                  AND ($11 = 'all' OR ($11 = 'has_reward' AND (cashback_remaining > 0 OR gv_remaining > 0)) OR ($11 = 'has_cashback' AND cashback_remaining > 0) OR ($11 = 'has_gv' AND gv_remaining > 0))
+                  AND ($12 = 'all' OR ($12 = 'has_pending' AND pending_count > 0) OR ($12 = 'no_pending' AND pending_count = 0))
+                  AND (
+                    $13 = 'all'
+                    OR ($13 = 'unranked' AND rank_approved_count < 3)
+                    OR ($13 = 'bronze' AND rank_approved_count >= 3 AND rank_approved_count < 6)
+                    OR ($13 = 'silver' AND rank_approved_count >= 6 AND rank_approved_count < 12)
+                    OR ($13 = 'gold' AND rank_approved_count >= 12 AND rank_approved_count < 24)
+                    OR ($13 = 'platinum' AND rank_approved_count >= 24 AND rank_approved_count < 48)
+                    OR ($13 = 'diamond' AND rank_approved_count >= 48 AND rank_approved_count < 90)
+                    OR ($13 = 'master' AND rank_approved_count >= 90 AND rank_approved_count < 150)
+                    OR ($13 = 'grandmaster' AND rank_approved_count >= 150)
+                  )
+            )
+        `;
+        const [summaryResult, usersResult] = await Promise.all([
+            pool.query(
+                `${userListQuery}
+                 SELECT
+                    COUNT(*)::int AS total_accounts,
+                    COUNT(*) FILTER (WHERE platform = 'line')::int AS line_accounts,
+                    COUNT(*) FILTER (WHERE transaction_count > 0)::int AS active_accounts
+                 FROM filtered_rows`,
+                baseParams
+            ),
+            pool.query(
+                `${userListQuery}
+                 SELECT *
+                 FROM filtered_rows
+                 ORDER BY COALESCE(last_activity_at, created_at) DESC, created_at DESC
+                 LIMIT $14 OFFSET $15`,
+                [...baseParams, limit, offset]
             )
         ]);
-
-        const usersWithGuessPoints = await Promise.all(
-            usersResult.rows.map(async (row) => ({
-                ...row,
-                rank_reset_date: customerRankResetDate,
-                current_round_points: await getRoundPointsForGlobalUser(pool, row.global_user_id)
-            }))
-        );
 
         const totalItems = summaryResult.rows[0]?.total_accounts || 0;
         const totalPages = totalItems > 0 ? Math.ceil(totalItems / limit) : 1;
 
         res.json({
             summary: summaryResult.rows[0],
-            users: usersWithGuessPoints,
+            users: usersResult.rows.map((row) => ({
+                ...row,
+                rank_reset_date: customerRankResetDate
+            })),
             pagination: {
                 page,
                 limit,
@@ -4988,6 +5171,29 @@ app.post('/api/admin/guess-points/cycle', requireAuth, async (req, res) => {
         } catch {}
         console.error('Save guess point cycle error:', err);
         res.status(500).json({ error: 'ไม่สามารถบันทึกรอบสะสมแต้มทายเลขได้' });
+    } finally {
+        client.release();
+    }
+});
+
+app.delete('/api/admin/guess-points/cycle', requireAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query(
+            "DELETE FROM app_settings WHERE key IN ('guess_points_cycle_start_date', 'guess_points_cycle_end_date')"
+        );
+        await client.query("DELETE FROM points WHERE activity_type = 'guess_points_carryover'");
+        await client.query('COMMIT');
+        invalidatePublicReadState();
+        const cycle = await getGuessPointCycleConfig(pool);
+        res.json({ success: true, ...cycle });
+    } catch (err) {
+        try {
+            await client.query('ROLLBACK');
+        } catch {}
+        console.error('Clear guess point cycle error:', err);
+        res.status(500).json({ error: 'ไม่สามารถยกเลิกรอบรีเซ็ตพ้อยทายเลขได้' });
     } finally {
         client.release();
     }

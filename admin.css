@@ -375,6 +375,15 @@
     box-shadow: 0 0 20px #ffaa00;
 }
 
+.btn-gray {
+    background: #4b5563;
+    color: white;
+}
+
+.btn-gray:hover {
+    box-shadow: 0 0 15px #6b7280;
+}
+
 .has-admin-tooltip {
     position: relative;
 }
@@ -2428,7 +2437,12 @@
 }
 
 .user-filter-row select {
-    min-width: 160px;
+    min-width: 150px;
+    flex: 0 1 190px;
+}
+
+.user-filter-row .btn-action {
+    flex-shrink: 0;
 }
 
 .user-stat-cards {

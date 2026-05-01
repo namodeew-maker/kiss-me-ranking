@@ -273,7 +273,41 @@
                                 <option value="all">บัญชี LINE ทั้งหมด</option>
                                 <option value="line">LINE</option>
                             </select>
+                            <select id="user-activity-filter" title="กรองตามการใช้งาน">
+                                <option value="all">การใช้งานทั้งหมด</option>
+                                <option value="active">เคยมีรายการ</option>
+                                <option value="inactive">ยังไม่เคยมีรายการ</option>
+                            </select>
+                            <select id="user-point-filter" title="กรองตามพ้อยทายเลข">
+                                <option value="all">พ้อยทั้งหมด</option>
+                                <option value="has_points">มีพ้อยคงเหลือ</option>
+                                <option value="has_guess_credit">มีสิทธิ์ทายเลข</option>
+                                <option value="zero_or_less">ไม่มีพ้อยคงเหลือ</option>
+                            </select>
+                            <select id="user-reward-filter" title="กรองตามรางวัลค้างรับ">
+                                <option value="all">รางวัลทั้งหมด</option>
+                                <option value="has_reward">มีรางวัลค้างรับ</option>
+                                <option value="has_cashback">มี Cashback ค้าง</option>
+                                <option value="has_gv">มี GV ค้าง</option>
+                            </select>
+                            <select id="user-review-filter" title="กรองตามสถานะตรวจสลิป">
+                                <option value="all">สถานะตรวจทั้งหมด</option>
+                                <option value="has_pending">มีรายการรอตรวจ</option>
+                                <option value="no_pending">ไม่มีรายการรอตรวจ</option>
+                            </select>
+                            <select id="user-rank-filter" title="กรองตามแรงค์ลูกค้า">
+                                <option value="all">แรงค์ทั้งหมด</option>
+                                <option value="unranked">Unranked</option>
+                                <option value="bronze">Bronze</option>
+                                <option value="silver">Silver</option>
+                                <option value="gold">Gold</option>
+                                <option value="platinum">Platinum</option>
+                                <option value="diamond">Diamond</option>
+                                <option value="master">Master</option>
+                                <option value="grandmaster">Grandmaster</option>
+                            </select>
                             <button class="btn-action btn-blue" id="btn-user-search">ค้นหา</button>
+                            <button class="btn-action btn-gray" id="btn-user-clear-filters" type="button">ล้างตัวกรอง</button>
                             <button class="btn-action" id="btn-user-refresh" type="button">รีเฟรช</button>
                         </div>
                     </div>
@@ -645,6 +679,7 @@
                         <label for="guess-points-cycle-end-input" class="panel-caption ranking-reset-label">วันที่สิ้นสุดนับแต้มทายเลข</label>
                         <input type="date" id="guess-points-cycle-end-input" title="เลือกวันที่สิ้นสุดนับแต้มทายเลข">
                         <button class="btn-action btn-gold" id="btn-save-guess-points-cycle">บันทึกรอบแต้มทายเลข</button>
+                        <button class="btn-action btn-gray" id="btn-clear-guess-points-cycle" type="button">ยกเลิกรีเซ็ตพ้อย</button>
                         <button class="btn-action btn-blue" id="btn-recheck-guess-points" type="button">รีเช็คพ้อยทายเลข</button>
                     </div>
                     <div class="ranking-reset-meta guess-cycle-meta">

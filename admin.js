@@ -80,6 +80,7 @@ const ADMIN_BUTTON_TOOLTIPS = [
     ['#btn-migrate-storage', 'ย้ายไฟล์อัปโหลดเดิมขึ้น Cloudflare R2 ตามการตั้งค่าปัจจุบัน'],
     ['#btn-user-search', 'ค้นหาผู้ใช้ตามคำค้นและตัวกรองที่เลือก'],
     ['#btn-user-refresh', 'โหลดรายชื่อผู้ใช้ใหม่และรีเซ็ตผลลัพธ์ล่าสุด'],
+    ['#btn-user-clear-filters', 'ล้างตัวกรองผู้ใช้ทั้งหมดแล้วโหลดรายชื่อใหม่'],
     ['#btn-save-customer-rank-reset', 'บันทึกวันที่รีแรงค์ลูกค้าเพื่อเริ่มนับ Rank EXP รอบใหม่'],
     ['#btn-user-prev', 'ย้อนกลับไปหน้ารายชื่อผู้ใช้ก่อนหน้า'],
     ['#btn-user-next', 'ไปหน้ารายชื่อผู้ใช้ถัดไป'],
@@ -97,6 +98,7 @@ const ADMIN_BUTTON_TOOLTIPS = [
     ['#btn-add-soldout', 'เพิ่มเลขที่เลือกเข้าในรายการปิดรับทาย'],
     ['#btn-remove-soldout', 'นำเลขที่เลือกออกจากรายการปิดรับทาย'],
     ['#btn-save-guess-points-cycle', 'บันทึกรอบวันสำหรับคำนวณแต้มการทายเลข'],
+    ['#btn-clear-guess-points-cycle', 'ยกเลิกรอบวันรีเซ็ตพ้อยและกลับไปนับพ้อยทายเลขทั้งหมด'],
     ['#btn-recheck-guess-points', 'สั่งระบบตรวจสอบและคำนวณแต้มทายเลขใหม่อีกครั้ง'],
     ['#btn-load-chart', 'โหลดกราฟสรุปข้อมูลการทายเลขตามช่วงหรือเงื่อนไขที่เลือก'],
     ['#btn-announce', 'ประกาศผลเลขที่ออกให้กับงวดที่เลือกและอัปเดตรายการที่เกี่ยวข้อง'],
@@ -908,6 +910,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const userSearchInput = document.getElementById('user-search-input');
     const userPlatformFilter = document.getElementById('user-platform-filter');
+    const userActivityFilter = document.getElementById('user-activity-filter');
+    const userPointFilter = document.getElementById('user-point-filter');
+    const userRewardFilter = document.getElementById('user-reward-filter');
+    const userReviewFilter = document.getElementById('user-review-filter');
+    const userRankFilter = document.getElementById('user-rank-filter');
+    const btnUserClearFilters = document.getElementById('btn-user-clear-filters');
     const userBody = document.getElementById('users-body');
     const noUsers = document.getElementById('no-users');
     const userPagination = document.getElementById('user-pagination');
@@ -977,6 +985,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const guessPointsCycleEnd = document.getElementById('guess-points-cycle-end');
     const guessPointsRecheckStatus = document.getElementById('guess-points-recheck-status');
     const btnSaveGuessPointsCycle = document.getElementById('btn-save-guess-points-cycle');
+    const btnClearGuessPointsCycle = document.getElementById('btn-clear-guess-points-cycle');
     const btnRecheckGuessPoints = document.getElementById('btn-recheck-guess-points');
     const customerRankResetDateInput = document.getElementById('customer-rank-reset-date');
     const customerRankResetCurrent = document.getElementById('customer-rank-reset-current');
@@ -1157,6 +1166,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const params = new URLSearchParams({
             search: userSearchInput?.value?.trim() || '',
             platform: userPlatformFilter?.value || 'all',
+            activity: userActivityFilter?.value || 'all',
+            points: userPointFilter?.value || 'all',
+            rewards: userRewardFilter?.value || 'all',
+            review: userReviewFilter?.value || 'all',
+            rank: userRankFilter?.value || 'all',
             page: String(currentUserPage),
             limit: '12'
         });
@@ -1963,6 +1977,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btn-user-refresh')?.addEventListener('click', () => {
         if (userSearchInput) userSearchInput.value = '';
         if (userPlatformFilter) userPlatformFilter.value = 'all';
+        if (userActivityFilter) userActivityFilter.value = 'all';
+        if (userPointFilter) userPointFilter.value = 'all';
+        if (userRewardFilter) userRewardFilter.value = 'all';
+        if (userReviewFilter) userReviewFilter.value = 'all';
+        if (userRankFilter) userRankFilter.value = 'all';
+        renderUsers(1);
+    });
+    btnUserClearFilters?.addEventListener('click', () => {
+        if (userSearchInput) userSearchInput.value = '';
+        if (userPlatformFilter) userPlatformFilter.value = 'all';
+        if (userActivityFilter) userActivityFilter.value = 'all';
+        if (userPointFilter) userPointFilter.value = 'all';
+        if (userRewardFilter) userRewardFilter.value = 'all';
+        if (userReviewFilter) userReviewFilter.value = 'all';
+        if (userRankFilter) userRankFilter.value = 'all';
         renderUsers(1);
     });
     btnExportCsv?.addEventListener('click', async () => {
@@ -2159,7 +2188,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.clearTimeout(userSearchDebounceId);
         userSearchDebounceId = window.setTimeout(() => renderUsers(1), 350);
     });
-    userPlatformFilter?.addEventListener('change', () => renderUsers(1));
+    [
+        userPlatformFilter,
+        userActivityFilter,
+        userPointFilter,
+        userRewardFilter,
+        userReviewFilter,
+        userRankFilter
+    ].forEach((filterEl) => {
+        filterEl?.addEventListener('change', () => renderUsers(1));
+    });
     userPrevButton?.addEventListener('click', () => {
         if (currentUserPage > 1) renderUsers(currentUserPage - 1);
     });
@@ -2559,8 +2597,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!res.ok) throw new Error(data.error || 'load-guess-cycle-failed');
             guessPointsCycleStart.value = data.start_date || '';
             guessPointsCycleEndInput.value = data.end_date || '';
-            guessPointsCycleCurrent.textContent = data.start_date ? formatServiceDate(data.start_date) : 'ยังไม่ได้ตั้งค่า';
-            guessPointsCycleEnd.textContent = data.end_date ? formatServiceDate(data.end_date) : '—';
+            if (data.is_configured === false) {
+                guessPointsCycleCurrent.textContent = 'ยังไม่ได้ตั้งค่า (นับพ้อยทั้งหมด)';
+                guessPointsCycleEnd.textContent = 'ไม่รีเซ็ตอัตโนมัติ';
+            } else {
+                guessPointsCycleCurrent.textContent = data.start_date ? formatServiceDate(data.start_date) : 'ยังไม่ได้ตั้งค่า';
+                guessPointsCycleEnd.textContent = data.end_date ? formatServiceDate(data.end_date) : '—';
+            }
         } catch (err) {
             guessPointsCycleCurrent.textContent = 'โหลดไม่สำเร็จ';
             guessPointsCycleEnd.textContent = 'โหลดไม่สำเร็จ';
@@ -3075,6 +3118,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    btnClearGuessPointsCycle?.addEventListener('click', async () => {
+        if (!confirm('ยกเลิกการรีเซ็ตพ้อยทายเลข และกลับไปนับพ้อยทั้งหมดของลูกค้าทุกคน?')) return;
+
+        btnClearGuessPointsCycle.disabled = true;
+        const originalText = btnClearGuessPointsCycle.textContent;
+        btnClearGuessPointsCycle.textContent = 'กำลังยกเลิก...';
+
+        try {
+            const res = await authFetch(`${API_BASE}/admin/guess-points/cycle`, { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'clear-guess-cycle-failed');
+            if (guessPointsCycleStart) guessPointsCycleStart.value = '';
+            if (guessPointsCycleEndInput) guessPointsCycleEndInput.value = '';
+            showToast('ยกเลิกการรีเซ็ตพ้อยทายเลขแล้ว ระบบจะนับพ้อยทั้งหมด', 'success');
+            loadGuessPointsCycle();
+            renderUsers(currentUserPage);
+            if (selectedUserId) loadUserDetail(selectedUserId);
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถยกเลิกการรีเซ็ตพ้อยทายเลขได้', 'error');
+        } finally {
+            btnClearGuessPointsCycle.disabled = false;
+            btnClearGuessPointsCycle.textContent = originalText;
+        }
+    });
+
     btnRecheckGuessPoints?.addEventListener('click', async () => {
         btnRecheckGuessPoints.disabled = true;
         const originalText = btnRecheckGuessPoints.textContent;
@@ -3086,7 +3154,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'recheck-guess-points-failed');
 
-            const summaryText = `เติม ${Number(data.inserted_approved_points || 0).toLocaleString('th-TH')} พ้อย, ลบรายการผิด ${Number((data.removed_invalid_approved_points || 0) + (data.removed_orphan_spend_points || 0)).toLocaleString('th-TH')} รายการ, ซิงก์ ${Number(data.synced_users || 0).toLocaleString('th-TH')} user`;
+            const summaryText = `เติม ${Number(data.inserted_approved_points || 0).toLocaleString('th-TH')} พ้อย, ยกยอดเก่ากลับ ${Number(data.carried_over_points || 0).toLocaleString('th-TH')} พ้อย/${Number(data.carryover_users || 0).toLocaleString('th-TH')} user, ลบรายการผิด ${Number((data.removed_invalid_approved_points || 0) + (data.removed_orphan_spend_points || 0)).toLocaleString('th-TH')} รายการ, เพิกถอนเลขเกินสิทธิ์ ${Number(data.revoked_lottery_guesses || 0).toLocaleString('th-TH')} รายการ, ซิงก์ ${Number(data.synced_users || 0).toLocaleString('th-TH')} user`;
             if (guessPointsRecheckStatus) guessPointsRecheckStatus.textContent = summaryText;
             showToast(`รีเช็คพ้อยทายเลขแล้ว: ${summaryText}`, 'success');
             loadGuessPointsCycle();
