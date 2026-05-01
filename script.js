@@ -517,7 +517,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const platform = currentUser.platform || 'line';
 
         try {
-            const progressRes = await fetch(`${API_BASE}/users/${encodeURIComponent(currentUser.platform_id)}/progress?platform=${encodeURIComponent(platform)}`);
+            const progressParams = new URLSearchParams({
+                platform,
+                _: String(Date.now())
+            });
+            const progressRes = await fetch(`${API_BASE}/users/${encodeURIComponent(currentUser.platform_id)}/progress?${progressParams.toString()}`, {
+                cache: 'no-store'
+            });
             const progressData = progressRes.ok ? await progressRes.json() : null;
             const pointBalance = Number(progressData?.guess_point_balance || 0);
             const guessCredits = Number(progressData?.guess_credits_remaining || 0);
