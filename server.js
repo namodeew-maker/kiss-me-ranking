@@ -4827,7 +4827,7 @@ app.post('/api/draw', requireAuth, async (req, res) => {
         return res.status(400).json({ error: 'กรุณากรอกเลข 2 หลัก (00-99)' });
     }
 
-    const roundLabel = drawDateLabel ? drawDateLabelToRoundLabel(drawDateLabel) : getCurrentRoundLabel();
+    const roundLabel = drawDateLabel ? await drawDateLabelToRoundLabel(drawDateLabel) : getCurrentRoundLabel();
 
     const client = await pool.connect();
     try {
@@ -4886,12 +4886,28 @@ app.post('/api/draw', requireAuth, async (req, res) => {
     }
 });
 
-// Helper: convert Thai draw date label to round_label format
-// e.g. "16 เมษายน 2569" → "2026-04-B", "1 พฤษภาคม 2569" → "2026-05-A"
-function drawDateLabelToRoundLabel(label) {
+// Helper: derive round_label from a schedule entry (month, slot)
+//   slot 'A' on month X = closing 16-29 of month (X-1) → Round B of (X-1)
+//   slot 'B' on month X = closing 1-14 of month X    → Round A of X
+function scheduleEntryToRoundLabel(year, month, slot) {
+    if (slot === 'A') {
+        const prevMonth = month === 1 ? 12 : month - 1;
+        const prevYear = month === 1 ? year - 1 : year;
+        return `${prevYear}-${String(prevMonth).padStart(2, '0')}-B`;
+    }
+    // slot 'B'
+    return `${year}-${String(month).padStart(2, '0')}-A`;
+}
+
+// Helper: convert Thai draw date label → round_label using admin-defined draw schedule.
+// Falls back to legacy day=1/16 logic if schedule lookup fails.
+// e.g. "1 พฤษภาคม 2569" → "2026-04-B" (closing Round B of April)
+//      "16 พฤษภาคม 2569" → "2026-05-A" (closing Round A of May)
+//      "2 พฤษภาคม 2569" with custom schedule → "2026-04-B"
+async function drawDateLabelToRoundLabel(label) {
     const thaiMonthsFull = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
                              'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-    const parts = label.trim().split(/\s+/);
+    const parts = String(label || '').trim().split(/\s+/);
     if (parts.length < 3) return getCurrentRoundLabel();
 
     const day = parseInt(parts[0], 10);
@@ -4901,16 +4917,27 @@ function drawDateLabelToRoundLabel(label) {
     if (isNaN(day) || monthIdx === -1 || isNaN(thaiYear)) return getCurrentRoundLabel();
 
     const ceYear = thaiYear - 543;
-    const monthStr = String(monthIdx + 1).padStart(2, '0');
+    const ceMonth = monthIdx + 1;
 
-    // Draw on 16th → results for Round A (days 1-14), Draw on 1st → results for Round B of prev month
+    // 1. Try matching against the admin-defined draw schedule first
+    try {
+        const schedule = await getDrawSchedule();
+        const match = schedule.find((e) => {
+            const d = new Date(e.date + 'T00:00:00');
+            return d.getFullYear() === ceYear && (d.getMonth() + 1) === ceMonth && d.getDate() === day;
+        });
+        if (match) {
+            return scheduleEntryToRoundLabel(ceYear, match.month, match.slot);
+        }
+    } catch (err) {
+        console.warn('drawDateLabelToRoundLabel: schedule lookup failed, using fallback', err);
+    }
+
+    // 2. Fallback (legacy): day 16 → close Round A same month; day 1 → close Round B prev month
     if (day === 16) {
-        return `${ceYear}-${monthStr}-A`;
+        return scheduleEntryToRoundLabel(ceYear, ceMonth, 'B');
     } else if (day === 1) {
-        // Round B of previous month
-        const prevMonth = monthIdx === 0 ? 12 : monthIdx; // monthIdx is 0-based
-        const prevYear = monthIdx === 0 ? ceYear - 1 : ceYear;
-        return `${prevYear}-${String(prevMonth).padStart(2, '0')}-B`;
+        return scheduleEntryToRoundLabel(ceYear, ceMonth, 'A');
     }
     return getCurrentRoundLabel();
 }
