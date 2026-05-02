@@ -5268,12 +5268,25 @@ app.get('/api/round', async (req, res) => {
     }));
 
     // Find next upcoming draw from schedule (date >= today in Bangkok time)
+    // and skip rounds that were already announced (recorded in lottery_draws)
     const todayStr = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit'
     }).format(now);
+
+    let announcedRounds = new Set();
+    try {
+        const drawsRes = await pool.query('SELECT round_label FROM lottery_draws');
+        announcedRounds = new Set(drawsRes.rows.map((r) => r.round_label));
+    } catch { /* table may not exist on first deploy — treat as empty */ }
+
     const upcoming = schedule
         .filter((e) => e && typeof e.date === 'string' && e.date >= todayStr)
-        .sort((a, b) => a.date.localeCompare(b.date))[0];
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .find((e) => {
+            const ceYear = parseInt(e.date.slice(0, 4), 10);
+            const rl = scheduleEntryToRoundLabel(ceYear, e.month, e.slot);
+            return !announcedRounds.has(rl);
+        });
 
     let round, drawDate, drawLabel, nextDraw;
     if (upcoming) {
