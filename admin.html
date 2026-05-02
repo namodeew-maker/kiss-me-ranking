@@ -6,7 +6,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260502">
-    <link rel="stylesheet" href="admin.css?v=20260502b">
+    <link rel="stylesheet" href="admin.css?v=20260502c">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -631,6 +631,20 @@
                     </div>
                 </section>
 
+                <!-- ======================== ประวัติงวด ======================== -->
+                <section class="admin-panel" id="draw-history-panel">
+                    <div class="status-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+                        <div>
+                            <h3 style="margin:0;">📜 ประวัติการทายเลข + ประกาศผลแต่ละงวด</h3>
+                            <p style="margin:5px 0 0 0; color:#888; font-size:0.9rem;">รายละเอียดของแต่ละงวดที่มีลูกค้าทาย — เลขที่ออก, รายชื่อผู้ทาย, ผลลัพธ์</p>
+                        </div>
+                        <button class="btn-action btn-blue" id="btn-refresh-draw-history" type="button">🔄 รีเฟรช</button>
+                    </div>
+                    <div id="draw-history-list">
+                        <div class="empty-state" style="text-align:center; padding:30px; color:#888;">กำลังโหลด...</div>
+                    </div>
+                </section>
+
             </div>
 
             <!-- ======================== TAB 4: การทายเลข ======================== -->
@@ -1044,6 +1058,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260502"></script>
+    <script src="admin.js?v=20260502c"></script>
 </body>
 </html>

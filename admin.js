@@ -3784,12 +3784,156 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.addEventListener('click', (e) => {
             if (e.target.dataset.tab === 'prediction-status') {
                 adminLoadStatusData();
+                loadDrawHistory();
             }
         });
     });
 
     // Initial load for prediction status
     adminLoadStatusData();
+    loadDrawHistory();
     // Auto-refresh every 15 seconds
     setInterval(adminLoadStatusData, 15000);
+
+    // ==================== Draw History (Round announcement archive) ====================
+
+    function formatDrawHistoryRoundLabel(roundLabel) {
+        // "2026-04-B" → "งวด 16-29 เม.ย. 2569 (รอบ B)"
+        if (!roundLabel) return '—';
+        const m = String(roundLabel).match(/^(\d{4})-(\d{2})-([AB])$/);
+        if (!m) return roundLabel;
+        const [_, y, mo, slot] = m;
+        const thaiMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+        const monthShort = thaiMonths[parseInt(mo, 10) - 1] || mo;
+        const beYear = parseInt(y, 10) + 543;
+        const range = slot === 'A' ? '1-14' : '16-29';
+        return `งวด ${range} ${monthShort} ${beYear} (รอบ ${slot})`;
+    }
+
+    function formatDrawHistoryDate(value) {
+        if (!value) return '—';
+        try {
+            const d = new Date(value);
+            if (Number.isNaN(d.getTime())) return '—';
+            return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+        } catch { return '—'; }
+    }
+
+    function formatDrawHistoryDateTime(value) {
+        if (!value) return '—';
+        try {
+            const d = new Date(value);
+            if (Number.isNaN(d.getTime())) return '—';
+            return `${d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })} ${d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`;
+        } catch { return '—'; }
+    }
+
+    function renderDrawHistoryGuess(g, winningNumber) {
+        const result = g.result || 'pending';
+        const number = String(g.guess_number || '').padStart(2, '0');
+        const isWon = result === 'won';
+        const reward = Number(g.reward_amount || 0);
+        const rewardLabel = isWon
+            ? `🏆 Cashback ${reward.toLocaleString('th-TH')} ฿`
+            : result === 'lost'
+                ? `🎟️ GV ${reward.toLocaleString('th-TH')} ฿`
+                : '⏳ รอผล';
+        const customName = g.custom_display_name && g.custom_display_name.trim();
+        const lineName = g.display_name || g.platform_id || '-';
+        return `
+            <div class="draw-history-guess-row ${result}">
+                <div class="draw-history-guess-user">
+                    <span class="draw-history-guess-user-name">${escapeHtml(g.effective_display_name || lineName)}</span>
+                    ${customName ? `<span class="draw-history-guess-user-line">📱 ${escapeHtml(lineName)}</span>` : ''}
+                </div>
+                <div class="draw-history-guess-number">${escapeHtml(number)}</div>
+                <div class="draw-history-guess-result ${result}">${rewardLabel}</div>
+            </div>
+        `;
+    }
+
+    function renderDrawHistoryCard(round) {
+        const announced = !!round.winning_number;
+        const headerBadge = announced
+            ? `<span class="draw-history-winning-number">${escapeHtml(String(round.winning_number).padStart(2, '0'))}</span>`
+            : `<span class="draw-history-pending-badge">⏳ ยังไม่ประกาศผล</span>`;
+
+        const winnerSummary = round.winners > 0
+            ? `<span class="draw-history-summary-item winner">🏆 ถูกรางวัล ${round.winners} คน</span>`
+            : '';
+        const loserSummary = round.losers > 0
+            ? `<span class="draw-history-summary-item">🎟️ GV ${round.losers} คน</span>`
+            : '';
+        const pendingSummary = round.pending > 0
+            ? `<span class="draw-history-summary-item">⏳ รอผล ${round.pending}</span>`
+            : '';
+
+        const guessesSorted = (round.guesses || []).slice().sort((a, b) => {
+            // winners first, then losers, then pending; secondary by guess_number
+            const order = { won: 0, lost: 1, pending: 2 };
+            return (order[a.result] ?? 3) - (order[b.result] ?? 3) || String(a.guess_number).localeCompare(String(b.guess_number));
+        });
+
+        return `
+            <div class="draw-history-card ${announced ? 'announced' : 'pending'}" data-round="${escapeHtml(round.round_label)}">
+                <div class="draw-history-card-header">
+                    <div class="draw-history-card-title">
+                        <span class="draw-history-round-label">${escapeHtml(formatDrawHistoryRoundLabel(round.round_label))}</span>
+                        ${headerBadge}
+                    </div>
+                    <div class="draw-history-summary">
+                        <span class="draw-history-summary-item">👥 ผู้ทาย ${round.total_guesses} คน</span>
+                        ${winnerSummary}
+                        ${loserSummary}
+                        ${pendingSummary}
+                        <span class="draw-history-toggle">▼</span>
+                    </div>
+                </div>
+                <div class="draw-history-card-body" hidden>
+                    <div class="draw-history-meta">
+                        ${announced ? `<span>🎯 ประกาศเมื่อ ${escapeHtml(formatDrawHistoryDateTime(round.drawn_at))}</span>` : ''}
+                        ${round.drawn_by_username ? `<span>👤 โดย ${escapeHtml(round.drawn_by_username)}</span>` : ''}
+                        <span>📅 ทายแรก: ${escapeHtml(formatDrawHistoryDate(round.first_guess_at))}</span>
+                        <span>📅 ทายล่าสุด: ${escapeHtml(formatDrawHistoryDate(round.last_guess_at))}</span>
+                        ${round.note ? `<span>📝 ${escapeHtml(round.note)}</span>` : ''}
+                    </div>
+                    <div class="draw-history-guesses">
+                        ${guessesSorted.map((g) => renderDrawHistoryGuess(g, round.winning_number)).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    async function loadDrawHistory() {
+        const container = document.getElementById('draw-history-list');
+        if (!container) return;
+        try {
+            const res = await authFetch(`${API_BASE}/admin/draws`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'load-failed');
+
+            const rounds = Array.isArray(data.rounds) ? data.rounds : [];
+            if (rounds.length === 0) {
+                container.innerHTML = '<div class="draw-history-empty">📭 ยังไม่มีงวดที่มีคนทาย</div>';
+                return;
+            }
+
+            container.innerHTML = rounds.map(renderDrawHistoryCard).join('');
+
+            // Hook up expand/collapse
+            container.querySelectorAll('.draw-history-card-header').forEach((header) => {
+                header.addEventListener('click', () => {
+                    const card = header.closest('.draw-history-card');
+                    const body = card.querySelector('.draw-history-card-body');
+                    const isExpanded = card.classList.toggle('expanded');
+                    if (body) body.hidden = !isExpanded;
+                });
+            });
+        } catch (err) {
+            container.innerHTML = `<div class="draw-history-empty">❌ โหลดประวัติงวดไม่สำเร็จ: ${escapeHtml(err.message || '')}</div>`;
+        }
+    }
+
+    document.getElementById('btn-refresh-draw-history')?.addEventListener('click', loadDrawHistory);
 });

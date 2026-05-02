@@ -4866,6 +4866,18 @@ app.post('/api/draw', requireAuth, async (req, res) => {
             }
         }
 
+        // Record the draw (winning number) so it can be shown in history
+        // ON CONFLICT update — admin may correct a typo by re-announcing
+        await client.query(
+            `INSERT INTO lottery_draws (round_label, winning_number, drawn_at, drawn_by)
+             VALUES ($1, $2, NOW(), $3)
+             ON CONFLICT (round_label) DO UPDATE SET
+                winning_number = EXCLUDED.winning_number,
+                drawn_at = NOW(),
+                drawn_by = EXCLUDED.drawn_by`,
+            [roundLabel, winningNumber, req.adminUserId || null]
+        );
+
         await client.query('COMMIT');
 
         invalidatePublicReadState();
@@ -4886,6 +4898,80 @@ app.post('/api/draw', requireAuth, async (req, res) => {
         res.status(500).json({ error: 'เกิดข้อผิดพลาดในการประกาศผล' });
     } finally {
         client.release();
+    }
+});
+
+// GET /api/admin/draws — list all rounds that have guesses, plus winning number if announced
+// Returns rounds (most recent first) with summary stats. Detail of guesses included inline.
+app.get('/api/admin/draws', requireAuth, async (req, res) => {
+    try {
+        const result = await pool.query(
+            `WITH rounds_with_guesses AS (
+                SELECT
+                    lg.round_label,
+                    COUNT(*)::int AS total_guesses,
+                    COUNT(*) FILTER (WHERE lg.result = 'won')::int AS winners,
+                    COUNT(*) FILTER (WHERE lg.result = 'lost')::int AS losers,
+                    COUNT(*) FILTER (WHERE lg.result = 'pending')::int AS pending,
+                    COALESCE(SUM(lg.reward_amount), 0)::numeric(10,2) AS total_reward,
+                    MIN(lg.created_at) AS first_guess_at,
+                    MAX(lg.created_at) AS last_guess_at
+                FROM lottery_guesses lg
+                GROUP BY lg.round_label
+            )
+            SELECT
+                r.round_label,
+                r.total_guesses,
+                r.winners,
+                r.losers,
+                r.pending,
+                r.total_reward,
+                r.first_guess_at,
+                r.last_guess_at,
+                d.winning_number,
+                d.drawn_at,
+                d.drawn_by,
+                au.username AS drawn_by_username,
+                d.note
+            FROM rounds_with_guesses r
+            LEFT JOIN lottery_draws d ON d.round_label = r.round_label
+            LEFT JOIN admin_users au ON au.id = d.drawn_by
+            ORDER BY COALESCE(d.drawn_at, r.last_guess_at) DESC, r.round_label DESC`
+        );
+
+        // Fetch guesses per round (single query, group client-side)
+        const allGuesses = await pool.query(
+            `SELECT
+                lg.id, lg.user_id, lg.round_label, lg.guess_number, lg.result, lg.reward_amount,
+                lg.created_at, u.display_name, u.custom_display_name, u.platform_id
+             FROM lottery_guesses lg
+             JOIN users u ON u.id = lg.user_id
+             ORDER BY lg.round_label, lg.created_at`
+        );
+        const guessByRound = {};
+        for (const g of allGuesses.rows) {
+            if (!guessByRound[g.round_label]) guessByRound[g.round_label] = [];
+            guessByRound[g.round_label].push({
+                ...g,
+                effective_display_name: effectiveDisplayName(g)
+            });
+        }
+
+        const rounds = result.rows.map((r) => ({
+            ...r,
+            total_guesses: Number(r.total_guesses || 0),
+            winners: Number(r.winners || 0),
+            losers: Number(r.losers || 0),
+            pending: Number(r.pending || 0),
+            total_reward: Number(r.total_reward || 0),
+            announced: !!r.winning_number,
+            guesses: guessByRound[r.round_label] || []
+        }));
+
+        res.json({ success: true, rounds });
+    } catch (err) {
+        console.error('Admin draws list error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดประวัติงวดได้' });
     }
 });
 
@@ -5164,34 +5250,9 @@ app.get('/api/round', async (req, res) => {
     const thaiMonthsFull = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
                              'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
-    const roundLabel = getCurrentRoundLabel();
+    // Use schedule-aware round so guesses on day-before-draw are assigned correctly
+    const roundLabel = await getCurrentLotteryRoundLabel();
     const open = await isRoundOpen();
-
-    let round, drawDate;
-    if (day >= 1 && day <= 14) {
-        round = 'A'; // Round A
-        drawDate = `16 ${thaiMonths[month]} ${year + 543}`;
-    } else if (day >= 16 && day <= 29) {
-        round = 'B'; // Round B
-        const nm = (month + 1) % 12;
-        const ny = month === 11 ? year + 1 : year;
-        drawDate = `1 ${thaiMonths[nm]} ${ny + 543}`;
-    } else {
-        round = '—';
-        drawDate = day === 15
-            ? `16 ${thaiMonths[month]} ${year + 543}`
-            : `1 ${thaiMonths[(month + 1) % 12]} ${(month === 11 ? year + 1 : year) + 543}`;
-    }
-
-    // Next draw date info
-    let nextDrawDay, nextDrawMonth, nextDrawYear;
-    if (day <= 15) {
-        nextDrawDay = 16; nextDrawMonth = month; nextDrawYear = year;
-    } else {
-        const nm2 = (month + 1) % 12;
-        nextDrawDay = 1; nextDrawMonth = nm2; nextDrawYear = month === 11 ? year + 1 : year;
-    }
-    const drawLabel = `งวดวันที่ ${nextDrawDay} ${thaiMonthsFull[nextDrawMonth]} ${nextDrawYear + 543}`;
 
     // Build draw dates from DB schedule
     const schedule = await getDrawSchedule();
@@ -5206,6 +5267,35 @@ app.get('/api/round', async (req, res) => {
         dayOfWeek: e.dayOfWeek
     }));
 
+    // Find next upcoming draw from schedule (date >= today in Bangkok time)
+    const todayStr = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(now);
+    const upcoming = schedule
+        .filter((e) => e && typeof e.date === 'string' && e.date >= todayStr)
+        .sort((a, b) => a.date.localeCompare(b.date))[0];
+
+    let round, drawDate, drawLabel, nextDraw;
+    if (upcoming) {
+        round = upcoming.slot;
+        drawDate = `${upcoming.day} ${thaiMonths[upcoming.month - 1]} ${upcoming.year}`;
+        drawLabel = `งวดวันที่ ${upcoming.day} ${thaiMonthsFull[upcoming.month - 1]} ${upcoming.year}`;
+        nextDraw = { day: upcoming.day, month: upcoming.month, year: upcoming.year };
+    } else {
+        // Fallback: schedule exhausted — use legacy calendar logic
+        round = (day >= 1 && day <= 14) ? 'A' : (day >= 16 && day <= 29) ? 'B' : '—';
+        let fbDay, fbMonth, fbYear;
+        if (day <= 15) {
+            fbDay = 16; fbMonth = month; fbYear = year;
+        } else {
+            fbMonth = (month + 1) % 12;
+            fbDay = 1; fbYear = month === 11 ? year + 1 : year;
+        }
+        drawDate = `${fbDay} ${thaiMonths[fbMonth]} ${fbYear + 543}`;
+        drawLabel = `งวดวันที่ ${fbDay} ${thaiMonthsFull[fbMonth]} ${fbYear + 543}`;
+        nextDraw = { day: fbDay, month: fbMonth + 1, year: fbYear + 543 };
+    }
+
     res.json({
         round,
         roundLabel,
@@ -5213,7 +5303,7 @@ app.get('/api/round', async (req, res) => {
         drawDate,
         drawLabel,
         drawDates,
-        nextDraw: { day: nextDrawDay, month: nextDrawMonth + 1, year: nextDrawYear + 543 },
+        nextDraw,
         day,
         month: month + 1,
         year

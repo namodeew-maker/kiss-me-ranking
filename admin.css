@@ -3654,3 +3654,217 @@
     font-size: 11.5px;
     margin-top: 2px;
 }
+
+/* ==================== Draw History (Round announcement archive) ==================== */
+
+.draw-history-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(0, 240, 255, 0.18);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: border-color 0.18s ease;
+}
+
+.draw-history-card.announced {
+    border-left: 4px solid #00ffaa;
+}
+
+.draw-history-card.pending {
+    border-left: 4px solid #ffc107;
+}
+
+.draw-history-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 18px;
+    cursor: pointer;
+    transition: background 0.18s ease;
+}
+
+.draw-history-card-header:hover {
+    background: rgba(0, 240, 255, 0.04);
+}
+
+.draw-history-card-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.draw-history-round-label {
+    font-size: 16px;
+    font-weight: 600;
+    color: #00f0ff;
+    font-family: 'Orbitron', sans-serif;
+}
+
+.draw-history-winning-number {
+    background: linear-gradient(135deg, #ff3c3c, #ff6b6b);
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    box-shadow: 0 0 12px rgba(255, 60, 60, 0.4);
+    letter-spacing: 1px;
+}
+
+.draw-history-pending-badge {
+    background: rgba(255, 193, 7, 0.18);
+    color: #ffc107;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.draw-history-summary {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.draw-history-summary-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.draw-history-summary-item.winner {
+    color: #00ffaa;
+    font-weight: 600;
+}
+
+.draw-history-toggle {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+    transition: transform 0.18s ease;
+}
+
+.draw-history-card.expanded .draw-history-toggle {
+    transform: rotate(180deg);
+}
+
+.draw-history-card-body {
+    border-top: 1px solid rgba(0, 240, 255, 0.12);
+    padding: 14px 18px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.draw-history-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-bottom: 14px;
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.draw-history-guesses {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.draw-history-guess-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    border-left: 3px solid rgba(255, 255, 255, 0.12);
+}
+
+.draw-history-guess-row.won {
+    border-left-color: #ffc107;
+    background: rgba(255, 193, 7, 0.08);
+}
+
+.draw-history-guess-row.lost {
+    border-left-color: rgba(0, 255, 170, 0.5);
+}
+
+.draw-history-guess-row.pending {
+    border-left-color: rgba(255, 193, 7, 0.5);
+    opacity: 0.85;
+}
+
+.draw-history-guess-user {
+    display: flex;
+    flex-direction: column;
+    font-size: 13px;
+}
+
+.draw-history-guess-user-name {
+    color: #fff;
+    font-weight: 500;
+}
+
+.draw-history-guess-user-line {
+    color: rgba(0, 240, 255, 0.7);
+    font-size: 11px;
+}
+
+.draw-history-guess-number {
+    background: rgba(255, 255, 255, 0.05);
+    color: #00f0ff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 600;
+    letter-spacing: 1px;
+    min-width: 50px;
+    text-align: center;
+}
+
+.draw-history-guess-result {
+    font-size: 13px;
+    font-weight: 500;
+    min-width: 90px;
+    text-align: right;
+}
+
+.draw-history-guess-result.won {
+    color: #ffc107;
+}
+
+.draw-history-guess-result.lost {
+    color: #00ffaa;
+}
+
+.draw-history-guess-result.pending {
+    color: rgba(255, 193, 7, 0.7);
+}
+
+.draw-history-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+@media (max-width: 600px) {
+    .draw-history-card-header {
+        padding: 12px 14px;
+    }
+    .draw-history-summary {
+        font-size: 12px;
+        gap: 10px;
+    }
+    .draw-history-card-body {
+        padding: 12px 14px;
+    }
+    .draw-history-guess-row {
+        padding: 8px;
+    }
+}
