@@ -4988,31 +4988,39 @@ function scheduleEntryToRoundLabel(year, month, slot) {
     return `${year}-${String(month).padStart(2, '0')}-A`;
 }
 
+// Find next upcoming draw entry that has not been announced yet.
+// Returns the schedule entry (with day/month/slot/date/labelFull/...) or null.
+async function findNextUnannouncedDraw() {
+    const schedule = await getDrawSchedule();
+    if (!Array.isArray(schedule) || schedule.length === 0) return null;
+
+    const todayStr = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(new Date());
+
+    let announcedRounds = new Set();
+    try {
+        const drawsRes = await pool.query('SELECT round_label FROM lottery_draws');
+        announcedRounds = new Set(drawsRes.rows.map((r) => r.round_label));
+    } catch { /* lottery_draws may not exist on first deploy */ }
+
+    return schedule
+        .filter((e) => e && typeof e.date === 'string' && e.date >= todayStr)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .find((e) => {
+            const ceYear = parseInt(e.date.slice(0, 4), 10);
+            const rl = scheduleEntryToRoundLabel(ceYear, e.month, e.slot);
+            return !announcedRounds.has(rl);
+        }) || null;
+}
+
 // Schedule-aware round assignment for new lottery guesses.
-// Picks the next upcoming draw (date >= today in Bangkok time) and returns the
-// round_label that draw will close. Falls back to calendar-based legacy if
-// the schedule is missing or empty.
+// Returns the round_label that the next unannounced draw will close.
+// Falls back to calendar-based legacy if the schedule is missing.
 async function getCurrentLotteryRoundLabel() {
     try {
-        const schedule = await getDrawSchedule();
-        if (!Array.isArray(schedule) || schedule.length === 0) {
-            return getCurrentRoundLabel();
-        }
-
-        // Bangkok-local YYYY-MM-DD (matches schedule.date format)
-        const todayStr = new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'Asia/Bangkok',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-        }).format(new Date());
-
-        const upcoming = schedule
-            .filter((e) => e && typeof e.date === 'string' && e.date >= todayStr)
-            .sort((a, b) => a.date.localeCompare(b.date))[0];
-
+        const upcoming = await findNextUnannouncedDraw();
         if (!upcoming) return getCurrentRoundLabel();
-
         const ceYear = parseInt(upcoming.date.slice(0, 4), 10);
         return scheduleEntryToRoundLabel(ceYear, upcoming.month, upcoming.slot);
     } catch (err) {
@@ -5267,26 +5275,10 @@ app.get('/api/round', async (req, res) => {
         dayOfWeek: e.dayOfWeek
     }));
 
-    // Find next upcoming draw from schedule (date >= today in Bangkok time)
-    // and skip rounds that were already announced (recorded in lottery_draws)
-    const todayStr = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit'
-    }).format(now);
-
-    let announcedRounds = new Set();
-    try {
-        const drawsRes = await pool.query('SELECT round_label FROM lottery_draws');
-        announcedRounds = new Set(drawsRes.rows.map((r) => r.round_label));
-    } catch { /* table may not exist on first deploy — treat as empty */ }
-
-    const upcoming = schedule
-        .filter((e) => e && typeof e.date === 'string' && e.date >= todayStr)
-        .sort((a, b) => a.date.localeCompare(b.date))
-        .find((e) => {
-            const ceYear = parseInt(e.date.slice(0, 4), 10);
-            const rl = scheduleEntryToRoundLabel(ceYear, e.month, e.slot);
-            return !announcedRounds.has(rl);
-        });
+    // Find the next unannounced draw — shared helper keeps lottery guesses and
+    // /api/round in sync, so guesses are always assigned to the same round
+    // that "งวดที่กำลังจะประกาศ" displays.
+    const upcoming = await findNextUnannouncedDraw();
 
     let round, drawDate, drawLabel, nextDraw;
     if (upcoming) {
