@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kiss Me Ranking — โปรไฟล์</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260411c">
-    <link rel="stylesheet" href="profile.css?v=20260411c">
+    <link rel="stylesheet" href="styles.css?v=20260502">
+    <link rel="stylesheet" href="profile.css?v=20260502">
 </head>
 <body class="futuristic-bg">
     <!-- Animated Background Particles -->
@@ -57,7 +57,12 @@
                                 <div class="platform-badge" id="platform-badge">LINE</div>
                             </div>
                             <div class="user-info">
-                                <h2 class="user-display-name" id="user-display-name">Loading...</h2>
+                                <div class="user-name-block">
+                                    <h2 class="user-display-name" id="user-display-name">Loading...</h2>
+                                    <button type="button" class="name-edit-btn" id="btn-edit-name" title="แก้ไขชื่อ" aria-label="แก้ไขชื่อ">✏️</button>
+                                </div>
+                                <p class="user-line-name-secondary" id="user-line-name-secondary"></p>
+                                <p class="user-name-cooldown-hint" id="user-name-cooldown-hint"></p>
                                 <p class="user-platform-id" id="user-platform-id"></p>
                                 <div class="user-id-card">
                                     <div class="user-id-label">User ID สำหรับส่งให้แอดมิน</div>
@@ -171,7 +176,33 @@
         </div>
     </div>
 
+    <!-- Modal: Edit Display Name -->
+    <div class="name-edit-modal-overlay" id="name-edit-modal" hidden>
+        <div class="name-edit-modal-content glass-panel">
+            <button class="name-edit-modal-close" id="name-edit-modal-close" aria-label="ปิด">&times;</button>
+            <h3 class="name-edit-modal-title">✏️ เปลี่ยนชื่อที่แสดง</h3>
+            <p class="name-edit-modal-hint">ชื่อนี้จะแสดงในหน้า Ranking และในระบบ — เมื่อบันทึกแล้วต้องรอ <span id="name-edit-cooldown-days">7</span> วันถึงจะเปลี่ยนได้อีก</p>
+
+            <label class="name-edit-label" for="name-edit-input">ชื่อใหม่</label>
+            <input type="text" id="name-edit-input" class="name-edit-input" maxlength="50" placeholder="ใส่ชื่อที่ต้องการ" autocomplete="off">
+            <div class="name-edit-counter"><span id="name-edit-counter-current">0</span> / 50</div>
+
+            <div class="name-edit-line-name-block">
+                <span class="name-edit-line-label">ชื่อ LINE ปัจจุบัน:</span>
+                <span class="name-edit-line-value" id="name-edit-line-name">-</span>
+            </div>
+
+            <div class="name-edit-status" id="name-edit-status"></div>
+
+            <div class="name-edit-actions">
+                <button type="button" class="btn-action btn-ghost" id="btn-name-edit-cancel">ยกเลิก</button>
+                <button type="button" class="btn-action btn-secondary" id="btn-name-edit-clear" hidden>🗑 ลบชื่อที่ตั้งเอง</button>
+                <button type="button" class="btn-action btn-primary" id="btn-name-edit-save">💾 บันทึก</button>
+            </div>
+        </div>
+    </div>
+
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-    <script src="profile.js?v=20260411a"></script>
+    <script src="profile.js?v=20260502"></script>
 </body>
 </html>

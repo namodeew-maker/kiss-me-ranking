@@ -960,7 +960,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnSaveUserRewardClaim = document.getElementById('btn-save-user-reward-claim');
     const btnClearUserRewardClaim = document.getElementById('btn-clear-user-reward-claim');
     const userEditDisplayName = document.getElementById('user-edit-display-name');
+    const userEditCustomDisplayName = document.getElementById('user-edit-custom-display-name');
     const userEditPictureUrl = document.getElementById('user-edit-picture-url');
+    const userDetailLineName = document.getElementById('user-detail-line-name');
+    const userDetailCustomName = document.getElementById('user-detail-custom-name');
+    const userDetailNameLockStatus = document.getElementById('user-detail-name-lock-status');
+    const btnNameLock = document.getElementById('btn-name-lock');
+    const btnNameUnlock = document.getElementById('btn-name-unlock');
+    const btnNameHistory = document.getElementById('btn-name-history');
     const userDetailModal = document.getElementById('user-detail-modal');
     const userDetailModalClose = document.getElementById('user-detail-modal-close');
     const rewardOpenCount = document.getElementById('reward-open-count');
@@ -1116,7 +1123,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (userDetailEmpty) userDetailEmpty.classList.remove('hidden');
         if (userDetailContent) userDetailContent.classList.add('hidden');
         if (userEditDisplayName) userEditDisplayName.value = '';
+        if (userEditCustomDisplayName) userEditCustomDisplayName.value = '';
         if (userEditPictureUrl) userEditPictureUrl.value = '';
+        if (userDetailLineName) userDetailLineName.textContent = '-';
+        if (userDetailCustomName) {
+            userDetailCustomName.textContent = '— (ยังไม่ตั้ง)';
+            userDetailCustomName.classList.remove('user-detail-name-custom');
+        }
+        if (userDetailNameLockStatus) {
+            userDetailNameLockStatus.textContent = '-';
+            userDetailNameLockStatus.classList.remove('locked', 'cooldown', 'allowed');
+        }
+        if (btnNameUnlock) btnNameUnlock.hidden = true;
         if (userRewardSummary) userRewardSummary.innerHTML = '';
         if (userRewardItems) userRewardItems.innerHTML = '';
         if (userRewardClaims) userRewardClaims.innerHTML = '';
@@ -1203,8 +1221,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td>
                         <div class="user-cell">
                             <img class="user-cell-avatar" src="${userAvatarSrc(user)}" alt="${escapeHtml(user.display_name || 'User')}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user.display_name || user.platform_id || 'User')}&background=1a1a2e&color=ff3c3c&size=96'">
-                            <div>
-                                <div class="user-cell-name">${escapeHtml(user.display_name || 'ไม่มีชื่อ')}</div>
+                            <div class="user-cell-name-block">
+                                <div class="user-cell-name-line">
+                                    ${escapeHtml(user.display_name || 'ไม่มีชื่อ')}
+                                    ${user.custom_display_name_locked_until && new Date(user.custom_display_name_locked_until) > new Date() ? '<span class="user-cell-name-locked-badge">🔒</span>' : ''}
+                                </div>
+                                ${user.custom_display_name ? `<div class="user-cell-name-custom">${escapeHtml(user.custom_display_name)}</div>` : ''}
                                 <div class="user-cell-sub">${user.global_user_id ? `Global: ${escapeHtml(String(user.global_user_id))}` : 'ยังไม่มี global_user_id'}</div>
                                 ${renderUserCompactSummary(user)}
                             </div>
@@ -1558,10 +1580,44 @@ document.addEventListener('DOMContentLoaded', async () => {
             userDetailContent.classList.remove('hidden');
 
             userDetailAvatar.src = userAvatarSrc(data.user);
+            // Admin sees LINE name as PRIMARY (for verifying booking proofs)
             userDetailName.textContent = data.user.display_name || 'ไม่มีชื่อ';
             userDetailMeta.textContent = `บัญชีหลัก: ${data.user.platform} • ${data.user.platform_id} • สร้างเมื่อ ${formatDateTime(data.user.created_at)}`;
             userEditDisplayName.value = data.user.display_name || '';
+            if (userEditCustomDisplayName) userEditCustomDisplayName.value = data.user.custom_display_name || '';
             userEditPictureUrl.value = data.user.picture_url || '';
+
+            if (userDetailLineName) userDetailLineName.textContent = data.user.display_name || '—';
+            if (userDetailCustomName) {
+                if (data.user.custom_display_name) {
+                    userDetailCustomName.textContent = data.user.custom_display_name;
+                    userDetailCustomName.classList.add('user-detail-name-custom');
+                } else {
+                    userDetailCustomName.textContent = '— (ยังไม่ตั้ง)';
+                    userDetailCustomName.classList.remove('user-detail-name-custom');
+                }
+            }
+            // Lock status display
+            if (userDetailNameLockStatus) {
+                const status = data.user.name_change_status || {};
+                userDetailNameLockStatus.classList.remove('locked', 'cooldown', 'allowed');
+                if (status.reason === 'admin_locked') {
+                    userDetailNameLockStatus.textContent = `🔒 ล็อก (ปลดล็อก ${formatDateTime(status.retry_at)})`;
+                    userDetailNameLockStatus.classList.add('locked');
+                    if (btnNameUnlock) btnNameUnlock.hidden = false;
+                    if (btnNameLock) btnNameLock.textContent = '🔒 ล็อกใหม่ 15 วัน';
+                } else if (status.reason === 'cooldown') {
+                    userDetailNameLockStatus.textContent = `⏳ User cooldown ถึง ${formatDateTime(status.retry_at)}`;
+                    userDetailNameLockStatus.classList.add('cooldown');
+                    if (btnNameUnlock) btnNameUnlock.hidden = true;
+                    if (btnNameLock) btnNameLock.textContent = '🔒 ล็อกเปลี่ยนชื่อ 15 วัน';
+                } else {
+                    userDetailNameLockStatus.textContent = '✓ User เปลี่ยนชื่อได้ตามปกติ';
+                    userDetailNameLockStatus.classList.add('allowed');
+                    if (btnNameUnlock) btnNameUnlock.hidden = true;
+                    if (btnNameLock) btnNameLock.textContent = '🔒 ล็อกเปลี่ยนชื่อ 15 วัน';
+                }
+            }
 
             const rankApprovedCount = getDisplayedRankApprovedCount({
                 ...data.stats,
@@ -2210,13 +2266,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         try {
+            const payload = {
+                display_name: userEditDisplayName.value,
+                picture_url: userEditPictureUrl.value
+            };
+            // Only send custom_display_name if input exists (admin moderate)
+            if (userEditCustomDisplayName) {
+                payload.custom_display_name = userEditCustomDisplayName.value || null;
+            }
             const res = await authFetch(`${API_BASE}/admin/users/${selectedUserId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    display_name: userEditDisplayName.value,
-                    picture_url: userEditPictureUrl.value
-                })
+                body: JSON.stringify(payload)
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'save-failed');
@@ -2225,6 +2286,121 @@ document.addEventListener('DOMContentLoaded', async () => {
             loadUserDetail(selectedUserId);
         } catch (err) {
             showToast(err.message || 'ไม่สามารถบันทึกข้อมูลผู้ใช้ได้', 'error');
+        }
+    });
+
+    // Admin: Lock name change for 15 days
+    btnNameLock?.addEventListener('click', async () => {
+        if (!selectedUserId) {
+            showToast('กรุณาเลือกผู้ใช้ก่อน', 'error');
+            return;
+        }
+        const days = window.prompt('ล็อกการเปลี่ยนชื่อ (วัน) — default 15:', '15');
+        if (days === null) return;
+        const numDays = parseInt(days, 10);
+        if (!Number.isFinite(numDays) || numDays <= 0) {
+            showToast('กรุณาใส่จำนวนวันที่ถูกต้อง', 'error');
+            return;
+        }
+        const note = window.prompt('เหตุผลในการล็อก (ไม่บังคับ):', '');
+        try {
+            const res = await authFetch(`${API_BASE}/admin/users/${selectedUserId}/name-lock`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ days: numDays, note: note || null })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'lock-failed');
+            showToast(`ล็อกการเปลี่ยนชื่อ ${numDays} วันแล้ว`, 'success');
+            renderUsers(currentUserPage);
+            loadUserDetail(selectedUserId);
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถล็อกได้', 'error');
+        }
+    });
+
+    // Admin: Unlock name change
+    btnNameUnlock?.addEventListener('click', async () => {
+        if (!selectedUserId) return;
+        if (!window.confirm('ปลดล็อกการเปลี่ยนชื่อ?')) return;
+        try {
+            const res = await authFetch(`${API_BASE}/admin/users/${selectedUserId}/name-lock`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'unlock-failed');
+            showToast('ปลดล็อกแล้ว', 'success');
+            renderUsers(currentUserPage);
+            loadUserDetail(selectedUserId);
+        } catch (err) {
+            showToast(err.message || 'ไม่สามารถปลดล็อกได้', 'error');
+        }
+    });
+
+    // Admin: View name history
+    btnNameHistory?.addEventListener('click', async () => {
+        if (!selectedUserId) {
+            showToast('กรุณาเลือกผู้ใช้ก่อน', 'error');
+            return;
+        }
+        const modal = document.getElementById('name-history-modal');
+        const subtitle = document.getElementById('name-history-modal-subtitle');
+        const list = document.getElementById('name-history-list');
+        if (!modal || !list) return;
+
+        if (subtitle) subtitle.textContent = `User ID: ${selectedUserId}`;
+        list.innerHTML = '<div class="name-history-empty">กำลังโหลด...</div>';
+        modal.hidden = false;
+
+        try {
+            const res = await authFetch(`${API_BASE}/admin/users/${selectedUserId}/name-history`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'history-failed');
+
+            if (!data.history || data.history.length === 0) {
+                list.innerHTML = '<div class="name-history-empty">ยังไม่มีประวัติเปลี่ยนชื่อ</div>';
+                return;
+            }
+
+            const ACTION_LABEL = {
+                set: '✏️ ตั้งชื่อใหม่',
+                clear: '🗑️ ลบชื่อที่ตั้งเอง',
+                admin_clear: '🗑️ Admin ลบชื่อ',
+                admin_lock: '🔒 Admin ล็อก',
+                admin_unlock: '🔓 Admin ปลดล็อก'
+            };
+            list.innerHTML = data.history.map((row) => {
+                const actionLabel = ACTION_LABEL[row.action] || row.action;
+                const who = row.changed_by_type === 'admin'
+                    ? `Admin: ${escapeHtml(row.admin_username || '?')}`
+                    : 'User';
+                const nameDisplay = row.custom_display_name
+                    ? `→ ${escapeHtml(row.custom_display_name)}`
+                    : (row.action === 'admin_lock' || row.action === 'admin_unlock' ? '' : '→ (ลบ)');
+                const note = row.note ? `<div class="name-history-item-meta">📝 ${escapeHtml(row.note)}</div>` : '';
+                return `
+                    <div class="name-history-item action-${row.action}">
+                        <span class="name-history-item-action">${actionLabel}</span>
+                        <span class="name-history-item-time">${formatDateTime(row.changed_at)}</span>
+                        <div class="name-history-item-name">${nameDisplay}</div>
+                        <div class="name-history-item-meta">${who}</div>
+                        ${note}
+                    </div>
+                `;
+            }).join('');
+        } catch (err) {
+            list.innerHTML = `<div class="name-history-empty">โหลดประวัติไม่สำเร็จ: ${escapeHtml(err.message || '')}</div>`;
+        }
+    });
+
+    document.getElementById('name-history-modal-close')?.addEventListener('click', () => {
+        const modal = document.getElementById('name-history-modal');
+        if (modal) modal.hidden = true;
+    });
+
+    document.getElementById('name-history-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'name-history-modal') {
+            e.target.hidden = true;
         }
     });
     document.getElementById('btn-delete-user')?.addEventListener('click', async () => {

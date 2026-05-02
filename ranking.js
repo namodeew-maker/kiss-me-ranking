@@ -350,8 +350,8 @@ async function loadCustomerRanking(rounds) {
         list.innerHTML = renderLeaderboardBoard(customers, {
             boardLabel: 'Customer Leaderboard',
             metricHeader: 'Rank EXP',
-            getAvatar: (customer) => getAvatarSrc(customer, customer.display_name || 'U'),
-            getDisplayName: (customer) => customer.display_name || '—',
+            getAvatar: (customer) => getAvatarSrc(customer, customer.effective_display_name || customer.display_name || 'U'),
+            getDisplayName: (customer) => customer.effective_display_name || customer.display_name || '—',
             getSubtitle: (customer) => {
                 const resetText = customer.rank_reset_date
                     ? ` • รีแรงค์ ${new Date(`${customer.rank_reset_date}T00:00:00`).toLocaleDateString('th-TH')}`

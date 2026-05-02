@@ -3432,3 +3432,221 @@
     color: #e74c3c;
     font-family: 'Kanit', sans-serif;
 }
+
+/* ==================== Custom Display Name (Admin) ==================== */
+
+/* Two-line user name in user list */
+.user-cell-name-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.user-cell-name-line {
+    font-weight: 600;
+    color: #fff;
+}
+
+.user-cell-name-custom {
+    font-size: 11.5px;
+    color: #00f0ff;
+    opacity: 0.85;
+}
+
+.user-cell-name-custom::before {
+    content: "✏️ ";
+}
+
+.user-cell-name-locked-badge {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 4px;
+    background: rgba(255, 60, 60, 0.18);
+    color: #ff6b6b;
+    border-radius: 3px;
+    font-size: 10px;
+}
+
+/* User detail panel — name info card */
+.user-detail-name-info {
+    background: rgba(0, 240, 255, 0.05);
+    border: 1px solid rgba(0, 240, 255, 0.2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 10px 0;
+}
+
+.user-detail-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+.user-detail-name-label {
+    color: rgba(255, 255, 255, 0.6);
+    min-width: 110px;
+}
+
+.user-detail-name-value {
+    color: #fff;
+    font-weight: 500;
+}
+
+.user-detail-name-custom {
+    color: #00f0ff;
+}
+
+.user-detail-name-status {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.user-detail-name-status.locked {
+    color: #ff6b6b;
+    font-weight: 600;
+}
+
+.user-detail-name-status.cooldown {
+    color: #ffc107;
+}
+
+.user-detail-name-status.allowed {
+    color: #00ffaa;
+}
+
+.btn-orange {
+    background: linear-gradient(135deg, #ff8c00, #ff5722);
+    color: #fff;
+    border: none;
+}
+
+.btn-orange:hover {
+    filter: brightness(1.1);
+}
+
+.btn-blue {
+    background: linear-gradient(135deg, #2196f3, #1976d2);
+    color: #fff;
+    border: none;
+}
+
+.btn-blue:hover {
+    filter: brightness(1.1);
+}
+
+.btn-ghost {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.85);
+}
+
+/* Name history modal */
+.name-history-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 6, 18, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.name-history-modal-content {
+    width: 100%;
+    max-width: 560px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 24px;
+    border-radius: 14px;
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    box-shadow: 0 0 50px rgba(0, 240, 255, 0.2);
+    position: relative;
+}
+
+.name-history-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 28px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.name-history-modal-close:hover {
+    color: #ff3c3c;
+}
+
+.name-history-modal-title {
+    margin: 0 0 4px;
+    color: #00f0ff;
+    font-size: 18px;
+}
+
+.name-history-modal-subtitle {
+    margin: 0 0 16px;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 12px;
+}
+
+.name-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.name-history-empty {
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    padding: 24px 0;
+    font-style: italic;
+}
+
+.name-history-item {
+    background: rgba(0, 0, 0, 0.3);
+    border-left: 3px solid #00f0ff;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 13px;
+}
+
+.name-history-item.action-admin_clear,
+.name-history-item.action-clear {
+    border-left-color: #ffc107;
+}
+
+.name-history-item.action-admin_lock {
+    border-left-color: #ff6b6b;
+}
+
+.name-history-item.action-admin_unlock {
+    border-left-color: #00ffaa;
+}
+
+.name-history-item-action {
+    color: #00f0ff;
+    font-weight: 600;
+    margin-right: 8px;
+}
+
+.name-history-item-time {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 11.5px;
+}
+
+.name-history-item-name {
+    color: #fff;
+    margin-top: 4px;
+    word-break: break-word;
+}
+
+.name-history-item-meta {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 11.5px;
+    margin-top: 2px;
+}

@@ -296,19 +296,40 @@ function renderRewardSummary(guesses) {
     `;
 }
 
+function effectiveDisplayName(user) {
+    if (!user) return '';
+    const custom = String(user.custom_display_name || '').trim();
+    if (custom) return custom;
+    return String(user.display_name || '').trim();
+}
+
 function renderUserCard(user, stats) {
     const avatar = document.getElementById('user-avatar');
+    const effective = effectiveDisplayName(user) || user.display_name || 'U';
     avatar.src = user.picture_url
         ? resolveAssetUrl(user.picture_url)
-        : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.display_name || 'U')}&background=1a1a2e&color=00f0ff&size=80`;
+        : `https://ui-avatars.com/api/?name=${encodeURIComponent(effective)}&background=1a1a2e&color=00f0ff&size=80`;
 
     if (currentUser) {
         currentUser.display_name = user.display_name || currentUser.display_name;
+        currentUser.custom_display_name = (user.custom_display_name !== undefined)
+            ? user.custom_display_name
+            : currentUser.custom_display_name;
         currentUser.picture_url = user.picture_url || null;
         persistCurrentUser();
     }
 
-    document.getElementById('user-display-name').textContent = user.display_name || '—';
+    const nameEl = document.getElementById('user-display-name');
+    const lineSecondaryEl = document.getElementById('user-line-name-secondary');
+    nameEl.textContent = effective || '—';
+
+    // Show LINE name as secondary line ONLY when user has a custom name set
+    if (user.custom_display_name && user.display_name && user.display_name.trim()) {
+        lineSecondaryEl.textContent = `(💙 ${user.display_name} 💙)`;
+    } else {
+        lineSecondaryEl.textContent = '';
+    }
+
     document.getElementById('user-platform-id').textContent = 'LINE Account';
     if (userIdValueEl) userIdValueEl.textContent = user.platform_id || user.id || '-';
     if (copyUserIdBtn) copyUserIdBtn.textContent = 'คัดลอก';
@@ -581,6 +602,21 @@ async function loadProfileData(platformId, platform) {
         };
 
         renderUserCard({ ...data.user, platform, platform_id: platformId }, stats);
+
+        // Fetch separate progress endpoint to get name_change_status (cooldown/lock info)
+        try {
+            const progressRes = await fetch(
+                `${API_BASE}/users/${encodeURIComponent(platformId)}/progress?platform=${platform}`
+            );
+            if (progressRes.ok) {
+                const progressData = await progressRes.json();
+                lastNameChangeStatus = progressData.name_change_status || null;
+                updateCooldownHint(lastNameChangeStatus);
+            }
+        } catch (e) {
+            console.warn('Could not fetch name change status:', e);
+        }
+
         renderProgress(data.current_round_points ?? 0);
         renderRankCard(data.lifetime_approved || 0, data.rank_reset_date || null);
         renderRewardSummary(data.guesses);
@@ -675,5 +711,194 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    setupNameEditModal();
+
     await loadProfileData(currentUser.platform_id, currentUser.platform || 'line');
 });
+
+// ==================== Name Change Modal ====================
+
+function describeRetryAt(retryAt) {
+    if (!retryAt) return '';
+    try {
+        const ts = new Date(retryAt);
+        return ts.toLocaleString('th-TH', {
+            day: 'numeric', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    } catch { return ''; }
+}
+
+function diffDaysFromNow(retryAt) {
+    if (!retryAt) return 0;
+    const ms = new Date(retryAt).getTime() - Date.now();
+    if (ms <= 0) return 0;
+    return Math.ceil(ms / 86400000);
+}
+
+function updateCooldownHint(status) {
+    const hintEl = document.getElementById('user-name-cooldown-hint');
+    if (!hintEl) return;
+    if (!status) { hintEl.textContent = ''; return; }
+    if (status.allowed) {
+        hintEl.textContent = '';
+        return;
+    }
+    if (status.reason === 'admin_locked') {
+        hintEl.textContent = `🔒 ระบบล็อกการเปลี่ยนชื่อ (ปลดล็อก ${describeRetryAt(status.retry_at)})`;
+        return;
+    }
+    if (status.reason === 'cooldown') {
+        const days = diffDaysFromNow(status.retry_at);
+        hintEl.textContent = `⏳ เปลี่ยนชื่อได้อีกใน ${days} วัน (${describeRetryAt(status.retry_at)})`;
+    }
+}
+
+function setNameEditStatus(message, level = '') {
+    const el = document.getElementById('name-edit-status');
+    if (!el) return;
+    el.textContent = message || '';
+    el.className = 'name-edit-status' + (level ? ` ${level}` : '');
+}
+
+let lastNameChangeStatus = null;
+
+function openNameEditModal() {
+    const modal = document.getElementById('name-edit-modal');
+    if (!modal) return;
+    const input = document.getElementById('name-edit-input');
+    const lineNameEl = document.getElementById('name-edit-line-name');
+    const cooldownDaysEl = document.getElementById('name-edit-cooldown-days');
+    const counterEl = document.getElementById('name-edit-counter-current');
+    const clearBtn = document.getElementById('btn-name-edit-clear');
+    const saveBtn = document.getElementById('btn-name-edit-save');
+
+    const lineName = (currentUser && currentUser.display_name) || '';
+    const customName = (currentUser && currentUser.custom_display_name) || '';
+    if (lineNameEl) lineNameEl.textContent = lineName || '—';
+    if (input) {
+        input.value = customName || lineName || '';
+        if (counterEl) counterEl.textContent = String(input.value.length);
+        input.focus();
+        input.select();
+    }
+    if (clearBtn) clearBtn.hidden = !customName;
+
+    const status = lastNameChangeStatus;
+    if (cooldownDaysEl) cooldownDaysEl.textContent = String((status && status.cooldown_days) || 7);
+
+    if (status && !status.allowed) {
+        if (status.reason === 'admin_locked') {
+            setNameEditStatus(`🔒 ระบบล็อกการเปลี่ยนชื่อ จนถึง ${describeRetryAt(status.retry_at)}`, 'error');
+        } else if (status.reason === 'cooldown') {
+            const days = diffDaysFromNow(status.retry_at);
+            setNameEditStatus(`⏳ เปลี่ยนชื่อได้อีกใน ${days} วัน (${describeRetryAt(status.retry_at)})`, 'warning');
+        }
+        if (saveBtn) saveBtn.disabled = true;
+        if (clearBtn) clearBtn.disabled = true;
+    } else {
+        setNameEditStatus('');
+        if (saveBtn) saveBtn.disabled = false;
+        if (clearBtn) clearBtn.disabled = false;
+    }
+
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+}
+
+function closeNameEditModal() {
+    const modal = document.getElementById('name-edit-modal');
+    if (modal) modal.hidden = true;
+    document.body.style.overflow = '';
+}
+
+async function submitNameChange(action) {
+    if (!currentUser || !currentUser.platform_id) return;
+    const input = document.getElementById('name-edit-input');
+    const saveBtn = document.getElementById('btn-name-edit-save');
+    const clearBtn = document.getElementById('btn-name-edit-clear');
+
+    if (saveBtn) saveBtn.disabled = true;
+    if (clearBtn) clearBtn.disabled = true;
+    setNameEditStatus('กำลังบันทึก...', '');
+
+    try {
+        let res;
+        if (action === 'clear') {
+            res = await fetch(
+                `${API_BASE}/users/${encodeURIComponent(currentUser.platform_id)}/display-name?platform=${currentUser.platform || 'line'}`,
+                { method: 'DELETE' }
+            );
+        } else {
+            const newName = (input?.value || '').trim();
+            if (!newName) {
+                setNameEditStatus('กรุณาระบุชื่อ', 'error');
+                if (saveBtn) saveBtn.disabled = false;
+                if (clearBtn) clearBtn.disabled = false;
+                return;
+            }
+            res = await fetch(
+                `${API_BASE}/users/${encodeURIComponent(currentUser.platform_id)}/display-name`,
+                {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        platform: currentUser.platform || 'line',
+                        custom_display_name: newName
+                    })
+                }
+            );
+        }
+
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.error || 'ไม่สามารถบันทึกได้');
+        }
+
+        currentUser.custom_display_name = data.custom_display_name || null;
+        persistCurrentUser();
+        lastNameChangeStatus = data.name_change_status || null;
+        setNameEditStatus('บันทึกสำเร็จ ✓', 'success');
+
+        setTimeout(() => {
+            closeNameEditModal();
+            loadProfileData(currentUser.platform_id, currentUser.platform || 'line');
+        }, 700);
+    } catch (err) {
+        console.error('Name change error:', err);
+        setNameEditStatus(err.message || 'ไม่สามารถบันทึกได้', 'error');
+        if (saveBtn) saveBtn.disabled = false;
+        if (clearBtn) clearBtn.disabled = false;
+    }
+}
+
+function setupNameEditModal() {
+    const editBtn = document.getElementById('btn-edit-name');
+    const closeBtn = document.getElementById('name-edit-modal-close');
+    const cancelBtn = document.getElementById('btn-name-edit-cancel');
+    const saveBtn = document.getElementById('btn-name-edit-save');
+    const clearBtn = document.getElementById('btn-name-edit-clear');
+    const input = document.getElementById('name-edit-input');
+    const counterEl = document.getElementById('name-edit-counter-current');
+    const overlay = document.getElementById('name-edit-modal');
+
+    if (editBtn) editBtn.addEventListener('click', openNameEditModal);
+    if (closeBtn) closeBtn.addEventListener('click', closeNameEditModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeNameEditModal);
+    if (saveBtn) saveBtn.addEventListener('click', () => submitNameChange('set'));
+    if (clearBtn) clearBtn.addEventListener('click', () => {
+        if (window.confirm('ลบชื่อที่ตั้งเอง? ระบบจะกลับไปใช้ชื่อจาก LINE — และนับเป็นการเปลี่ยน 1 ครั้ง (โดน cooldown)')) {
+            submitNameChange('clear');
+        }
+    });
+    if (input && counterEl) {
+        input.addEventListener('input', () => {
+            counterEl.textContent = String(input.value.length);
+        });
+    }
+    if (overlay) {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeNameEditModal();
+        });
+    }
+}

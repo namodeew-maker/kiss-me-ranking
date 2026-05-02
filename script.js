@@ -4,10 +4,17 @@ const API_BASE = window.location.hostname === 'namodeew-maker.github.io'
 const API_ROOT = API_BASE.replace(/\/api$/, '');
 
 // ==================== GLOBAL STATE ====================
-let currentUser = null; // { id, platform, platform_id, display_name, picture_url, progress_count }
+let currentUser = null; // { id, platform, platform_id, display_name, custom_display_name, picture_url, progress_count }
 let mainUserIdCopyResetTimer = null;
 let currentProgressData = null;
 let currentLottoSelection = '';
+
+function effectiveDisplayName(user) {
+    if (!user) return '';
+    const custom = String(user.custom_display_name || '').trim();
+    if (custom) return custom;
+    return String(user.display_name || '').trim();
+}
 
 function getTodayDateInputValue(baseDate = new Date()) {
     const tzOffset = baseDate.getTimezoneOffset() * 60000;
@@ -303,14 +310,15 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const effective = effectiveDisplayName(currentUser);
         if (avatar) {
             avatar.style.display = '';
             avatar.src = currentUser.picture_url
                 ? resolveAssetUrl(currentUser.picture_url)
-                : `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.display_name || currentUser.platform_id || 'User')}&background=1a1a2e&color=00f0ff&size=80`;
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(effective || currentUser.platform_id || 'User')}&background=1a1a2e&color=00f0ff&size=80`;
         }
         if (nameEl) {
-            nameEl.textContent = currentUser.display_name || currentUser.platform_id;
+            nameEl.textContent = effective || currentUser.platform_id;
         }
 
         renderMainUserIdCard();
@@ -536,6 +544,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (progressData && typeof progressData === 'object') {
                 currentUser.display_name = progressData.display_name || currentUser.display_name;
+                if (Object.prototype.hasOwnProperty.call(progressData, 'custom_display_name')) {
+                    currentUser.custom_display_name = progressData.custom_display_name || null;
+                }
                 currentUser.picture_url = Object.prototype.hasOwnProperty.call(progressData, 'picture_url')
                     ? (progressData.picture_url || null)
                     : currentUser.picture_url;

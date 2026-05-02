@@ -949,6 +949,110 @@ async function getEffectiveCustomerRankResetDate() {
     return resetDate && resetDate <= today ? resetDate : null;
 }
 
+// ============ Custom Display Name Helpers ============
+
+const NAME_CHANGE_COOLDOWN_DAYS_DEFAULT = 7;
+const NAME_CHANGE_ADMIN_LOCK_DAYS_DEFAULT = 15;
+const CUSTOM_DISPLAY_NAME_MAX_LENGTH = 50;
+
+async function getAppSettingNumber(key, defaultValue) {
+    const result = await pool.query(
+        'SELECT value FROM app_settings WHERE key = $1 LIMIT 1',
+        [key]
+    );
+    const raw = result.rows[0]?.value;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) return defaultValue;
+    return Math.floor(parsed);
+}
+
+async function getNameChangeCooldownDays() {
+    return getAppSettingNumber('name_change_cooldown_days', NAME_CHANGE_COOLDOWN_DAYS_DEFAULT);
+}
+
+async function getNameChangeAdminLockDays() {
+    return getAppSettingNumber('name_change_admin_lock_days', NAME_CHANGE_ADMIN_LOCK_DAYS_DEFAULT);
+}
+
+function effectiveDisplayName(user) {
+    if (!user) return '';
+    const custom = String(user.custom_display_name || '').trim();
+    if (custom) return custom;
+    return String(user.display_name || '').trim();
+}
+
+function validateCustomDisplayName(input) {
+    if (input === null || input === undefined) {
+        return { ok: false, error: 'กรุณาระบุชื่อ' };
+    }
+    const raw = String(input);
+    const trimmed = raw.trim();
+    if (!trimmed) {
+        return { ok: false, error: 'ชื่อห้ามว่าง' };
+    }
+    if (trimmed.length > CUSTOM_DISPLAY_NAME_MAX_LENGTH) {
+        return { ok: false, error: `ชื่อยาวเกิน ${CUSTOM_DISPLAY_NAME_MAX_LENGTH} ตัวอักษร` };
+    }
+    if (/[<>]/.test(trimmed)) {
+        return { ok: false, error: 'ชื่อห้ามมีอักขระพิเศษ < หรือ >' };
+    }
+    if (/^\s*$/.test(trimmed)) {
+        return { ok: false, error: 'ชื่อห้ามมีแต่ช่องว่าง' };
+    }
+    return { ok: true, value: trimmed };
+}
+
+function evaluateNameChangeStatus(user, cooldownDays) {
+    const now = Date.now();
+    const days = Number(cooldownDays) || NAME_CHANGE_COOLDOWN_DAYS_DEFAULT;
+    const lockedUntilTs = user.custom_display_name_locked_until
+        ? new Date(user.custom_display_name_locked_until).getTime()
+        : 0;
+    const lastChangedTs = user.custom_display_name_updated_at
+        ? new Date(user.custom_display_name_updated_at).getTime()
+        : 0;
+    const cooldownUntilTs = lastChangedTs ? lastChangedTs + days * 86400000 : 0;
+
+    const isLocked = lockedUntilTs > now;
+    const inCooldown = cooldownUntilTs > now;
+    const allowed = !isLocked && !inCooldown;
+
+    let reason = null;
+    let retryAt = null;
+    if (isLocked) {
+        reason = 'admin_locked';
+        retryAt = new Date(lockedUntilTs).toISOString();
+    } else if (inCooldown) {
+        reason = 'cooldown';
+        retryAt = new Date(cooldownUntilTs).toISOString();
+    }
+
+    return {
+        allowed,
+        reason,
+        retry_at: retryAt,
+        cooldown_days: days,
+        locked_until: lockedUntilTs ? new Date(lockedUntilTs).toISOString() : null,
+        last_changed_at: lastChangedTs ? new Date(lastChangedTs).toISOString() : null
+    };
+}
+
+async function recordNameHistory(client, { userId, customDisplayName, changedByType, changedByAdminId, action, note }) {
+    await client.query(
+        `INSERT INTO user_name_history
+            (user_id, custom_display_name, changed_by_type, changed_by_admin_id, action, note)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+            userId,
+            customDisplayName || null,
+            changedByType,
+            changedByAdminId || null,
+            action,
+            note || null
+        ]
+    );
+}
+
 function buildUserProgressSummaryKey(platform, platformId, roundLabel) {
     return `user-progress:${platform}:${platformId}:${roundLabel}`;
 }
@@ -1613,6 +1717,8 @@ function formatRewardSnapshotRow(row) {
         lottery_guess_id: row.lottery_guess_id,
         user_id: row.user_id,
         display_name: row.display_name,
+        custom_display_name: row.custom_display_name || null,
+        effective_display_name: effectiveDisplayName(row),
         platform: row.platform,
         platform_id: row.platform_id,
         global_user_id: row.global_user_id,
@@ -1663,6 +1769,7 @@ function buildRewardBaseQuery(userIds = []) {
                     lg.id AS lottery_guess_id,
                     lg.user_id,
                     u.display_name,
+                    u.custom_display_name,
                     u.platform,
                     u.platform_id,
                     u.global_user_id,
@@ -1753,6 +1860,7 @@ async function getRewardManagementSnapshot(client, options = {}) {
             lg.round_label,
             lg.result,
             u.display_name,
+            u.custom_display_name,
             u.platform,
             u.platform_id
          FROM lottery_reward_claims rc
@@ -1801,6 +1909,8 @@ async function getRewardManagementSnapshot(client, options = {}) {
             round_label: row.round_label,
             result: row.result,
             display_name: row.display_name,
+            custom_display_name: row.custom_display_name || null,
+            effective_display_name: effectiveDisplayName(row),
             platform: row.platform,
             platform_id: row.platform_id
         }))
@@ -2974,7 +3084,9 @@ app.get('/api/ranking/customers', async (req, res) => {
             return getOrRefreshPublicApiSummary(cacheKey, async () => {
                 const result = await pool.query(`
                     SELECT
-                        u.id, u.display_name, u.picture_url, u.platform,
+                        u.id, u.display_name, u.custom_display_name,
+                        COALESCE(NULLIF(TRIM(u.custom_display_name), ''), u.display_name) AS effective_display_name,
+                        u.picture_url, u.platform,
                         COALESCE(ranked.total_approved, 0) AS total_approved,
                         lifetime.total_lifetime_approved,
                         COALESCE(ranked.last_service_at, lifetime.last_service_at) AS last_service_at
@@ -3023,6 +3135,10 @@ function toAuthenticatedUser(user) {
         platform: user.platform,
         platform_id: user.platform_id,
         display_name: user.display_name,
+        custom_display_name: user.custom_display_name || null,
+        custom_display_name_updated_at: user.custom_display_name_updated_at || null,
+        custom_display_name_locked_until: user.custom_display_name_locked_until || null,
+        effective_display_name: effectiveDisplayName(user),
         picture_url: user.picture_url,
         progress_count: user.progress_count
     };
@@ -3081,6 +3197,7 @@ const GOOGLE_SHEETS_REPORT_DEFINITIONS = {
             'member_id',
             'line_user_id',
             'display_name',
+            'custom_display_name',
             'phone',
             'total_score',
             'available_points',
@@ -3099,6 +3216,7 @@ const GOOGLE_SHEETS_REPORT_DEFINITIONS = {
             'member_id',
             'line_user_id',
             'display_name',
+            'custom_display_name',
             'first_name',
             'last_name',
             'phone',
@@ -3127,6 +3245,7 @@ const GOOGLE_SHEETS_REPORT_DEFINITIONS = {
             'member_id',
             'line_user_id',
             'display_name',
+            'custom_display_name',
             'round_label',
             'result',
             'reward_type',
@@ -3170,6 +3289,7 @@ async function getLeaderboardExportData() {
                 u.id,
                 u.platform_id AS line_user_id,
                 u.display_name,
+                u.custom_display_name,
                 COALESCE(COUNT(t.id), 0)::int AS total_score,
                 COALESCE(pt.total_points, 0)::int AS available_points,
                 COALESCE(rcc.claim_count, 0)::int AS rewards_claimed_count,
@@ -3182,7 +3302,7 @@ async function getLeaderboardExportData() {
             LEFT JOIN point_totals pt ON pt.global_user_id = u.global_user_id
             LEFT JOIN reward_claim_counts rcc ON rcc.user_id = u.id
             WHERE u.platform = 'line'
-            GROUP BY u.id, u.platform_id, u.display_name, pt.total_points, rcc.claim_count, u.updated_at
+            GROUP BY u.id, u.platform_id, u.display_name, u.custom_display_name, pt.total_points, rcc.claim_count, u.updated_at
         )
         SELECT
             ROW_NUMBER() OVER (
@@ -3191,6 +3311,7 @@ async function getLeaderboardExportData() {
             id,
             line_user_id,
             display_name,
+            custom_display_name,
             total_score,
             available_points,
             rewards_claimed_count,
@@ -3210,6 +3331,7 @@ async function getLeaderboardExportData() {
         String(row.id),
         row.line_user_id || '',
         row.display_name || '',
+        row.custom_display_name || '',
         '',
         Number(row.total_score || 0),
         Number(row.available_points || 0),
@@ -3257,6 +3379,7 @@ async function getMembersExportData() {
                 u.id,
                 u.platform_id AS line_user_id,
                 u.display_name,
+                u.custom_display_name,
                 u.created_at,
                 u.updated_at,
                 COALESCE(SUM(CASE
@@ -3272,7 +3395,7 @@ async function getMembersExportData() {
             LEFT JOIN point_totals pt ON pt.global_user_id = u.global_user_id
             LEFT JOIN redeemed_totals rt ON rt.user_id = u.id
             WHERE u.platform = 'line'
-            GROUP BY u.id, u.platform_id, u.display_name, u.created_at, u.updated_at, pt.total_points, rt.redeemed_points
+            GROUP BY u.id, u.platform_id, u.display_name, u.custom_display_name, u.created_at, u.updated_at, pt.total_points, rt.redeemed_points
         )
         SELECT *
         FROM member_rows
@@ -3288,6 +3411,7 @@ async function getMembersExportData() {
         String(row.id),
         row.line_user_id || '',
         row.display_name || '',
+        row.custom_display_name || '',
         '',
         '',
         '',
@@ -3338,6 +3462,7 @@ async function getRewardClaimsCurrentExportData() {
             String(row.user_id),
             row.platform_id || '',
             row.display_name || '',
+            row.custom_display_name || '',
             row.round_label || '',
             row.result || '',
             row.reward_type || '',
@@ -3470,10 +3595,13 @@ function createEditablePayload(payload, extraHeaders, rowMapper) {
 }
 
 function buildEditableMembersPayload(payload) {
+    // row layout:
+    // [0]export_date, [1]export_datetime, [2]member_id, [3]line_user_id,
+    // [4]display_name (LINE), [5]custom_display_name, ...
     return createEditablePayload(
         payload,
-        ['editable_display_name', 'editable_picture_url', 'row_action'],
-        (row) => [row[4] || '', '', 'update']
+        ['editable_display_name', 'editable_custom_display_name', 'editable_picture_url', 'row_action'],
+        (row) => [row[4] || '', row[5] || '', '', 'update']
     );
 }
 
@@ -3507,14 +3635,17 @@ async function applyMembersImport(records) {
 
             const editableDisplayName = String(record.editable_display_name || record.display_name || '').trim();
             const editablePictureUrl = String(record.editable_picture_url || '').trim();
+            const hasCustomEdit = Object.prototype.hasOwnProperty.call(record, 'editable_custom_display_name');
+            const editableCustomRaw = hasCustomEdit ? String(record.editable_custom_display_name ?? '') : null;
+            const editableCustomTrimmed = editableCustomRaw === null ? null : editableCustomRaw.trim();
 
-            if (!editableDisplayName && !editablePictureUrl) {
+            if (!editableDisplayName && !editablePictureUrl && !hasCustomEdit) {
                 summary.skipped += 1;
                 continue;
             }
 
             const userResult = await client.query(
-                'SELECT id, global_user_id, display_name, picture_url FROM users WHERE id = $1 LIMIT 1',
+                'SELECT id, global_user_id, display_name, custom_display_name, picture_url FROM users WHERE id = $1 LIMIT 1',
                 [memberId]
             );
             const user = userResult.rows[0];
@@ -3535,14 +3666,50 @@ async function applyMembersImport(records) {
                 continue;
             }
 
+            const setClauses = ['display_name = $1', 'picture_url = $2', 'updated_at = NOW()'];
+            const values = [nextDisplayName, nextPictureUrl];
+            let pIndex = 3;
+
+            let customNameChanged = false;
+            let customNameValue = null;
+            if (hasCustomEdit) {
+                if (editableCustomTrimmed === '') {
+                    setClauses.push(`custom_display_name = NULL`);
+                    setClauses.push(`custom_display_name_updated_at = NOW()`);
+                    customNameChanged = true;
+                    customNameValue = null;
+                } else if (editableCustomTrimmed !== (user.custom_display_name || '')) {
+                    const validation = validateCustomDisplayName(editableCustomTrimmed);
+                    if (!validation.ok) {
+                        summary.errors.push({ row: record.__rowNumber, error: `Invalid custom_display_name for member ${memberId}: ${validation.error}` });
+                        continue;
+                    }
+                    setClauses.push(`custom_display_name = $${pIndex++}`);
+                    setClauses.push(`custom_display_name_updated_at = NOW()`);
+                    values.push(validation.value);
+                    customNameChanged = true;
+                    customNameValue = validation.value;
+                }
+            }
+
+            values.push(targetIds);
+
             await client.query(
                 `UPDATE users
-                 SET display_name = $1,
-                     picture_url = $2,
-                     updated_at = NOW()
-                 WHERE id = ANY($3::int[])`,
-                [nextDisplayName, nextPictureUrl, targetIds]
+                 SET ${setClauses.join(', ')}
+                 WHERE id = ANY($${pIndex}::int[])`,
+                values
             );
+
+            if (customNameChanged) {
+                await recordNameHistory(client, {
+                    userId: user.id,
+                    customDisplayName: customNameValue,
+                    changedByType: 'admin',
+                    action: customNameValue === null ? 'admin_clear' : 'set',
+                    note: 'Excel import'
+                });
+            }
 
             summary.processed += 1;
             summary.updated += targetIds.length;
@@ -3920,9 +4087,15 @@ app.get('/api/users/:platform_id/progress', async (req, res) => {
                     [user.id, roundLabel]
                 );
 
+                const cooldownDays = await getNameChangeCooldownDays();
+                const nameChangeStatus = evaluateNameChangeStatus(user, cooldownDays);
+
                 return {
                     user_id: user.id,
                     display_name: user.display_name,
+                    custom_display_name: user.custom_display_name || null,
+                    effective_display_name: effectiveDisplayName(user),
+                    name_change_status: nameChangeStatus,
                     picture_url: user.picture_url,
                     progress_count: approvedCount,
                     round_label: roundLabel,
@@ -3969,7 +4142,10 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
         const payload = await getOrSetPublicReadCache(cacheKey, async () => {
             return getOrRefreshPublicApiSummary(cacheKey, async () => {
                 const userResult = await pool.query(
-                    'SELECT id, display_name, picture_url, progress_count, global_user_id FROM users WHERE platform = $1 AND platform_id = $2',
+                    `SELECT id, display_name, custom_display_name, custom_display_name_updated_at,
+                            custom_display_name_locked_until, picture_url, progress_count, global_user_id
+                     FROM users
+                     WHERE platform = $1 AND platform_id = $2`,
                     [platform, platform_id]
                 );
                 if (userResult.rows.length === 0) {
@@ -4035,6 +4211,8 @@ app.get('/api/users/:platform_id/history', async (req, res) => {
                     user: {
                         id: user.id,
                         display_name: user.display_name,
+                        custom_display_name: user.custom_display_name || null,
+                        effective_display_name: effectiveDisplayName(user),
                         picture_url: user.picture_url,
                         progress_count: currentProgressCount,
                         global_user_id: user.global_user_id
@@ -4113,6 +4291,207 @@ app.post('/api/users/:platform_id/avatar', upload.single('avatar'), async (req, 
         await client.query('ROLLBACK');
         console.error('User avatar upload error:', err);
         res.status(500).json({ error: 'ไม่สามารถอัปโหลดรูปโปรไฟล์ได้' });
+    } finally {
+        client.release();
+    }
+});
+
+// ============ USER CUSTOM DISPLAY NAME ============
+
+// PUT /api/users/:platform_id/display-name — user sets/updates custom display name
+// Body: { custom_display_name: string }
+// Cooldown 7 days (configurable via app_settings.name_change_cooldown_days)
+// Admin lock blocks this endpoint (returns 423)
+app.put('/api/users/:platform_id/display-name', async (req, res) => {
+    const { platform_id } = req.params;
+    const platform = String(req.body.platform || 'line').trim().toLowerCase();
+    if (platform !== 'line') {
+        return res.status(400).json({ error: 'platform ต้องเป็น line เท่านั้น' });
+    }
+
+    const validation = validateCustomDisplayName(req.body.custom_display_name);
+    if (!validation.ok) {
+        return res.status(400).json({ error: validation.error });
+    }
+    const newName = validation.value;
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const userResult = await client.query(
+            `SELECT id, global_user_id, display_name, custom_display_name,
+                    custom_display_name_updated_at, custom_display_name_locked_until
+             FROM users WHERE platform = $1 AND platform_id = $2 FOR UPDATE`,
+            [platform, platform_id]
+        );
+        const user = userResult.rows[0];
+        if (!user) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+        }
+
+        const cooldownDays = await getNameChangeCooldownDays();
+        const status = evaluateNameChangeStatus(user, cooldownDays);
+
+        if (!status.allowed) {
+            await client.query('ROLLBACK');
+            if (status.reason === 'admin_locked') {
+                return res.status(423).json({
+                    error: 'แอดมินล็อกการเปลี่ยนชื่อชั่วคราว กรุณาติดต่อแอดมิน',
+                    reason: 'admin_locked',
+                    retry_at: status.retry_at
+                });
+            }
+            return res.status(429).json({
+                error: 'เปลี่ยนชื่อบ่อยเกินไป กรุณารอจนถึงเวลาที่กำหนด',
+                reason: 'cooldown',
+                retry_at: status.retry_at,
+                cooldown_days: status.cooldown_days
+            });
+        }
+
+        // Get all linked accounts (sync custom name across global_user_id)
+        const idsResult = user.global_user_id
+            ? await client.query('SELECT id FROM users WHERE global_user_id = $1', [user.global_user_id])
+            : { rows: [{ id: user.id }] };
+        const targetIds = idsResult.rows.map((row) => row.id);
+
+        await client.query(
+            `UPDATE users
+             SET custom_display_name = $1,
+                 custom_display_name_updated_at = NOW(),
+                 updated_at = NOW()
+             WHERE id = ANY($2::int[])`,
+            [newName, targetIds]
+        );
+
+        await recordNameHistory(client, {
+            userId: user.id,
+            customDisplayName: newName,
+            changedByType: 'user',
+            action: 'set'
+        });
+
+        await client.query('COMMIT');
+        invalidatePublicReadState();
+
+        const updatedUser = await pool.query(
+            `SELECT custom_display_name, custom_display_name_updated_at, custom_display_name_locked_until, display_name
+             FROM users WHERE id = $1`,
+            [user.id]
+        );
+        const refreshed = updatedUser.rows[0];
+        const newStatus = evaluateNameChangeStatus(refreshed, cooldownDays);
+
+        res.json({
+            success: true,
+            custom_display_name: newName,
+            effective_display_name: newName,
+            display_name: refreshed.display_name,
+            name_change_status: newStatus,
+            updated_count: targetIds.length
+        });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Update display name error:', err);
+        res.status(500).json({ error: 'ไม่สามารถบันทึกชื่อใหม่ได้' });
+    } finally {
+        client.release();
+    }
+});
+
+// DELETE /api/users/:platform_id/display-name — user clears custom name (revert to LINE name)
+// Counts as a name change → cooldown applies
+app.delete('/api/users/:platform_id/display-name', async (req, res) => {
+    const { platform_id } = req.params;
+    const platform = String(req.query.platform || 'line').trim().toLowerCase();
+    if (platform !== 'line') {
+        return res.status(400).json({ error: 'platform ต้องเป็น line เท่านั้น' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const userResult = await client.query(
+            `SELECT id, global_user_id, display_name, custom_display_name,
+                    custom_display_name_updated_at, custom_display_name_locked_until
+             FROM users WHERE platform = $1 AND platform_id = $2 FOR UPDATE`,
+            [platform, platform_id]
+        );
+        const user = userResult.rows[0];
+        if (!user) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+        }
+
+        if (!user.custom_display_name) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'ยังไม่มีชื่อที่ตั้งเอง ไม่สามารถลบได้' });
+        }
+
+        const cooldownDays = await getNameChangeCooldownDays();
+        const status = evaluateNameChangeStatus(user, cooldownDays);
+        if (!status.allowed) {
+            await client.query('ROLLBACK');
+            if (status.reason === 'admin_locked') {
+                return res.status(423).json({
+                    error: 'แอดมินล็อกการเปลี่ยนชื่อชั่วคราว กรุณาติดต่อแอดมิน',
+                    reason: 'admin_locked',
+                    retry_at: status.retry_at
+                });
+            }
+            return res.status(429).json({
+                error: 'เปลี่ยนชื่อบ่อยเกินไป กรุณารอจนถึงเวลาที่กำหนด',
+                reason: 'cooldown',
+                retry_at: status.retry_at,
+                cooldown_days: status.cooldown_days
+            });
+        }
+
+        const idsResult = user.global_user_id
+            ? await client.query('SELECT id FROM users WHERE global_user_id = $1', [user.global_user_id])
+            : { rows: [{ id: user.id }] };
+        const targetIds = idsResult.rows.map((row) => row.id);
+
+        await client.query(
+            `UPDATE users
+             SET custom_display_name = NULL,
+                 custom_display_name_updated_at = NOW(),
+                 updated_at = NOW()
+             WHERE id = ANY($1::int[])`,
+            [targetIds]
+        );
+
+        await recordNameHistory(client, {
+            userId: user.id,
+            customDisplayName: null,
+            changedByType: 'user',
+            action: 'clear'
+        });
+
+        await client.query('COMMIT');
+        invalidatePublicReadState();
+
+        const updatedUser = await pool.query(
+            `SELECT custom_display_name, custom_display_name_updated_at, custom_display_name_locked_until, display_name
+             FROM users WHERE id = $1`,
+            [user.id]
+        );
+        const refreshed = updatedUser.rows[0];
+        const newStatus = evaluateNameChangeStatus(refreshed, cooldownDays);
+
+        res.json({
+            success: true,
+            custom_display_name: null,
+            effective_display_name: refreshed.display_name,
+            display_name: refreshed.display_name,
+            name_change_status: newStatus,
+            updated_count: targetIds.length
+        });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Clear display name error:', err);
+        res.status(500).json({ error: 'ไม่สามารถลบชื่อที่ตั้งเองได้' });
     } finally {
         client.release();
     }
@@ -4897,6 +5276,9 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                     u.platform,
                     u.platform_id,
                     u.display_name,
+                    u.custom_display_name,
+                    u.custom_display_name_updated_at,
+                    u.custom_display_name_locked_until,
                     u.picture_url,
                     u.created_at,
                     u.updated_at,
@@ -4932,9 +5314,9 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                 LEFT JOIN transactions t ON t.user_id = u.id
                 LEFT JOIN point_totals pt ON pt.global_user_id = u.global_user_id
                 WHERE u.platform = 'line'
-                  AND ($1 = '' OR u.display_name ILIKE $2 OR u.platform_id ILIKE $2 OR COALESCE(u.global_user_id::text, '') ILIKE $2)
+                  AND ($1 = '' OR u.display_name ILIKE $2 OR u.custom_display_name ILIKE $2 OR u.platform_id ILIKE $2 OR COALESCE(u.global_user_id::text, '') ILIKE $2)
                   AND ($3 = 'all' OR u.platform = $3)
-                GROUP BY u.id, u.global_user_id, u.platform, u.platform_id, u.display_name, u.picture_url, u.created_at, u.updated_at, pt.total_points, pt.current_round_points
+                GROUP BY u.id, u.global_user_id, u.platform, u.platform_id, u.display_name, u.custom_display_name, u.custom_display_name_updated_at, u.custom_display_name_locked_until, u.picture_url, u.created_at, u.updated_at, pt.total_points, pt.current_round_points
             ),
             filtered_rows AS (
                 SELECT *
@@ -5007,7 +5389,9 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
     const client = await pool.connect();
     try {
         const userResult = await client.query(
-            `SELECT id, global_user_id, platform, platform_id, display_name, picture_url, progress_count, created_at, updated_at
+            `SELECT id, global_user_id, platform, platform_id, display_name,
+                    custom_display_name, custom_display_name_updated_at, custom_display_name_locked_until,
+                    picture_url, progress_count, created_at, updated_at
              FROM users
              WHERE id = $1`,
             [userId]
@@ -5018,7 +5402,9 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
         let linkedAccounts = [user];
         if (user.global_user_id) {
             const linkedResult = await client.query(
-                `SELECT id, global_user_id, platform, platform_id, display_name, picture_url, progress_count, created_at, updated_at
+                `SELECT id, global_user_id, platform, platform_id, display_name,
+                        custom_display_name, custom_display_name_updated_at, custom_display_name_locked_until,
+                        picture_url, progress_count, created_at, updated_at
                  FROM users
                  WHERE global_user_id = $1
                    AND platform = 'line'
@@ -5027,6 +5413,11 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
             );
             linkedAccounts = linkedResult.rows;
         }
+
+        const cooldownDays = await getNameChangeCooldownDays();
+        const nameChangeStatus = evaluateNameChangeStatus(user, cooldownDays);
+        user.effective_display_name = effectiveDisplayName(user);
+        user.name_change_status = nameChangeStatus;
 
         const linkedUserIds = linkedAccounts.map((account) => account.id);
         const customerRankResetDate = await getCustomerRankResetDate();
@@ -5345,15 +5736,36 @@ app.put('/api/admin/users/:id', requireAuth, async (req, res) => {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'Invalid ID' });
 
-    const { display_name, picture_url } = req.body || {};
-    if (display_name === undefined && picture_url === undefined) {
+    const body = req.body || {};
+    const { display_name, picture_url } = body;
+    const hasCustomChange = Object.prototype.hasOwnProperty.call(body, 'custom_display_name');
+    const customNameInput = hasCustomChange ? body.custom_display_name : undefined;
+
+    if (display_name === undefined && picture_url === undefined && !hasCustomChange) {
         return res.status(400).json({ error: 'ไม่มีข้อมูลที่ต้องอัปเดต' });
+    }
+
+    let normalizedCustomName = null;
+    let clearCustomName = false;
+    if (hasCustomChange) {
+        if (customNameInput === null || String(customNameInput || '').trim() === '') {
+            clearCustomName = true;
+        } else {
+            const validation = validateCustomDisplayName(customNameInput);
+            if (!validation.ok) {
+                return res.status(400).json({ error: validation.error });
+            }
+            normalizedCustomName = validation.value;
+        }
     }
 
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        const userResult = await client.query('SELECT id, global_user_id FROM users WHERE id = $1', [userId]);
+        const userResult = await client.query(
+            'SELECT id, global_user_id, custom_display_name FROM users WHERE id = $1',
+            [userId]
+        );
         const user = userResult.rows[0];
         if (!user) {
             await client.query('ROLLBACK');
@@ -5385,6 +5797,16 @@ app.put('/api/admin/users/:id', requireAuth, async (req, res) => {
             values.push(trimmedUrl || null);
         }
 
+        if (hasCustomChange) {
+            if (clearCustomName) {
+                setClauses.push(`custom_display_name = NULL`);
+            } else {
+                setClauses.push(`custom_display_name = $${index++}`);
+                values.push(normalizedCustomName);
+            }
+            setClauses.push(`custom_display_name_updated_at = NOW()`);
+        }
+
         setClauses.push('updated_at = NOW()');
         values.push(targetIds);
 
@@ -5395,6 +5817,17 @@ app.put('/api/admin/users/:id', requireAuth, async (req, res) => {
             values
         );
 
+        if (hasCustomChange) {
+            await recordNameHistory(client, {
+                userId: user.id,
+                customDisplayName: clearCustomName ? null : normalizedCustomName,
+                changedByType: 'admin',
+                changedByAdminId: req.adminUserId,
+                action: clearCustomName ? 'admin_clear' : 'set',
+                note: typeof body.note === 'string' ? body.note.trim() : null
+            });
+        }
+
         await client.query('COMMIT');
         invalidatePublicReadState();
         res.json({ success: true, updated_count: targetIds.length });
@@ -5404,6 +5837,165 @@ app.put('/api/admin/users/:id', requireAuth, async (req, res) => {
         res.status(500).json({ error: 'ไม่สามารถอัปเดตข้อมูลผู้ใช้ได้' });
     } finally {
         client.release();
+    }
+});
+
+// POST /api/admin/users/:id/name-lock — admin lock user from changing name (default 15 days)
+// Body: { days?: number, note?: string }
+app.post('/api/admin/users/:id/name-lock', requireAuth, async (req, res) => {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'Invalid ID' });
+
+    const defaultLockDays = await getNameChangeAdminLockDays();
+    let lockDays = Number(req.body?.days);
+    if (!Number.isFinite(lockDays) || lockDays <= 0) lockDays = defaultLockDays;
+    if (lockDays > 365) lockDays = 365;
+
+    const note = typeof req.body?.note === 'string' ? req.body.note.trim().slice(0, 500) : null;
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const userResult = await client.query(
+            'SELECT id, global_user_id FROM users WHERE id = $1',
+            [userId]
+        );
+        const user = userResult.rows[0];
+        if (!user) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+        }
+
+        const idsResult = user.global_user_id
+            ? await client.query('SELECT id FROM users WHERE global_user_id = $1', [user.global_user_id])
+            : { rows: [{ id: user.id }] };
+        const targetIds = idsResult.rows.map((row) => row.id);
+
+        const result = await client.query(
+            `UPDATE users
+             SET custom_display_name_locked_until = NOW() + ($1 || ' days')::interval,
+                 updated_at = NOW()
+             WHERE id = ANY($2::int[])
+             RETURNING custom_display_name_locked_until`,
+            [String(lockDays), targetIds]
+        );
+
+        await recordNameHistory(client, {
+            userId: user.id,
+            customDisplayName: null,
+            changedByType: 'admin',
+            changedByAdminId: req.adminUserId,
+            action: 'admin_lock',
+            note: note || `lock ${lockDays} days`
+        });
+
+        await client.query('COMMIT');
+        invalidatePublicReadState();
+        res.json({
+            success: true,
+            locked_until: result.rows[0]?.custom_display_name_locked_until,
+            lock_days: lockDays,
+            updated_count: targetIds.length
+        });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Admin name lock error:', err);
+        res.status(500).json({ error: 'ไม่สามารถล็อกการเปลี่ยนชื่อได้' });
+    } finally {
+        client.release();
+    }
+});
+
+// DELETE /api/admin/users/:id/name-lock — admin remove lock
+app.delete('/api/admin/users/:id/name-lock', requireAuth, async (req, res) => {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'Invalid ID' });
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const userResult = await client.query(
+            'SELECT id, global_user_id FROM users WHERE id = $1',
+            [userId]
+        );
+        const user = userResult.rows[0];
+        if (!user) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+        }
+
+        const idsResult = user.global_user_id
+            ? await client.query('SELECT id FROM users WHERE global_user_id = $1', [user.global_user_id])
+            : { rows: [{ id: user.id }] };
+        const targetIds = idsResult.rows.map((row) => row.id);
+
+        await client.query(
+            `UPDATE users
+             SET custom_display_name_locked_until = NULL,
+                 updated_at = NOW()
+             WHERE id = ANY($1::int[])`,
+            [targetIds]
+        );
+
+        await recordNameHistory(client, {
+            userId: user.id,
+            customDisplayName: null,
+            changedByType: 'admin',
+            changedByAdminId: req.adminUserId,
+            action: 'admin_unlock',
+            note: null
+        });
+
+        await client.query('COMMIT');
+        invalidatePublicReadState();
+        res.json({ success: true, updated_count: targetIds.length });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Admin name unlock error:', err);
+        res.status(500).json({ error: 'ไม่สามารถปลดล็อกการเปลี่ยนชื่อได้' });
+    } finally {
+        client.release();
+    }
+});
+
+// GET /api/admin/users/:id/name-history — admin view full name change timeline
+app.get('/api/admin/users/:id/name-history', requireAuth, async (req, res) => {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'Invalid ID' });
+
+    try {
+        const userResult = await pool.query(
+            'SELECT id, global_user_id FROM users WHERE id = $1',
+            [userId]
+        );
+        const user = userResult.rows[0];
+        if (!user) return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+
+        const idsResult = user.global_user_id
+            ? await pool.query('SELECT id FROM users WHERE global_user_id = $1', [user.global_user_id])
+            : { rows: [{ id: user.id }] };
+        const targetIds = idsResult.rows.map((row) => row.id);
+
+        const historyResult = await pool.query(
+            `SELECT h.id, h.user_id, h.custom_display_name, h.changed_by_type,
+                    h.changed_by_admin_id, h.action, h.note, h.changed_at,
+                    au.username AS admin_username
+             FROM user_name_history h
+             LEFT JOIN admin_users au ON au.id = h.changed_by_admin_id
+             WHERE h.user_id = ANY($1::int[])
+             ORDER BY h.changed_at DESC, h.id DESC
+             LIMIT 100`,
+            [targetIds]
+        );
+
+        res.json({
+            success: true,
+            user_id: userId,
+            history: historyResult.rows
+        });
+    } catch (err) {
+        console.error('Admin name history error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดประวัติชื่อได้' });
     }
 });
 

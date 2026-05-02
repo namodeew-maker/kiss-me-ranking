@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260411c">
-    <link rel="stylesheet" href="admin.css?v=20260428">
+    <link rel="stylesheet" href="styles.css?v=20260502">
+    <link rel="stylesheet" href="admin.css?v=20260502">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -929,11 +929,31 @@
 
                 <div class="user-detail-form">
                     <div class="input-row user-detail-form-row">
-                        <input type="text" id="user-edit-display-name" placeholder="ชื่อที่แสดง">
+                        <input type="text" id="user-edit-display-name" placeholder="ชื่อ LINE จริง (สำหรับ verify)">
                         <input type="url" id="user-edit-picture-url" placeholder="ลิงก์รูปโปรไฟล์ (ถ้ามี)">
+                    </div>
+                    <div class="input-row user-detail-form-row">
+                        <input type="text" id="user-edit-custom-display-name" placeholder="ชื่อที่ user ตั้งเอง (custom) — ปล่อยว่างเพื่อล้าง" maxlength="50">
+                    </div>
+                    <div class="user-detail-name-info">
+                        <div class="user-detail-name-row">
+                            <span class="user-detail-name-label">📱 ชื่อ LINE:</span>
+                            <span class="user-detail-name-value" id="user-detail-line-name">-</span>
+                        </div>
+                        <div class="user-detail-name-row">
+                            <span class="user-detail-name-label">✏️ ชื่อ user ตั้ง:</span>
+                            <span class="user-detail-name-value user-detail-name-custom" id="user-detail-custom-name">— (ยังไม่ตั้ง)</span>
+                        </div>
+                        <div class="user-detail-name-row">
+                            <span class="user-detail-name-label">🔒 สถานะ:</span>
+                            <span class="user-detail-name-status" id="user-detail-name-lock-status">-</span>
+                        </div>
                     </div>
                     <div class="input-row user-detail-action-row">
                         <button class="btn-action btn-green" id="btn-save-user">บันทึกข้อมูล</button>
+                        <button class="btn-action btn-orange" id="btn-name-lock">🔒 ล็อกเปลี่ยนชื่อ 15 วัน</button>
+                        <button class="btn-action btn-ghost" id="btn-name-unlock" hidden>🔓 ปลดล็อก</button>
+                        <button class="btn-action btn-blue" id="btn-name-history">📜 ประวัติชื่อ</button>
                         <button class="btn-action btn-red" id="btn-delete-user">ลบ User ถาวร</button>
                     </div>
                 </div>
@@ -1012,6 +1032,18 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260428"></script>
+    <!-- Name History Modal -->
+    <div class="name-history-modal-overlay" id="name-history-modal" hidden>
+        <div class="name-history-modal-content glass-panel">
+            <button class="name-history-modal-close" id="name-history-modal-close" aria-label="ปิด">&times;</button>
+            <h3 class="name-history-modal-title">📜 ประวัติการเปลี่ยนชื่อ</h3>
+            <p class="name-history-modal-subtitle" id="name-history-modal-subtitle">User ID: -</p>
+            <div class="name-history-list" id="name-history-list">
+                <div class="name-history-empty">กำลังโหลด...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin.js?v=20260502"></script>
 </body>
 </html>

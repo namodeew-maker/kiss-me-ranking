@@ -1420,3 +1420,224 @@
         max-width: 72px;
     }
 }
+
+/* ==================== Custom Display Name (User Profile) ==================== */
+
+.user-name-block {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.name-edit-btn {
+    background: transparent;
+    border: 1px solid rgba(0, 240, 255, 0.4);
+    color: #00f0ff;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    transition: all 0.18s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.name-edit-btn:hover {
+    background: rgba(0, 240, 255, 0.12);
+    transform: scale(1.05);
+}
+
+.user-line-name-secondary {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: #00f0ff;
+    opacity: 0.85;
+    font-weight: 400;
+}
+
+.user-line-name-secondary:empty {
+    display: none;
+}
+
+.user-name-cooldown-hint {
+    margin: 4px 0 0;
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.5);
+    font-style: italic;
+}
+
+.user-name-cooldown-hint:empty {
+    display: none;
+}
+
+/* ==================== Name Edit Modal ==================== */
+
+.name-edit-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 6, 18, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    animation: nameEditFadeIn 0.18s ease;
+}
+
+@keyframes nameEditFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.name-edit-modal-content {
+    width: 100%;
+    max-width: 480px;
+    padding: 28px 24px 22px;
+    border-radius: 14px;
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    box-shadow: 0 0 50px rgba(0, 240, 255, 0.2);
+    position: relative;
+}
+
+.name-edit-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 28px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.name-edit-modal-close:hover {
+    color: #ff3c3c;
+}
+
+.name-edit-modal-title {
+    margin: 0 0 6px;
+    color: #00f0ff;
+    font-size: 20px;
+}
+
+.name-edit-modal-hint {
+    margin: 0 0 18px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.5;
+}
+
+.name-edit-modal-hint span {
+    color: #ff3c3c;
+    font-weight: 700;
+}
+
+.name-edit-label {
+    display: block;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.85);
+    margin-bottom: 6px;
+}
+
+.name-edit-input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    color: #fff;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 15px;
+    font-family: inherit;
+    box-sizing: border-box;
+    transition: border-color 0.18s ease;
+}
+
+.name-edit-input:focus {
+    outline: none;
+    border-color: #00f0ff;
+    box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.18);
+}
+
+.name-edit-counter {
+    margin-top: 4px;
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.5);
+    text-align: right;
+}
+
+.name-edit-line-name-block {
+    margin: 14px 0;
+    padding: 10px 12px;
+    background: rgba(0, 240, 255, 0.06);
+    border-radius: 8px;
+    border-left: 3px solid #00f0ff;
+    font-size: 13px;
+}
+
+.name-edit-line-label {
+    color: rgba(255, 255, 255, 0.6);
+    margin-right: 6px;
+}
+
+.name-edit-line-value {
+    color: #00f0ff;
+    font-weight: 600;
+}
+
+.name-edit-status {
+    margin: 8px 0 14px;
+    font-size: 12.5px;
+    min-height: 18px;
+}
+
+.name-edit-status.error {
+    color: #ff3c3c;
+}
+
+.name-edit-status.warning {
+    color: #ffc107;
+}
+
+.name-edit-status.success {
+    color: #00ffaa;
+}
+
+.name-edit-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.name-edit-actions .btn-action {
+    flex: 1 1 auto;
+    min-width: 100px;
+}
+
+.btn-ghost {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 480px) {
+    .name-edit-modal-content {
+        padding: 22px 18px 18px;
+    }
+    .name-edit-modal-title {
+        font-size: 18px;
+    }
+    .name-edit-actions .btn-action {
+        flex-basis: 100%;
+    }
+}
