@@ -3869,6 +3869,79 @@
     }
 }
 
+/* ==================== Lottery summary cards (Prediction status tab) ==================== */
+
+#draw-history-panel .status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(0, 240, 255, 0.12);
+}
+
+.lottery-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 22px;
+}
+
+.lottery-summary-card {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 16px 14px;
+    text-align: center;
+    transition: all 0.18s ease;
+    border-left: 3px solid;
+}
+
+.lottery-summary-card:hover {
+    transform: translateY(-2px);
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.lottery-summary-rounds       { border-left-color: #00f0ff; }
+.lottery-summary-announced    { border-left-color: #00ffaa; }
+.lottery-summary-pending      { border-left-color: #ffc107; }
+.lottery-summary-guesses      { border-left-color: rgba(255,255,255,0.5); }
+.lottery-summary-winners      { border-left-color: #ff3c3c; }
+
+.lottery-summary-num {
+    display: block;
+    font-family: 'Orbitron', monospace;
+    font-size: 1.9rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+
+.lottery-summary-rounds .lottery-summary-num     { color: #00f0ff; }
+.lottery-summary-announced .lottery-summary-num  { color: #00ffaa; }
+.lottery-summary-pending .lottery-summary-num    { color: #ffc107; }
+.lottery-summary-guesses .lottery-summary-num    { color: rgba(255,255,255,0.85); }
+.lottery-summary-winners .lottery-summary-num    { color: #ff3c3c; text-shadow: 0 0 8px rgba(255,60,60,0.4); }
+
+.lottery-summary-lbl {
+    display: block;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 0.3px;
+}
+
+@media (max-width: 600px) {
+    .lottery-summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .lottery-summary-num {
+        font-size: 1.5rem;
+    }
+}
+
 /* ==================== Draw Schedule Editor (admin) ==================== */
 
 .schedule-panel .schedule-header {

@@ -3703,74 +3703,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // ==================== PREDICTION STATUS TAB ====================
-    let adminStatusAllHistory = [];
-    let adminStatusCurrentFilter = 'all';
-
-    async function adminLoadStatusData() {
-        try {
-            const res = await authFetch(`${API_BASE}/history`);
-            adminStatusAllHistory = await res.json();
-        } catch {
-            adminStatusAllHistory = [];
-        }
-        adminUpdateStatusCounts();
-        adminRenderStatusTable();
-    }
-
-    function adminGetStatus(h) {
-        if (h.approved === 'pending') return { text: '⏳ รออนุมัติ', cls: 'badge-pending', group: 'pending' };
-        if (h.approved === 'rejected') return { text: '❌ ไม่อนุมัติ', cls: 'badge-rejected', group: 'rejected' };
-        if (h.lottery_result === 'won') return { text: '🎉 ถูกรางวัล!', cls: 'badge-won', group: 'decided' };
-        if (h.lottery_result === 'lost') return { text: '❌ ไม่ถูก', cls: 'badge-lost', group: 'decided' };
-        return { text: '✅ รอผลออก', cls: 'badge-approved', group: 'approved' };
-    }
-
-    function adminUpdateStatusCounts() {
-        let pending = 0, approved = 0, decided = 0;
-        adminStatusAllHistory.forEach(h => {
-            const s = adminGetStatus(h);
-            if (s.group === 'pending') pending++;
-            else if (s.group === 'approved') approved++;
-            else if (s.group === 'decided') decided++;
-        });
-        document.getElementById('admin-stat-total').textContent = adminStatusAllHistory.length;
-        document.getElementById('admin-stat-pending').textContent = pending;
-        document.getElementById('admin-stat-approved').textContent = approved;
-        document.getElementById('admin-stat-decided').textContent = decided;
-    }
-
-    function adminRenderStatusTable() {
-        const tbody = document.getElementById('admin-status-body');
-        const emptyDiv = document.getElementById('admin-status-empty');
-
-        const filtered = adminStatusCurrentFilter === 'all'
-            ? adminStatusAllHistory
-            : adminStatusAllHistory.filter(h => adminGetStatus(h).group === adminStatusCurrentFilter);
-
-        if (filtered.length === 0) {
-            tbody.innerHTML = '';
-            emptyDiv.style.display = '';
-            return;
-        }
-
-        emptyDiv.style.display = 'none';
-        tbody.innerHTML = filtered.map((h, i) => {
-            const s = adminGetStatus(h);
-            const date = new Date(h.created_at || h.date);
-            const dateStr = Number.isNaN(date.getTime())
-                ? '—'
-                : `${date.toLocaleDateString('th-TH')} ${date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`;
-            const customerName = h.customer_name || h.display_name || h.name || '—';
-            const guessNumber = h.guess_number ? String(h.guess_number).padStart(2, '0') : 'รอทาย';
-            return `<tr>
-                <td data-label="#"><span style="font-family:'Orbitron',monospace; color:var(--neon-cyan); font-weight:700;">${i + 1}</span></td>
-                <td data-label="ชื่อ"><span style="font-weight:700; color:var(--text-silver); line-height:1.35;">${escapeHtml(customerName)}</span></td>
-                <td data-label="เลข"><span style="font-family:'Orbitron',monospace; color:var(--gold); font-weight:900; letter-spacing:0.08em;">${escapeHtml(guessNumber)}</span></td>
-                <td data-label="วันที่"><span style="line-height:1.45; color:var(--text-muted);">${escapeHtml(dateStr)}</span></td>
-                <td data-label="สถานะ"><span class="badge ${s.cls}" style="display:inline-flex; align-items:center; justify-content:center; min-height:30px; padding:3px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold; text-align:center; line-height:1.15; white-space:nowrap;">${s.text}</span></td>
-            </tr>`;
-        }).join('');
-    }
+    // Lottery-focused. Data comes from /api/admin/draws via loadDrawHistory().
+    // (The legacy /api/history-based table that lived here has moved to the
+    // Approval tab, which has the full version with filters and pagination.)
 
     function escapeHtml(text) {
         const div = document.createElement('div');
@@ -3778,34 +3713,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         return div.innerHTML;
     }
 
-    // Filter buttons for prediction status
-    document.querySelectorAll('.admin-status-filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelector('.admin-status-filter-btn.active').classList.remove('active');
-            btn.classList.add('active');
-            btn.style.borderColor = 'var(--neon-red)';
-            btn.style.color = 'var(--neon-red)';
-            btn.style.background = 'rgba(255, 60, 60, 0.1)';
-            adminStatusCurrentFilter = btn.dataset.filter;
-            adminRenderStatusTable();
-        });
-    });
-
     // Load prediction status data when tab is activated
     tabButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
             if (e.target.dataset.tab === 'prediction-status') {
-                adminLoadStatusData();
                 loadDrawHistory();
             }
         });
     });
 
-    // Initial load for prediction status
-    adminLoadStatusData();
+    // Initial load
     loadDrawHistory();
-    // Auto-refresh every 15 seconds
-    setInterval(adminLoadStatusData, 15000);
+    // Auto-refresh every 30s while on the page (lottery rounds change rarely)
+    setInterval(() => {
+        const tab = document.getElementById('tab-prediction-status');
+        if (tab && tab.classList.contains('active')) loadDrawHistory();
+    }, 30000);
 
     // ==================== Draw History (Round announcement archive) ====================
 
@@ -3917,6 +3840,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
     }
 
+    function renderLotterySummary(rounds) {
+        const totalRounds = rounds.length;
+        const announcedRounds = rounds.filter((r) => r.announced).length;
+        const pendingRounds = totalRounds - announcedRounds;
+        const totalGuesses = rounds.reduce((sum, r) => sum + Number(r.total_guesses || 0), 0);
+        const totalWinners = rounds.reduce((sum, r) => sum + Number(r.winners || 0), 0);
+
+        const setText = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = String(val);
+        };
+        setText('lottery-stat-rounds', totalRounds);
+        setText('lottery-stat-announced', announcedRounds);
+        setText('lottery-stat-pending-rounds', pendingRounds);
+        setText('lottery-stat-guesses', totalGuesses);
+        setText('lottery-stat-winners', totalWinners);
+    }
+
     async function loadDrawHistory() {
         const container = document.getElementById('draw-history-list');
         if (!container) return;
@@ -3926,6 +3867,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!res.ok) throw new Error(data.error || 'load-failed');
 
             const rounds = Array.isArray(data.rounds) ? data.rounds : [];
+            renderLotterySummary(rounds);
+
             if (rounds.length === 0) {
                 container.innerHTML = '<div class="draw-history-empty">📭 ยังไม่มีงวดที่มีคนทาย</div>';
                 return;

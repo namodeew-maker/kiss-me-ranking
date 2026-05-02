@@ -6,7 +6,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260502">
-    <link rel="stylesheet" href="admin.css?v=20260502d">
+    <link rel="stylesheet" href="admin.css?v=20260502e">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -573,73 +573,39 @@
             <!-- ======================== TAB: สถานะการทายผล ======================== -->
             <div class="tab-content" id="tab-prediction-status">
 
-                <section class="admin-panel">
-                    <div class="status-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:20px;">
-                        <div>
-                            <h3 style="margin:0;">📊 สถานะการทายผลปัจจุบัน</h3>
-                            <p style="margin:5px 0 0 0; color:#888; font-size:0.9rem;">ตรวจสอบสถานะการทายเลขท้าย 2 ตัวและประวัติการใช้บริการ</p>
-                        </div>
-                    </div>
-
-                    <div class="status-stats" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:15px; margin-bottom:25px;">
-                        <div class="status-stat" style="background:rgba(255,255,255,0.03); border:1px solid #333; border-radius:8px; padding:18px; text-align:center;">
-                            <span class="stat-num" id="admin-stat-total" style="display:block; font-size:2rem; font-weight:bold; color:var(--neon-red); font-family:'Orbitron',monospace;">0</span>
-                            <span class="stat-lbl" style="display:block; font-size:0.8rem; color:#888; margin-top:4px;">ทั้งหมด</span>
-                        </div>
-                        <div class="status-stat stat-pending" style="background:rgba(255,255,255,0.03); border:1px solid #333; border-radius:8px; padding:18px; text-align:center; border-color:rgba(255,204,0,0.3);">
-                            <span class="stat-num" id="admin-stat-pending" style="display:block; font-size:2rem; font-weight:bold; color:#ffcc00; font-family:'Orbitron',monospace;">0</span>
-                            <span class="stat-lbl" style="display:block; font-size:0.8rem; color:#888; margin-top:4px;">รออนุมัติ</span>
-                        </div>
-                        <div class="status-stat stat-approved" style="background:rgba(255,255,255,0.03); border:1px solid #333; border-radius:8px; padding:18px; text-align:center; border-color:rgba(0,255,136,0.3);">
-                            <span class="stat-num" id="admin-stat-approved" style="display:block; font-size:2rem; font-weight:bold; color:#00ff88; font-family:'Orbitron',monospace;">0</span>
-                            <span class="stat-lbl" style="display:block; font-size:0.8rem; color:#888; margin-top:4px;">อนุมัติแล้ว</span>
-                        </div>
-                        <div class="status-stat" style="background:rgba(255,255,255,0.03); border:1px solid #333; border-radius:8px; padding:18px; text-align:center;">
-                            <span class="stat-num" id="admin-stat-decided" style="display:block; font-size:2rem; font-weight:bold; color:var(--neon-red); font-family:'Orbitron',monospace;">0</span>
-                            <span class="stat-lbl" style="display:block; font-size:0.8rem; color:#888; margin-top:4px;">ประกาศผลแล้ว</span>
-                        </div>
-                    </div>
-
-                    <!-- Filter -->
-                    <div class="filter-bar" style="display:flex; gap:8px; margin-bottom:15px; flex-wrap:wrap;">
-                        <button class="filter-btn active admin-status-filter-btn" data-filter="all" style="padding:6px 16px; border:1px solid #333; background:transparent; color:#aaa; border-radius:20px; cursor:pointer; font-family:'Kanit',sans-serif; font-size:0.85rem; transition:0.2s;">ทั้งหมด</button>
-                        <button class="filter-btn admin-status-filter-btn" data-filter="pending" style="padding:6px 16px; border:1px solid #333; background:transparent; color:#aaa; border-radius:20px; cursor:pointer; font-family:'Kanit',sans-serif; font-size:0.85rem; transition:0.2s;">⏳ รออนุมัติ</button>
-                        <button class="filter-btn admin-status-filter-btn" data-filter="approved" style="padding:6px 16px; border:1px solid #333; background:transparent; color:#aaa; border-radius:20px; cursor:pointer; font-family:'Kanit',sans-serif; font-size:0.85rem; transition:0.2s;">✅ อนุมัติแล้ว</button>
-                        <button class="filter-btn admin-status-filter-btn" data-filter="rejected" style="padding:6px 16px; border:1px solid #333; background:transparent; color:#aaa; border-radius:20px; cursor:pointer; font-family:'Kanit',sans-serif; font-size:0.85rem; transition:0.2s;">❌ ไม่อนุมัติ</button>
-                        <button class="filter-btn admin-status-filter-btn" data-filter="decided" style="padding:6px 16px; border:1px solid #333; background:transparent; color:#aaa; border-radius:20px; cursor:pointer; font-family:'Kanit',sans-serif; font-size:0.85rem; transition:0.2s;">🎯 ประกาศผลแล้ว</button>
-                    </div>
-
-                    <div class="status-table-wrapper" style="overflow-x:auto; border-radius:14px; -webkit-overflow-scrolling:touch;">
-                        <table class="participant-table" id="admin-status-table" style="min-width:640px;">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>ชื่อ</th>
-                                    <th>เลข</th>
-                                    <th>วันที่</th>
-                                    <th>สถานะ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="admin-status-body">
-                            </tbody>
-                        </table>
-                    </div>
-                    <div id="admin-status-empty" class="empty-state" style="display:none; text-align:center; padding:40px;">
-                        <div style="font-size:3rem; margin-bottom:10px;">🔮</div>
-                        <p style="margin:10px 0;">ตอนนี้ยังไม่มีผู้ทายผล</p>
-                        <p style="color:#888; font-size:0.9rem;">เลือกเลขและกรอกข้อมูลที่หน้าหลักเพื่อเริ่มทาย!</p>
-                    </div>
-                </section>
-
-                <!-- ======================== ประวัติงวด ======================== -->
                 <section class="admin-panel" id="draw-history-panel">
-                    <div class="status-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+                    <div class="status-header">
                         <div>
-                            <h3 style="margin:0;">📜 ประวัติการทายเลข + ประกาศผลแต่ละงวด</h3>
+                            <h3 style="margin:0;">📊 สถานะการทายผล + ประวัติแต่ละงวด</h3>
                             <p style="margin:5px 0 0 0; color:#888; font-size:0.9rem;">รายละเอียดของแต่ละงวดที่มีลูกค้าทาย — เลขที่ออก, รายชื่อผู้ทาย, ผลลัพธ์</p>
                         </div>
                         <button class="btn-action btn-blue" id="btn-refresh-draw-history" type="button">🔄 รีเฟรช</button>
                     </div>
+
+                    <!-- Lottery-focused summary cards (derived from /api/admin/draws) -->
+                    <div class="lottery-summary-grid">
+                        <div class="lottery-summary-card lottery-summary-rounds">
+                            <span class="lottery-summary-num" id="lottery-stat-rounds">0</span>
+                            <span class="lottery-summary-lbl">งวดที่มีคนทาย</span>
+                        </div>
+                        <div class="lottery-summary-card lottery-summary-announced">
+                            <span class="lottery-summary-num" id="lottery-stat-announced">0</span>
+                            <span class="lottery-summary-lbl">ประกาศแล้ว</span>
+                        </div>
+                        <div class="lottery-summary-card lottery-summary-pending">
+                            <span class="lottery-summary-num" id="lottery-stat-pending-rounds">0</span>
+                            <span class="lottery-summary-lbl">รอประกาศ</span>
+                        </div>
+                        <div class="lottery-summary-card lottery-summary-guesses">
+                            <span class="lottery-summary-num" id="lottery-stat-guesses">0</span>
+                            <span class="lottery-summary-lbl">ผู้ทายรวม</span>
+                        </div>
+                        <div class="lottery-summary-card lottery-summary-winners">
+                            <span class="lottery-summary-num" id="lottery-stat-winners">0</span>
+                            <span class="lottery-summary-lbl">ผู้ถูกรางวัล</span>
+                        </div>
+                    </div>
+
                     <div id="draw-history-list">
                         <div class="empty-state" style="text-align:center; padding:30px; color:#888;">กำลังโหลด...</div>
                     </div>
@@ -1060,6 +1026,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260502d"></script>
+    <script src="admin.js?v=20260502e"></script>
 </body>
 </html>
