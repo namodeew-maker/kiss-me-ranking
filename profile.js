@@ -874,6 +874,7 @@ async function submitNameChange(action) {
 
 function setupNameEditModal() {
     const editBtn = document.getElementById('btn-edit-name');
+    const editBtnBig = document.getElementById('btn-change-name');
     const closeBtn = document.getElementById('name-edit-modal-close');
     const cancelBtn = document.getElementById('btn-name-edit-cancel');
     const saveBtn = document.getElementById('btn-name-edit-save');
@@ -883,6 +884,7 @@ function setupNameEditModal() {
     const overlay = document.getElementById('name-edit-modal');
 
     if (editBtn) editBtn.addEventListener('click', openNameEditModal);
+    if (editBtnBig) editBtnBig.addEventListener('click', openNameEditModal);
     if (closeBtn) closeBtn.addEventListener('click', closeNameEditModal);
     if (cancelBtn) cancelBtn.addEventListener('click', closeNameEditModal);
     if (saveBtn) saveBtn.addEventListener('click', () => submitNameChange('set'));

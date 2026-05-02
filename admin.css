@@ -3554,6 +3554,10 @@
     padding: 16px;
 }
 
+.name-history-modal-overlay[hidden] {
+    display: none !important;
+}
+
 .name-history-modal-content {
     width: 100%;
     max-width: 560px;

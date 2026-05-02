@@ -1489,6 +1489,39 @@
     animation: nameEditFadeIn 0.18s ease;
 }
 
+.name-edit-modal-overlay[hidden] {
+    display: none !important;
+}
+
+/* Big "Change Name" button next to photo upload */
+.name-change-btn {
+    background: rgba(0, 240, 255, 0.08);
+    border: 1px solid rgba(0, 240, 255, 0.4);
+    color: #00f0ff;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'Kanit', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.18s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.name-change-btn:hover {
+    background: rgba(0, 240, 255, 0.16);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 240, 255, 0.2);
+}
+
+.name-change-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
 @keyframes nameEditFadeIn {
     from { opacity: 0; }
     to { opacity: 1; }

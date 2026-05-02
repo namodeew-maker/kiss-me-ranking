@@ -6,7 +6,7 @@
     <title>Kiss Me Ranking — โปรไฟล์</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260502">
-    <link rel="stylesheet" href="profile.css?v=20260502">
+    <link rel="stylesheet" href="profile.css?v=20260502b">
 </head>
 <body class="futuristic-bg">
     <!-- Animated Background Particles -->
@@ -75,7 +75,8 @@
                                 <div class="profile-avatar-tools">
                                     <label for="user-avatar-input" class="avatar-upload-btn">📷 เปลี่ยนรูปโปรไฟล์</label>
                                     <input type="file" id="user-avatar-input" accept="image/*" hidden>
-                                    <div class="avatar-upload-status" id="user-avatar-status">อัปโหลดรูปใหม่ได้ หากไม่สะดวกใช้รูปจาก LINE</div>
+                                    <button type="button" class="name-change-btn" id="btn-change-name">✏️ เปลี่ยนชื่อ</button>
+                                    <div class="avatar-upload-status" id="user-avatar-status">อัปโหลดรูปใหม่ได้ หากไม่สะดวกใช้รูปจาก LINE • ถ้าไม่อยากเปลี่ยนชื่อ ไม่ต้องกดอะไร — ระบบใช้ชื่อจาก LINE ให้อัตโนมัติ</div>
                                 </div>
                             </div>
                         </div>
@@ -203,6 +204,6 @@
     </div>
 
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-    <script src="profile.js?v=20260502"></script>
+    <script src="profile.js?v=20260502b"></script>
 </body>
 </html>
