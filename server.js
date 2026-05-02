@@ -4704,7 +4704,10 @@ app.post('/api/lottery/guess', async (req, res) => {
         return res.status(400).json({ error: 'เลขทายต้องเป็น 2 หลัก (00-99)' });
     }
 
-    const roundLabel = getCurrentRoundLabel();
+    // Use schedule-aware round so guesses on the day before a draw (e.g. 1 พ.ค.
+    // for the 2 พ.ค. draw) are assigned to the round that will be announced,
+    // not the next calendar round.
+    const roundLabel = await getCurrentLotteryRoundLabel();
 
     const client = await pool.connect();
     try {
@@ -4897,6 +4900,39 @@ function scheduleEntryToRoundLabel(year, month, slot) {
     }
     // slot 'B'
     return `${year}-${String(month).padStart(2, '0')}-A`;
+}
+
+// Schedule-aware round assignment for new lottery guesses.
+// Picks the next upcoming draw (date >= today in Bangkok time) and returns the
+// round_label that draw will close. Falls back to calendar-based legacy if
+// the schedule is missing or empty.
+async function getCurrentLotteryRoundLabel() {
+    try {
+        const schedule = await getDrawSchedule();
+        if (!Array.isArray(schedule) || schedule.length === 0) {
+            return getCurrentRoundLabel();
+        }
+
+        // Bangkok-local YYYY-MM-DD (matches schedule.date format)
+        const todayStr = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Bangkok',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).format(new Date());
+
+        const upcoming = schedule
+            .filter((e) => e && typeof e.date === 'string' && e.date >= todayStr)
+            .sort((a, b) => a.date.localeCompare(b.date))[0];
+
+        if (!upcoming) return getCurrentRoundLabel();
+
+        const ceYear = parseInt(upcoming.date.slice(0, 4), 10);
+        return scheduleEntryToRoundLabel(ceYear, upcoming.month, upcoming.slot);
+    } catch (err) {
+        console.warn('getCurrentLotteryRoundLabel: schedule fail, fallback', err);
+        return getCurrentRoundLabel();
+    }
 }
 
 // Helper: convert Thai draw date label → round_label using admin-defined draw schedule.
