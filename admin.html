@@ -6,7 +6,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260502">
-    <link rel="stylesheet" href="admin.css?v=20260502c">
+    <link rel="stylesheet" href="admin.css?v=20260502d">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -734,16 +734,18 @@
                 </section>
 
                 <!-- Draw Schedule Editor -->
-                <section class="admin-panel">
-                    <h3>📅 ตารางวันออกรางวัล</h3>
-                    <p class="panel-caption">แก้ไขวันที่ออกรางวัลจริงตามสำนักงานสลากฯ — ตารางนี้จะแสดงในหน้า Index ด้วย กด "บันทึกตาราง" หลังแก้ไขเสร็จ</p>
-                    <div class="draw-schedule-grid" id="admin-draw-schedule-grid">
-                        <p class="empty-msg">กำลังโหลดตาราง...</p>
+                <section class="admin-panel schedule-panel">
+                    <div class="schedule-header">
+                        <h3>📅 ตารางวันออกรางวัล</h3>
+                        <p class="panel-caption">แก้ไขวันที่ออกรางวัลจริงตามสำนักงานสลากฯ — ตารางนี้จะแสดงในหน้า Index ด้วย กด <strong>"บันทึกตาราง"</strong> หลังแก้ไขเสร็จ</p>
                     </div>
-                    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+                    <div class="draw-schedule-grid" id="admin-draw-schedule-grid">
+                        <div class="schedule-loading">กำลังโหลดตาราง...</div>
+                    </div>
+                    <div class="schedule-actions">
                         <button class="btn-action btn-gold" id="btn-save-draw-schedule">💾 บันทึกตาราง</button>
-                        <button class="btn-action btn-blue" id="btn-reload-draw-schedule" type="button">รีเฟรช</button>
-                        <button class="btn-action" id="btn-reset-draw-schedule" type="button" style="background:rgba(255,255,255,0.06);color:#aaa;border:1px solid #555;">คืนค่าเริ่มต้น (1 และ 16)</button>
+                        <button class="btn-action btn-blue" id="btn-reload-draw-schedule" type="button">🔄 รีเฟรช</button>
+                        <button class="btn-action btn-ghost-secondary" id="btn-reset-draw-schedule" type="button">↩️ คืนค่าเริ่มต้น (1 และ 16)</button>
                     </div>
                 </section>
 
@@ -1058,6 +1060,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260502c"></script>
+    <script src="admin.js?v=20260502d"></script>
 </body>
 </html>

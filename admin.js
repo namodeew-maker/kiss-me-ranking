@@ -3402,48 +3402,60 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function renderDrawScheduleEditor(schedule) {
         if (!adminDrawScheduleGrid) return;
-        // Group by month
         const byMonth = {};
         for (const e of schedule) {
             if (!byMonth[e.month]) byMonth[e.month] = {};
             byMonth[e.month][e.slot] = e;
         }
-        let html = `<table class="schedule-editor-table" style="width:100%;border-collapse:collapse;font-size:13px;">
-            <thead><tr>
-                <th style="text-align:left;padding:6px 8px;">เดือน</th>
-                <th style="padding:6px 8px;">งวดที่ 1 (สล็อต A)</th>
-                <th style="padding:6px 8px;">งวดที่ 2 (สล็อต B)</th>
-            </tr></thead><tbody>`;
+        const monthIcons = ['❄️','💖','🌸','🌷','🌼','☀️','🌊','🍃','🍂','🎃','🍁','🎄'];
+        const dowList = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+
+        let html = '';
         for (let m = 1; m <= 12; m++) {
             const a = byMonth[m]?.A;
             const b = byMonth[m]?.B;
-            html += `<tr>
-                <td style="padding:6px 8px;">🗃️ ${THAI_MONTHS_FULL_ADMIN[m-1]}</td>
-                <td style="padding:4px 8px;">
-                    <input type="date" class="schedule-date-input" data-month="${m}" data-slot="A"
-                           value="${a?.date || ''}" style="width:140px;">
-                    <span class="schedule-dow" style="font-size:11px;color:#aaa;margin-left:4px;">${a?.dayOfWeek || ''}</span>
-                </td>
-                <td style="padding:4px 8px;">
-                    <input type="date" class="schedule-date-input" data-month="${m}" data-slot="B"
-                           value="${b?.date || ''}" style="width:140px;">
-                    <span class="schedule-dow" style="font-size:11px;color:#aaa;margin-left:4px;">${b?.dayOfWeek || ''}</span>
-                </td>
-            </tr>`;
+            const beYear = a?.year || b?.year || (new Date().getFullYear() + 543);
+            const monthName = THAI_MONTHS_FULL_ADMIN[m - 1];
+
+            html += `
+                <div class="schedule-month-card">
+                    <div class="schedule-month-header">
+                        <span class="schedule-month-icon">${monthIcons[m - 1]}</span>
+                        <span class="schedule-month-name">${monthName}</span>
+                        <span class="schedule-month-be">${beYear}</span>
+                    </div>
+                    <div class="schedule-slots">
+                        <div class="schedule-slot schedule-slot-a">
+                            <div class="schedule-slot-label">
+                                <span class="schedule-slot-badge">A</span>
+                                <span>งวดที่ 1</span>
+                            </div>
+                            <input type="date" class="schedule-date-input" data-month="${m}" data-slot="A" value="${a?.date || ''}">
+                            <div class="schedule-dow">${a?.dayOfWeek ? `วัน${a.dayOfWeek}` : ''}</div>
+                        </div>
+                        <div class="schedule-slot schedule-slot-b">
+                            <div class="schedule-slot-label">
+                                <span class="schedule-slot-badge">B</span>
+                                <span>งวดที่ 2</span>
+                            </div>
+                            <input type="date" class="schedule-date-input" data-month="${m}" data-slot="B" value="${b?.date || ''}">
+                            <div class="schedule-dow">${b?.dayOfWeek ? `วัน${b.dayOfWeek}` : ''}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
-        html += '</tbody></table>';
         adminDrawScheduleGrid.innerHTML = html;
-        // Update day-of-week display on change
-        adminDrawScheduleGrid.querySelectorAll('.schedule-date-input').forEach(input => {
+
+        adminDrawScheduleGrid.querySelectorAll('.schedule-date-input').forEach((input) => {
             input.addEventListener('change', () => {
-                const dowSpan = input.nextElementSibling;
-                if (!dowSpan) return;
+                const dowEl = input.parentElement && input.parentElement.querySelector('.schedule-dow');
+                if (!dowEl) return;
                 if (input.value) {
                     const d = new Date(input.value + 'T00:00:00');
-                    const days = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
-                    dowSpan.textContent = days[d.getDay()];
+                    dowEl.textContent = `วัน${dowList[d.getDay()]}`;
                 } else {
-                    dowSpan.textContent = '';
+                    dowEl.textContent = '';
                 }
             });
         });
@@ -3451,14 +3463,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function loadDrawSchedule() {
         if (!adminDrawScheduleGrid) return;
-        adminDrawScheduleGrid.innerHTML = '<p class="empty-msg">กำลังโหลดตาราง...</p>';
+        adminDrawScheduleGrid.innerHTML = '<div class="schedule-loading">กำลังโหลดตาราง...</div>';
         try {
             const res = await authFetch(`${API_BASE}/admin/draw-schedule`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'load-schedule-failed');
             renderDrawScheduleEditor(data.schedule);
         } catch (err) {
-            adminDrawScheduleGrid.innerHTML = `<p class="empty-msg" style="color:#e57373;">โหลดตารางไม่สำเร็จ: ${err.message}</p>`;
+            adminDrawScheduleGrid.innerHTML = `<div class="schedule-loading schedule-error">⚠️ โหลดตารางไม่สำเร็จ: ${err.message}</div>`;
         }
     }
 
