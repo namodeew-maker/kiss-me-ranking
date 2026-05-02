@@ -4350,6 +4350,20 @@ app.put('/api/users/:platform_id/display-name', async (req, res) => {
             });
         }
 
+        // No-op guard: if same as current, return success without update/history/cooldown
+        if ((user.custom_display_name || null) === newName) {
+            await client.query('ROLLBACK');
+            return res.json({
+                success: true,
+                custom_display_name: newName,
+                effective_display_name: newName,
+                display_name: user.display_name,
+                name_change_status: status,
+                updated_count: 0,
+                no_op: true
+            });
+        }
+
         // Get all linked accounts (sync custom name across global_user_id)
         const idsResult = user.global_user_id
             ? await client.query('SELECT id FROM users WHERE global_user_id = $1', [user.global_user_id])
@@ -5797,14 +5811,21 @@ app.put('/api/admin/users/:id', requireAuth, async (req, res) => {
             values.push(trimmedUrl || null);
         }
 
-        if (hasCustomChange) {
+        // Skip no-op: if admin sends same value as current, don't pollute history/timestamp
+        const currentCustom = user.custom_display_name || null;
+        const newCustom = hasCustomChange ? (clearCustomName ? null : normalizedCustomName) : currentCustom;
+        const customActuallyChanged = hasCustomChange && currentCustom !== newCustom;
+
+        if (customActuallyChanged) {
             if (clearCustomName) {
                 setClauses.push(`custom_display_name = NULL`);
+                // Admin clear → reset cooldown so user can set a fresh appropriate name
+                setClauses.push(`custom_display_name_updated_at = NULL`);
             } else {
                 setClauses.push(`custom_display_name = $${index++}`);
                 values.push(normalizedCustomName);
+                // Admin set: don't touch updated_at — admin moderation shouldn't extend user's cooldown
             }
-            setClauses.push(`custom_display_name_updated_at = NOW()`);
         }
 
         setClauses.push('updated_at = NOW()');
@@ -5817,7 +5838,7 @@ app.put('/api/admin/users/:id', requireAuth, async (req, res) => {
             values
         );
 
-        if (hasCustomChange) {
+        if (customActuallyChanged) {
             await recordNameHistory(client, {
                 userId: user.id,
                 customDisplayName: clearCustomName ? null : normalizedCustomName,

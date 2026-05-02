@@ -777,10 +777,9 @@ function openNameEditModal() {
     const customName = (currentUser && currentUser.custom_display_name) || '';
     if (lineNameEl) lineNameEl.textContent = lineName || '—';
     if (input) {
-        input.value = customName || lineName || '';
+        // Pre-fill ONLY if user has custom name (so they can edit). Otherwise keep blank with placeholder.
+        input.value = customName || '';
         if (counterEl) counterEl.textContent = String(input.value.length);
-        input.focus();
-        input.select();
     }
     if (clearBtn) clearBtn.hidden = !customName;
 
@@ -804,6 +803,14 @@ function openNameEditModal() {
 
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
+
+    // Focus input AFTER modal becomes visible (focus on display:none element doesn't work)
+    if (input) {
+        requestAnimationFrame(() => {
+            input.focus();
+            if (customName) input.select();
+        });
+    }
 }
 
 function closeNameEditModal() {
