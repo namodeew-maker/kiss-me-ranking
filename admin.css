@@ -3775,11 +3775,10 @@
 }
 
 .draw-history-guess-row {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 70px 110px;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
+    gap: 14px;
     padding: 8px 12px;
     background: rgba(255, 255, 255, 0.02);
     border-radius: 8px;
@@ -3804,11 +3803,15 @@
     display: flex;
     flex-direction: column;
     font-size: 13px;
+    min-width: 0; /* allow grid column to shrink for long names */
 }
 
 .draw-history-guess-user-name {
     color: #fff;
     font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .draw-history-guess-user-line {
@@ -3866,6 +3869,13 @@
     }
     .draw-history-guess-row {
         padding: 8px;
+        grid-template-columns: minmax(0, 1fr) 60px 90px;
+        gap: 10px;
+    }
+    .draw-history-guess-result {
+        font-size: 12px;
+        min-width: 0;
+        white-space: nowrap;
     }
 }
 
