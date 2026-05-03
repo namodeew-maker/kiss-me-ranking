@@ -1289,25 +1289,39 @@ async function getGuessPointCycleConfig(queryable = pool) {
     const savedEndValue = settings.get('guess_points_cycle_end_date') || '';
     const hasValidSavedStartDate = /^\d{4}-\d{2}-\d{2}$/.test(savedStartValue);
     const hasValidSavedEndDate = /^\d{4}-\d{2}-\d{2}$/.test(savedEndValue);
-    const isConfigured = hasValidSavedStartDate && hasValidSavedEndDate;
 
-    if (!isConfigured) {
+    // Cycle is configured as soon as a valid start date exists. End date is now
+    // optional — when missing, the cycle is open-ended and points accumulate
+    // until the admin manually closes the cycle (sets an end date).
+    if (!hasValidSavedStartDate) {
         return {
             start_date: null,
             end_date: null,
             startAt: null,
             endAt: null,
+            is_open: false,
             is_configured: false
         };
     }
 
     const startAt = new Date(`${savedStartValue}T00:00:00`);
-    let endDateInclusive = new Date(`${savedEndValue}T00:00:00`);
 
+    if (!hasValidSavedEndDate) {
+        // Open-ended cycle — count points from startAt onwards (no upper bound)
+        return {
+            start_date: savedStartValue,
+            end_date: null,
+            startAt,
+            endAt: null,
+            is_open: true,
+            is_configured: true
+        };
+    }
+
+    let endDateInclusive = new Date(`${savedEndValue}T00:00:00`);
     if (endDateInclusive < startAt) {
         endDateInclusive = addDays(addMonths(startAt, 1), -1);
     }
-
     const endAt = addDays(endDateInclusive, 1);
 
     return {
@@ -1315,6 +1329,7 @@ async function getGuessPointCycleConfig(queryable = pool) {
         end_date: formatDateOnly(endDateInclusive),
         startAt,
         endAt,
+        is_open: false,
         is_configured: true
     };
 }
@@ -1524,12 +1539,13 @@ async function getRoundPointsForGlobalUser(client, globalUserId, roundLabel = ge
         return Number(result.rows[0]?.total_points || 0);
     }
 
+    // Open-ended cycle (no end date) → only lower bound; closed cycle uses both
     const result = await client.query(
         `SELECT COALESCE(SUM(points), 0)::int AS total_points
          FROM points
          WHERE global_user_id = $1
            AND created_at >= $2
-           AND created_at < $3`,
+           AND ($3::timestamp IS NULL OR created_at < $3::timestamp)`,
         [globalUserId, guessPointCycle.startAt, guessPointCycle.endAt]
     );
     return Number(result.rows[0]?.total_points || 0);
@@ -1679,7 +1695,7 @@ async function reconcileGuessPointCycleBalance(queryable, userId, globalUserId) 
                   AND p.metadata->>'lottery_guess_id' = lg.id::text
                  WHERE lg.user_id = $1
                    AND p.created_at >= $3
-                   AND p.created_at < $4
+                   AND ($4::timestamp IS NULL OR p.created_at < $4::timestamp)
                  ORDER BY p.created_at DESC, lg.created_at DESC, lg.id DESC
                  LIMIT 1`,
                 [userId, globalUserId, guessPointCycle.startAt, guessPointCycle.endAt]
@@ -5434,7 +5450,9 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                     p.global_user_id,
                     COALESCE(SUM(p.points), 0)::int AS total_points,
                     COALESCE(SUM(CASE
-                        WHEN $6::boolean = false OR (p.created_at >= $7::timestamp AND p.created_at < $8::timestamp)
+                        WHEN $6::boolean = false
+                          OR (p.created_at >= $7::timestamp
+                              AND ($8::timestamp IS NULL OR p.created_at < $8::timestamp))
                         THEN p.points
                         ELSE 0
                     END), 0)::int AS current_round_points
@@ -5706,24 +5724,39 @@ app.post('/api/admin/guess-points/cycle', requireAuth, async (req, res) => {
     if (!start_date || !/^\d{4}-\d{2}-\d{2}$/.test(start_date)) {
         return res.status(400).json({ error: 'กรุณาระบุวันที่เริ่มนับแต้ม (YYYY-MM-DD)' });
     }
-    if (!end_date || !/^\d{4}-\d{2}-\d{2}$/.test(end_date)) {
-        return res.status(400).json({ error: 'กรุณาระบุวันที่สิ้นสุดนับแต้ม (YYYY-MM-DD)' });
+    // end_date is OPTIONAL — leave blank for an open-ended cycle that
+    // accumulates points until the admin closes it manually.
+    const hasEndDate = end_date !== undefined && end_date !== null && String(end_date).trim() !== '';
+    if (hasEndDate && !/^\d{4}-\d{2}-\d{2}$/.test(end_date)) {
+        return res.status(400).json({ error: 'รูปแบบวันที่สิ้นสุดไม่ถูกต้อง (YYYY-MM-DD)' });
     }
-    if (end_date < start_date) {
+    if (hasEndDate && end_date < start_date) {
         return res.status(400).json({ error: 'วันที่สิ้นสุดต้องไม่น้อยกว่าวันที่เริ่มต้น' });
     }
 
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+        // Always upsert start_date
         await client.query(
             `INSERT INTO app_settings (key, value, updated_at)
-             VALUES
-                ('guess_points_cycle_start_date', $1, NOW()),
-                ('guess_points_cycle_end_date', $2, NOW())
+             VALUES ('guess_points_cycle_start_date', $1, NOW())
              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-            [start_date, end_date]
+            [start_date]
         );
+        if (hasEndDate) {
+            await client.query(
+                `INSERT INTO app_settings (key, value, updated_at)
+                 VALUES ('guess_points_cycle_end_date', $1, NOW())
+                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+                [end_date]
+            );
+        } else {
+            // No end date provided → make the cycle open-ended
+            await client.query(
+                "DELETE FROM app_settings WHERE key = 'guess_points_cycle_end_date'"
+            );
+        }
         await client.query('COMMIT');
         invalidatePublicReadState();
         const cycle = await getGuessPointCycleConfig(client);
@@ -5736,6 +5769,44 @@ app.post('/api/admin/guess-points/cycle', requireAuth, async (req, res) => {
         res.status(500).json({ error: 'ไม่สามารถบันทึกรอบสะสมแต้มทายเลขได้' });
     } finally {
         client.release();
+    }
+});
+
+// POST /api/admin/guess-points/cycle/close — admin manually closes the current open cycle
+// Body: { end_date?: 'YYYY-MM-DD' }  default: today (Bangkok)
+app.post('/api/admin/guess-points/cycle/close', requireAuth, async (req, res) => {
+    const cycle = await getGuessPointCycleConfig(pool);
+    if (!cycle.is_configured) {
+        return res.status(400).json({ error: 'ยังไม่ได้ตั้งวันที่เริ่มรอบสะสม' });
+    }
+
+    let closeDate = String(req.body?.end_date || '').trim();
+    if (closeDate && !/^\d{4}-\d{2}-\d{2}$/.test(closeDate)) {
+        return res.status(400).json({ error: 'รูปแบบวันที่ปิดรอบไม่ถูกต้อง (YYYY-MM-DD)' });
+    }
+    if (!closeDate) {
+        // Default = today in Asia/Bangkok
+        closeDate = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit'
+        }).format(new Date());
+    }
+    if (closeDate < cycle.start_date) {
+        return res.status(400).json({ error: 'วันที่ปิดรอบต้องไม่น้อยกว่าวันที่เริ่มรอบ' });
+    }
+
+    try {
+        await pool.query(
+            `INSERT INTO app_settings (key, value, updated_at)
+             VALUES ('guess_points_cycle_end_date', $1, NOW())
+             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+            [closeDate]
+        );
+        invalidatePublicReadState();
+        const refreshed = await getGuessPointCycleConfig(pool);
+        res.json({ success: true, ...refreshed });
+    } catch (err) {
+        console.error('Close cycle error:', err);
+        res.status(500).json({ error: 'ไม่สามารถปิดรอบสะสมได้' });
     }
 });
 

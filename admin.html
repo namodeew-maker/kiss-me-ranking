@@ -6,7 +6,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260502">
-    <link rel="stylesheet" href="admin.css?v=20260502f">
+    <link rel="stylesheet" href="admin.css?v=20260503">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -652,20 +652,23 @@
 
                 <section class="admin-panel">
                     <h3>🗓️ รอบสะสมแต้มทายเลข</h3>
-                    <p class="panel-caption">พ้อยทายเลขเป็นรอบสั้น: สลิปอนุมัติ 1 ครั้ง = 1 พ้อย, สะสมครบ 5 พ้อยทายได้ 1 เลข และพ้อยที่ไม่ครบจะไม่ยกไปรอบถัดไปเมื่อเริ่มรอบใหม่</p>
+                    <p class="panel-caption">พ้อยทายเลขเป็นรอบสั้น: สลิปอนุมัติ 1 ครั้ง = 1 พ้อย, สะสมครบ 5 พ้อยทายได้ 1 เลข — <strong style="color:#00f0ff;">เว้นวันที่สิ้นสุดว่างไว้</strong> เพื่อให้รอบสะสมเปิดต่อเนื่อง จนกว่าจะกดปุ่ม "ปิดรอบ ณ วันนี้" หรือใส่วันสิ้นสุดเอง</p>
                     <div class="input-row ranking-reset-row">
-                        <label for="guess-points-cycle-start" class="panel-caption ranking-reset-label">วันที่เริ่มนับแต้มทายเลข</label>
+                        <label for="guess-points-cycle-start" class="panel-caption ranking-reset-label">วันที่เริ่มนับแต้มทายเลข *</label>
                         <input type="date" id="guess-points-cycle-start" title="เลือกวันที่เริ่มนับแต้มทายเลข">
-                        <label for="guess-points-cycle-end-input" class="panel-caption ranking-reset-label">วันที่สิ้นสุดนับแต้มทายเลข</label>
-                        <input type="date" id="guess-points-cycle-end-input" title="เลือกวันที่สิ้นสุดนับแต้มทายเลข">
-                        <button class="btn-action btn-gold" id="btn-save-guess-points-cycle">บันทึกรอบแต้มทายเลข</button>
-                        <button class="btn-action btn-gray" id="btn-clear-guess-points-cycle" type="button">ยกเลิกรีเซ็ตพ้อย</button>
-                        <button class="btn-action btn-blue" id="btn-recheck-guess-points" type="button">รีเช็คพ้อยทายเลข</button>
+                        <label for="guess-points-cycle-end-input" class="panel-caption ranking-reset-label">วันที่สิ้นสุด (เว้นว่างได้)</label>
+                        <input type="date" id="guess-points-cycle-end-input" title="เว้นว่างเพื่อให้รอบเปิดต่อเนื่อง">
+                        <button class="btn-action btn-gold" id="btn-save-guess-points-cycle">บันทึกรอบ</button>
+                        <button class="btn-action btn-orange" id="btn-close-guess-points-cycle" type="button">🔒 ปิดรอบ ณ วันนี้</button>
+                        <button class="btn-action btn-gray" id="btn-clear-guess-points-cycle" type="button">ยกเลิกรอบทั้งหมด</button>
+                        <button class="btn-action btn-blue" id="btn-recheck-guess-points" type="button">🔄 รีเช็คพ้อย</button>
                     </div>
                     <div class="ranking-reset-meta guess-cycle-meta">
-                        <span>เริ่มนับปัจจุบัน:</span>
+                        <span>สถานะรอบ:</span>
+                        <strong id="guess-points-cycle-status">กำลังโหลด...</strong>
+                        <span>เริ่มนับ:</span>
                         <strong id="guess-points-cycle-current">กำลังโหลด...</strong>
-                        <span>สิ้นสุดปัจจุบัน:</span>
+                        <span>สิ้นสุด:</span>
                         <strong id="guess-points-cycle-end">กำลังโหลด...</strong>
                     </div>
                     <div class="ranking-reset-meta guess-cycle-meta">
@@ -1026,6 +1029,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260502e"></script>
+    <script src="admin.js?v=20260503"></script>
 </body>
 </html>

@@ -993,7 +993,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const guessPointsRecheckStatus = document.getElementById('guess-points-recheck-status');
     const btnSaveGuessPointsCycle = document.getElementById('btn-save-guess-points-cycle');
     const btnClearGuessPointsCycle = document.getElementById('btn-clear-guess-points-cycle');
+    const btnCloseGuessPointsCycle = document.getElementById('btn-close-guess-points-cycle');
     const btnRecheckGuessPoints = document.getElementById('btn-recheck-guess-points');
+    const guessPointsCycleStatus = document.getElementById('guess-points-cycle-status');
     const customerRankResetDateInput = document.getElementById('customer-rank-reset-date');
     const customerRankResetCurrent = document.getElementById('customer-rank-reset-current');
     const btnSaveCustomerRankReset = document.getElementById('btn-save-customer-rank-reset');
@@ -2773,18 +2775,49 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!res.ok) throw new Error(data.error || 'load-guess-cycle-failed');
             guessPointsCycleStart.value = data.start_date || '';
             guessPointsCycleEndInput.value = data.end_date || '';
+
+            const setStatus = (text, color) => {
+                if (!guessPointsCycleStatus) return;
+                guessPointsCycleStatus.textContent = text;
+                guessPointsCycleStatus.style.color = color || '';
+            };
+
             if (data.is_configured === false) {
-                guessPointsCycleCurrent.textContent = 'ยังไม่ได้ตั้งค่า (นับพ้อยทั้งหมด)';
-                guessPointsCycleEnd.textContent = 'ไม่รีเซ็ตอัตโนมัติ';
+                setStatus('⚠️ ยังไม่ได้ตั้งค่า (นับพ้อยทั้งหมด)', '#ffc107');
+                guessPointsCycleCurrent.textContent = 'ยังไม่ได้ตั้งค่า';
+                guessPointsCycleEnd.textContent = '—';
+            } else if (data.is_open) {
+                setStatus('🟢 เปิดต่อเนื่อง (สะสมไปเรื่อยๆ)', '#00ffaa');
+                guessPointsCycleCurrent.textContent = formatServiceDate(data.start_date);
+                guessPointsCycleEnd.textContent = 'ยังไม่ปิดรอบ';
             } else {
-                guessPointsCycleCurrent.textContent = data.start_date ? formatServiceDate(data.start_date) : 'ยังไม่ได้ตั้งค่า';
-                guessPointsCycleEnd.textContent = data.end_date ? formatServiceDate(data.end_date) : '—';
+                setStatus('🔒 ปิดรอบแล้ว', '#ff6b6b');
+                guessPointsCycleCurrent.textContent = formatServiceDate(data.start_date);
+                guessPointsCycleEnd.textContent = formatServiceDate(data.end_date);
             }
         } catch (err) {
             guessPointsCycleCurrent.textContent = 'โหลดไม่สำเร็จ';
             guessPointsCycleEnd.textContent = 'โหลดไม่สำเร็จ';
+            if (guessPointsCycleStatus) guessPointsCycleStatus.textContent = 'โหลดไม่สำเร็จ';
         }
     }
+
+    btnCloseGuessPointsCycle?.addEventListener('click', async () => {
+        if (!window.confirm('ปิดรอบสะสมแต้ม ณ วันนี้? — หลังจากนี้แต้มที่ได้จะไม่นับในรอบนี้อีก ต้องเริ่มรอบใหม่ถ้าต้องการสะสมต่อ')) return;
+        try {
+            const res = await authFetch(`${API_BASE}/admin/guess-points/cycle/close`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'close-failed');
+            showToast(`ปิดรอบสะสมแล้ว — สิ้นสุด ${data.end_date}`, 'success');
+            loadGuessPointsCycle();
+        } catch (err) {
+            showToast(err.message || 'ปิดรอบไม่สำเร็จ', 'error');
+        }
+    });
 
     async function loadGuessLockStatus() {
         if (!guessLockStatusBadge) return;
@@ -3267,25 +3300,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     btnSaveGuessPointsCycle?.addEventListener('click', async () => {
         const startDate = guessPointsCycleStart?.value;
-        const endDate = guessPointsCycleEndInput?.value;
-        if (!startDate || !endDate) {
-            showToast('กรุณาเลือกวันที่เริ่มต้นและวันที่สิ้นสุดของรอบแต้มทายเลข', 'error');
+        const endDate = guessPointsCycleEndInput?.value || '';  // optional
+        if (!startDate) {
+            showToast('กรุณาเลือกวันที่เริ่มต้น', 'error');
             return;
         }
-        if (endDate < startDate) {
+        if (endDate && endDate < startDate) {
             showToast('วันที่สิ้นสุดต้องไม่น้อยกว่าวันที่เริ่มต้น', 'error');
             return;
         }
 
         try {
+            const body = { start_date: startDate };
+            if (endDate) body.end_date = endDate;
+
             const res = await authFetch(`${API_BASE}/admin/guess-points/cycle`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ start_date: startDate, end_date: endDate })
+                body: JSON.stringify(body)
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'save-guess-cycle-failed');
-            showToast(`ตั้งรอบสะสมแต้มทายเลข ${formatServiceDate(startDate)} ถึง ${formatServiceDate(endDate)} แล้ว`, 'success');
+
+            const msg = endDate
+                ? `ตั้งรอบสะสมแต้ม ${formatServiceDate(startDate)} ถึง ${formatServiceDate(endDate)} แล้ว`
+                : `เริ่มรอบสะสมแบบเปิด ตั้งแต่ ${formatServiceDate(startDate)} (ยังไม่กำหนดวันปิด)`;
+            showToast(msg, 'success');
             loadGuessPointsCycle();
             if (selectedUserId) loadUserDetail(selectedUserId);
             renderUsers(currentUserPage);
