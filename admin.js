@@ -2783,11 +2783,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             if (data.is_configured === false) {
-                setStatus('🟢 สะสมต่อเนื่องตลอด (ไม่ได้ตั้งวันล้างประวัติ)', '#00ffaa');
-                guessPointsCycleCurrent.textContent = '— ไม่มีการล้าง —';
-            } else {
-                setStatus(`🗑️ ล้างประวัติพ้อยก่อน ${formatServiceDate(data.start_date)} • พ้อยใหม่นับต่อเนื่องตลอด`, '#00f0ff');
+                setStatus('⚪ ยังไม่ได้ตั้งรอบ — นับพ้อยทั้งหมด', '#aaa');
+                guessPointsCycleCurrent.textContent = '—';
+                if (guessPointsCycleEnd) guessPointsCycleEnd.textContent = '—';
+            } else if (data.is_open) {
+                setStatus('🟢 สะสมต่อเนื่อง (ไม่มีกำหนดรีเซ็ต)', '#00ffaa');
                 guessPointsCycleCurrent.textContent = formatServiceDate(data.start_date);
+                if (guessPointsCycleEnd) guessPointsCycleEnd.textContent = 'ไม่มีกำหนด';
+            } else {
+                setStatus('📅 รอบสะสมตามกำหนด', '#00f0ff');
+                guessPointsCycleCurrent.textContent = formatServiceDate(data.start_date);
+                if (guessPointsCycleEnd) guessPointsCycleEnd.textContent = formatServiceDate(data.end_date);
             }
         } catch (err) {
             guessPointsCycleCurrent.textContent = 'โหลดไม่สำเร็จ';
@@ -3316,10 +3322,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'save-guess-cycle-failed');
 
-            showToast(
-                `ล้างประวัติพ้อยก่อน ${formatServiceDate(startDate)} แล้ว — พ้อยใหม่จะสะสมต่อเนื่องตลอด`,
-                'success'
-            );
+            const msg = endDate
+                ? `ตั้งรอบสะสมแต้ม ${formatServiceDate(startDate)} → ${formatServiceDate(endDate)} แล้ว`
+                : `ตั้งวันเริ่มรอบ ${formatServiceDate(startDate)} แล้ว — พ้อยจะสะสมต่อเนื่อง (ไม่มีกำหนดรีเซ็ต)`;
+            showToast(msg, 'success');
             loadGuessPointsCycle();
             if (selectedUserId) loadUserDetail(selectedUserId);
             renderUsers(currentUserPage);

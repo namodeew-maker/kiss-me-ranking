@@ -6,7 +6,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260502">
-    <link rel="stylesheet" href="admin.css?v=20260503b">
+    <link rel="stylesheet" href="admin.css?v=20260503c">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -651,24 +651,28 @@
                 </section>
 
                 <section class="admin-panel">
-                    <h3>🗓️ รีเซ็ตประวัติพ้อยทายเลข</h3>
-                    <p class="panel-caption">ระบบ <strong style="color:#00ffaa;">สะสมพ้อยต่อเนื่องตลอดไป</strong> โดย default — สลิปอนุมัติ 1 ใบ = 1 พ้อย, สะสมครบ 5 พ้อยทายได้ 1 เลข<br>📌 <strong>วันที่ล้างประวัติ</strong> เป็น optional: ถ้าตั้ง → พ้อยที่ส่งสลิปก่อนวันนั้นจะไม่นับ (เริ่มสะสมใหม่จากวันนั้น) • ถ้าเว้นว่าง → นับทุกพ้อยตั้งแต่วันแรก</p>
+                    <h3>🗓️ รอบสะสมแต้มทายเลข</h3>
+                    <p class="panel-caption">
+                        📌 <strong>วันที่เริ่ม</strong> = วันเริ่มต้นนับพ้อยรอบใหม่ (พ้อยก่อนวันนี้จะไม่นับ — เหมือนล้างประวัติ)<br>
+                        📌 <strong>วันที่สิ้นสุด</strong> = optional: ใส่ถ้าต้องการให้รอบนี้สิ้นสุดตามกำหนด (เช่น ทุก 1 เดือน) • <span style="color:#00ffaa;"><strong>เว้นว่าง</strong></span> ถ้าต้องการให้สะสมต่อเนื่องตลอดไม่มีกำหนดรีเซ็ต<br>
+                        💡 พ้อยจะ stamped วันที่ <strong>ตอนลูกค้าส่งสลิป</strong> (ไม่ใช่ตอน admin อนุมัติ) ดังนั้นสลิปย้อนหลังจะติดในรอบที่ส่งจริง
+                    </p>
                     <div class="input-row ranking-reset-row">
-                        <label for="guess-points-cycle-start" class="panel-caption ranking-reset-label">วันที่ล้างประวัติ (optional)</label>
-                        <input type="date" id="guess-points-cycle-start" title="ตั้งวันเพื่อล้างประวัติพ้อยก่อนวันนั้น • เว้นว่างเพื่อให้สะสมต่อเนื่องตลอด">
-                        <input type="hidden" id="guess-points-cycle-end-input" value="">
+                        <label for="guess-points-cycle-start" class="panel-caption ranking-reset-label">วันที่เริ่ม</label>
+                        <input type="date" id="guess-points-cycle-start" title="วันที่เริ่มต้นนับพ้อยรอบใหม่">
+                        <label for="guess-points-cycle-end-input" class="panel-caption ranking-reset-label">วันที่สิ้นสุด <span style="color:#888;">(เว้นว่าง = ไม่รีเซ็ต)</span></label>
+                        <input type="date" id="guess-points-cycle-end-input" title="ใส่ถ้าต้องการให้รอบนี้จบตามวันที่กำหนด • เว้นว่าง = สะสมต่อเนื่องตลอด">
                         <button class="btn-action btn-gold" id="btn-save-guess-points-cycle">💾 บันทึก</button>
-                        <button class="btn-action btn-gray" id="btn-clear-guess-points-cycle" type="button">↩️ ยกเลิกการล้างประวัติ</button>
+                        <button class="btn-action btn-gray" id="btn-clear-guess-points-cycle" type="button">↩️ ยกเลิกรอบ</button>
                         <button class="btn-action btn-blue" id="btn-recheck-guess-points" type="button">🔄 รีเช็คพ้อย</button>
                     </div>
                     <div class="ranking-reset-meta guess-cycle-meta">
                         <span>สถานะ:</span>
                         <strong id="guess-points-cycle-status">กำลังโหลด...</strong>
-                        <span>ล้างประวัติตั้งแต่:</span>
+                        <span>เริ่มนับ:</span>
                         <strong id="guess-points-cycle-current">กำลังโหลด...</strong>
-                    </div>
-                    <div class="ranking-reset-meta guess-cycle-meta hidden">
-                        <strong id="guess-points-cycle-end" hidden></strong>
+                        <span>สิ้นสุด:</span>
+                        <strong id="guess-points-cycle-end">กำลังโหลด...</strong>
                     </div>
                     <div class="ranking-reset-meta guess-cycle-meta">
                         <span>ผลรีเช็คล่าสุด:</span>
@@ -1028,6 +1032,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260503b"></script>
+    <script src="admin.js?v=20260503c"></script>
 </body>
 </html>
