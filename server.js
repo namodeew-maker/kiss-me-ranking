@@ -1587,7 +1587,15 @@ async function addApprovedTransactionPoint(queryable, transactionRow, createdAtO
     );
     if (existingResult.rows.length > 0) return false;
 
-    const pointCreatedAt = createdAtOverride || transactionRow.reviewed_at || null;
+    // Use the slip's submission date (transaction.created_at), NOT the admin
+    // approval date. This way:
+    //   - admin's reset cutoff filters by when the customer submitted
+    //   - approving a backdated slip on day Y doesn't push the point to day Y
+    //   - customers can't "skip" a reset by waiting for a late approval
+    const pointCreatedAt = createdAtOverride
+        || transactionRow.created_at
+        || transactionRow.reviewed_at
+        || null;
 
     await queryable.query(
         `INSERT INTO points (global_user_id, activity_type, points, source_platform, source_oa_id, metadata, created_at)

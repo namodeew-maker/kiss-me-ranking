@@ -2783,17 +2783,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             if (data.is_configured === false) {
-                setStatus('⚠️ ยังไม่ได้ตั้งค่า (นับพ้อยทั้งหมด)', '#ffc107');
-                guessPointsCycleCurrent.textContent = 'ยังไม่ได้ตั้งค่า';
-                guessPointsCycleEnd.textContent = '—';
-            } else if (data.is_open) {
-                setStatus('🟢 เปิดต่อเนื่อง (สะสมไปเรื่อยๆ)', '#00ffaa');
-                guessPointsCycleCurrent.textContent = formatServiceDate(data.start_date);
-                guessPointsCycleEnd.textContent = 'ยังไม่ปิดรอบ';
+                setStatus('🟢 สะสมต่อเนื่องตลอด (ไม่ได้ตั้งวันล้างประวัติ)', '#00ffaa');
+                guessPointsCycleCurrent.textContent = '— ไม่มีการล้าง —';
             } else {
-                setStatus('🔒 ปิดรอบแล้ว', '#ff6b6b');
+                setStatus(`🗑️ ล้างประวัติพ้อยก่อน ${formatServiceDate(data.start_date)} • พ้อยใหม่นับต่อเนื่องตลอด`, '#00f0ff');
                 guessPointsCycleCurrent.textContent = formatServiceDate(data.start_date);
-                guessPointsCycleEnd.textContent = formatServiceDate(data.end_date);
             }
         } catch (err) {
             guessPointsCycleCurrent.textContent = 'โหลดไม่สำเร็จ';
@@ -3322,10 +3316,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'save-guess-cycle-failed');
 
-            const msg = endDate
-                ? `ตั้งรอบสะสมแต้ม ${formatServiceDate(startDate)} ถึง ${formatServiceDate(endDate)} แล้ว`
-                : `เริ่มรอบสะสมแบบเปิด ตั้งแต่ ${formatServiceDate(startDate)} (ยังไม่กำหนดวันปิด)`;
-            showToast(msg, 'success');
+            showToast(
+                `ล้างประวัติพ้อยก่อน ${formatServiceDate(startDate)} แล้ว — พ้อยใหม่จะสะสมต่อเนื่องตลอด`,
+                'success'
+            );
             loadGuessPointsCycle();
             if (selectedUserId) loadUserDetail(selectedUserId);
             renderUsers(currentUserPage);
