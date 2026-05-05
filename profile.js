@@ -149,15 +149,56 @@ if (copyUserIdBtn) {
 }
 
 // ==================== LOGOUT ====================
+function profileHandleLogout() {
+    if (!window.confirm('ออกจากระบบ?')) return;
+    sessionStorage.removeItem('currentUser');
+    sessionStorage.removeItem('terms_accepted');
+    try { if (typeof liff !== 'undefined' && liff.isLoggedIn()) liff.logout(); } catch (e) { /* ignore */ }
+    window.location.href = 'index.html';
+}
 const logoutBtn = document.getElementById('btn-logout');
-if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-        sessionStorage.removeItem('currentUser');
-        sessionStorage.removeItem('terms_accepted');
-        try { if (typeof liff !== 'undefined' && liff.isLoggedIn()) liff.logout(); } catch (e) { /* ignore */ }
-        window.location.href = 'index.html';
+if (logoutBtn) logoutBtn.addEventListener('click', profileHandleLogout);
+const userMenuLogoutBtn = document.getElementById('user-menu-logout');
+if (userMenuLogoutBtn) userMenuLogoutBtn.addEventListener('click', profileHandleLogout);
+
+// ==================== USER MENU DROPDOWN (desktop) ====================
+function setupProfileUserMenu() {
+    // Populate avatar + name from sessionStorage
+    try {
+        const cached = JSON.parse(sessionStorage.getItem('currentUser') || 'null');
+        if (cached) {
+            const avatarEl = document.getElementById('user-menu-avatar');
+            const nameEl = document.getElementById('user-menu-name');
+            const effective = (cached.custom_display_name && cached.custom_display_name.trim())
+                ? cached.custom_display_name : (cached.display_name || cached.platform_id || 'โปรไฟล์');
+            if (avatarEl) {
+                avatarEl.src = cached.picture_url
+                    || `https://ui-avatars.com/api/?name=${encodeURIComponent(effective)}&background=1a1a2e&color=00f0ff&size=80`;
+            }
+            if (nameEl) nameEl.textContent = effective;
+        }
+    } catch (e) { /* ignore */ }
+
+    const trigger = document.querySelector('.user-menu-trigger');
+    const dropdown = document.querySelector('.user-menu-dropdown');
+    if (!trigger || !dropdown) return;
+    const close = () => { dropdown.hidden = true; trigger.setAttribute('aria-expanded', 'false'); };
+    const open = () => { dropdown.hidden = false; trigger.setAttribute('aria-expanded', 'true'); };
+    trigger.addEventListener('click', (e) => {
+        if (window.matchMedia('(max-width: 768px)').matches) return;
+        e.stopPropagation();
+        if (dropdown.hidden) open(); else close();
+    });
+    document.addEventListener('click', (e) => {
+        if (dropdown.hidden) return;
+        if (trigger.contains(e.target) || dropdown.contains(e.target)) return;
+        close();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !dropdown.hidden) close();
     });
 }
+setupProfileUserMenu();
 
 // ==================== PARTICLES ====================
 function spawnParticles() {

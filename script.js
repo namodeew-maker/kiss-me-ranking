@@ -16,6 +16,42 @@ function effectiveDisplayName(user) {
     return String(user.display_name || '').trim();
 }
 
+// ==================== USER MENU DROPDOWN (desktop only) ====================
+// Reusable: same markup pattern on index/profile/ranking. CSS hides dropdown
+// on mobile (bottom nav handles nav). Click outside / Escape closes.
+function setupUserMenuDropdown() {
+    const trigger = document.querySelector('.user-menu-trigger');
+    const dropdown = document.querySelector('.user-menu-dropdown');
+    if (!trigger || !dropdown) return;
+
+    const close = () => {
+        dropdown.hidden = true;
+        trigger.setAttribute('aria-expanded', 'false');
+    };
+    const open = () => {
+        dropdown.hidden = false;
+        trigger.setAttribute('aria-expanded', 'true');
+    };
+
+    trigger.addEventListener('click', (e) => {
+        // Only act as a dropdown on desktop. On mobile the click is a no-op
+        // (bottom nav handles navigation) so we let it through.
+        if (window.matchMedia('(max-width: 768px)').matches) return;
+        e.stopPropagation();
+        if (dropdown.hidden) open(); else close();
+    });
+
+    document.addEventListener('click', (e) => {
+        if (dropdown.hidden) return;
+        if (trigger.contains(e.target) || dropdown.contains(e.target)) return;
+        close();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !dropdown.hidden) close();
+    });
+}
+
 function getTodayDateInputValue(baseDate = new Date()) {
     const tzOffset = baseDate.getTimezoneOffset() * 60000;
     return new Date(baseDate.getTime() - tzOffset).toISOString().slice(0, 10);
@@ -288,9 +324,18 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.reload();
     }
 
-    // Bind logout button
+    // Bind logout buttons (bottom-nav + dropdown both call same handler)
     const logoutBtn = document.getElementById('btn-logout');
-    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    if (logoutBtn) logoutBtn.addEventListener('click', () => {
+        if (window.confirm('ออกจากระบบ?')) handleLogout();
+    });
+    const userMenuLogout = document.getElementById('user-menu-logout');
+    if (userMenuLogout) userMenuLogout.addEventListener('click', () => {
+        if (window.confirm('ออกจากระบบ?')) handleLogout();
+    });
+
+    // Desktop user-menu dropdown (.liff-profile click → toggle)
+    setupUserMenuDropdown();
 
     /** After successful login — hide login, show main */
     function onLoginSuccess() {

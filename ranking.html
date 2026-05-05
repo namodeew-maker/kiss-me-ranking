@@ -13,7 +13,7 @@
     <link rel="apple-touch-icon" href="/Logo%20Ranking/Diamon.png">
     <title>Kiss Me Ranking — อันดับ</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260504c">
+    <link rel="stylesheet" href="styles.css?v=20260504d">
     <link rel="stylesheet" href="ranking.css?v=20260504">
 </head>
 <body class="futuristic-bg">
@@ -21,13 +21,38 @@
     <div class="bg-particles" id="particles"></div>
 
     <div class="container ranking-page">
-        <header>
+        <header class="app-header">
             <div class="logo-area">
-                <a href="index.html" class="back-btn">← กลับหน้าหลัก</a>
+                <a href="index.html" class="back-btn" aria-label="กลับ">←</a>
                 <div class="logo-icon">🏆</div>
                 <div>
                     <h1>Kiss Me Ranking</h1>
                     <p class="subtitle">Customer & Staff Leaderboard Hall</p>
+                </div>
+            </div>
+            <!-- Desktop user menu (mobile uses bottom nav instead) -->
+            <div class="header-actions">
+                <div class="user-menu">
+                    <button class="liff-profile user-menu-trigger" id="user-menu-trigger"
+                            aria-haspopup="menu" aria-expanded="false" aria-label="เปิดเมนูผู้ใช้">
+                        <img class="liff-avatar" id="user-menu-avatar" src="" alt="avatar">
+                        <span class="liff-name" id="user-menu-name">เมนู</span>
+                        <span class="user-menu-chevron" aria-hidden="true">▾</span>
+                    </button>
+                    <div class="user-menu-dropdown" id="user-menu-dropdown" role="menu" hidden>
+                        <a href="index.html" class="user-menu-item" role="menuitem">
+                            <span class="user-menu-icon">🏠</span> หน้าหลัก
+                        </a>
+                        <a href="ranking.html" class="user-menu-item user-menu-current" role="menuitem" aria-current="page">
+                            <span class="user-menu-icon">🏆</span> อันดับ
+                        </a>
+                        <a href="profile.html" class="user-menu-item" role="menuitem">
+                            <span class="user-menu-icon">👤</span> โปรไฟล์
+                        </a>
+                        <button type="button" class="user-menu-item user-menu-logout" id="user-menu-logout" role="menuitem">
+                            <span class="user-menu-icon">🚪</span> ออกจากระบบ
+                        </button>
+                    </div>
                 </div>
             </div>
         </header>
@@ -90,6 +115,6 @@
         </button>
     </nav>
 
-    <script src="ranking.js?v=20260504b"></script>
+    <script src="ranking.js?v=20260504c"></script>
 </body>
 </html>

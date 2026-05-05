@@ -438,14 +438,51 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     reloadRanking();
 
-    // Bottom-nav logout button (shared with index/profile)
-    const logoutBtn = document.getElementById('btn-logout');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            if (!window.confirm('ออกจากระบบ?')) return;
-            try { sessionStorage.clear(); } catch (e) { /* ignore */ }
-            try { localStorage.clear(); } catch (e) { /* ignore */ }
-            window.location.href = 'index.html';
-        });
+    // Logout (shared between bottom-nav button + dropdown menu item)
+    function rankingHandleLogout() {
+        if (!window.confirm('ออกจากระบบ?')) return;
+        try { sessionStorage.clear(); } catch (e) { /* ignore */ }
+        window.location.href = 'index.html';
     }
+    const logoutBtn = document.getElementById('btn-logout');
+    if (logoutBtn) logoutBtn.addEventListener('click', rankingHandleLogout);
+    const userMenuLogout = document.getElementById('user-menu-logout');
+    if (userMenuLogout) userMenuLogout.addEventListener('click', rankingHandleLogout);
+
+    // Desktop user-menu dropdown — populate avatar/name + wire toggle
+    (function setupRankingUserMenu() {
+        try {
+            const cached = JSON.parse(sessionStorage.getItem('currentUser') || 'null');
+            const avatarEl = document.getElementById('user-menu-avatar');
+            const nameEl = document.getElementById('user-menu-name');
+            if (cached && (avatarEl || nameEl)) {
+                const effective = (cached.custom_display_name && cached.custom_display_name.trim())
+                    ? cached.custom_display_name : (cached.display_name || cached.platform_id || 'เมนู');
+                if (avatarEl) {
+                    avatarEl.src = cached.picture_url
+                        || `https://ui-avatars.com/api/?name=${encodeURIComponent(effective)}&background=1a1a2e&color=00f0ff&size=80`;
+                }
+                if (nameEl) nameEl.textContent = effective;
+            }
+        } catch (e) { /* ignore */ }
+
+        const trigger = document.querySelector('.user-menu-trigger');
+        const dropdown = document.querySelector('.user-menu-dropdown');
+        if (!trigger || !dropdown) return;
+        const close = () => { dropdown.hidden = true; trigger.setAttribute('aria-expanded', 'false'); };
+        const open = () => { dropdown.hidden = false; trigger.setAttribute('aria-expanded', 'true'); };
+        trigger.addEventListener('click', (e) => {
+            if (window.matchMedia('(max-width: 768px)').matches) return;
+            e.stopPropagation();
+            if (dropdown.hidden) open(); else close();
+        });
+        document.addEventListener('click', (e) => {
+            if (dropdown.hidden) return;
+            if (trigger.contains(e.target) || dropdown.contains(e.target)) return;
+            close();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !dropdown.hidden) close();
+        });
+    })();
 });

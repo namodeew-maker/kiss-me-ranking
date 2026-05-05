@@ -15,7 +15,7 @@
     <link rel="apple-touch-icon" href="/Logo%20Ranking/Diamon.png">
     <title>Kiss Me Ranking — Gamified Loyalty</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260504c">
+    <link rel="stylesheet" href="styles.css?v=20260504d">
     <!-- LINE LIFF SDK -->
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
@@ -267,12 +267,29 @@
                 </div>
             </div>
             <div class="header-actions">
-                <!-- LIFF Profile Area (avatar + name shown when logged in) -->
-                <div class="liff-profile" id="liff-profile">
-                    <img class="liff-avatar" id="liff-avatar" src="" alt="avatar">
-                    <span class="liff-name" id="liff-name">กำลังโหลด...</span>
+                <!-- User menu (avatar+name pill on desktop opens dropdown; just identity on mobile) -->
+                <div class="user-menu">
+                    <button class="liff-profile user-menu-trigger" id="liff-profile"
+                            aria-haspopup="menu" aria-expanded="false" aria-label="เปิดเมนูผู้ใช้">
+                        <img class="liff-avatar" id="liff-avatar" src="" alt="avatar">
+                        <span class="liff-name" id="liff-name">กำลังโหลด...</span>
+                        <span class="user-menu-chevron" aria-hidden="true">▾</span>
+                    </button>
+                    <div class="user-menu-dropdown" id="user-menu-dropdown" role="menu" hidden>
+                        <a href="index.html" class="user-menu-item" role="menuitem">
+                            <span class="user-menu-icon">🏠</span> หน้าหลัก
+                        </a>
+                        <a href="ranking.html" class="user-menu-item" role="menuitem">
+                            <span class="user-menu-icon">🏆</span> อันดับ
+                        </a>
+                        <a href="profile.html" class="user-menu-item" role="menuitem">
+                            <span class="user-menu-icon">👤</span> โปรไฟล์
+                        </a>
+                        <button type="button" class="user-menu-item user-menu-logout" id="user-menu-logout" role="menuitem">
+                            <span class="user-menu-icon">🚪</span> ออกจากระบบ
+                        </button>
+                    </div>
                 </div>
-                <!-- Logout moved to bottom nav (#btn-logout there) -->
             </div>
         </header>
 
@@ -559,6 +576,6 @@
         </button>
     </nav>
 
-    <script src="script.js?v=20260504"></script>
+    <script src="script.js?v=20260504b"></script>
 </body>
 </html>
