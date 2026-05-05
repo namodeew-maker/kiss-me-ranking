@@ -103,7 +103,9 @@ const storage = useR2
     });
 const upload = multer({
     storage,
-    limits: { fileSize: 5 * 1024 * 1024 },
+    // 20 MB — enough headroom for phone-camera slips at full quality (≥ 2.5 MB+).
+    // Match this with Nginx client_max_body_size (set to 25 MB to allow form overhead).
+    limits: { fileSize: 20 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const allowed = /jpeg|jpg|png|gif|webp/;
         const extOk = allowed.test(path.extname(file.originalname).toLowerCase());
