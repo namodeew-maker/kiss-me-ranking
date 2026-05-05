@@ -1,0 +1,20 @@
+{
+  "name": "Kiss Me Ranking",
+  "short_name": "Kiss Me",
+  "description": "ระบบสะสมพ้อย ทายเลข และจัดอันดับ Kiss Me VIP",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060612",
+  "theme_color": "#ff3c3c",
+  "orientation": "portrait-primary",
+  "lang": "th",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/Logo%20Ranking/Diamon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

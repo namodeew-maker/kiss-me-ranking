@@ -780,10 +780,83 @@
     --glass-border: rgba(255, 60, 60, 0.15);
     --text-silver: #e0e0e0;
     --text-muted: #777;
+    /* Safe area helpers — fall back to 0 on devices without notch */
+    --sa-top: env(safe-area-inset-top, 0px);
+    --sa-right: env(safe-area-inset-right, 0px);
+    --sa-bottom: env(safe-area-inset-bottom, 0px);
+    --sa-left: env(safe-area-inset-left, 0px);
 }
 
 * {
     box-sizing: border-box;
+    /* Disable iOS double-tap zoom on interactive elements */
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* ============== MOBILE / TOUCH DEFAULTS (Phase 1) ============== */
+
+/* Inputs at 16px+ to prevent iOS Safari auto-zoom on focus */
+input,
+select,
+textarea {
+    font-size: 16px;
+}
+
+/* Touch feedback — feels native (Fitts' Law: visible reaction on tap) */
+button,
+.btn-primary,
+.btn-action,
+.btn-small,
+.tab-btn,
+a[role="button"],
+label.avatar-upload-btn {
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+    transition: transform 0.12s ease, opacity 0.12s ease, filter 0.12s ease;
+}
+
+button:active:not(:disabled),
+.btn-primary:active,
+.btn-action:active:not(:disabled),
+.btn-small:active,
+.tab-btn:active,
+a[role="button"]:active,
+label.avatar-upload-btn:active {
+    transform: scale(0.96);
+    filter: brightness(1.1);
+}
+
+/* Honor reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Touch-only: kill hover-based effects so they don't stick after tap */
+@media (hover: none) {
+    button:hover,
+    .btn-primary:hover,
+    .btn-action:hover,
+    .tab-btn:hover {
+        transform: none;
+        filter: none;
+    }
+}
+
+/* Larger touch targets for any small icons / badges (Fitts' Law: ≥44px) */
+.copy-user-id-btn,
+.name-edit-btn,
+.img-modal-close,
+.profile-img-modal-close,
+.name-edit-modal-close {
+    min-width: 44px;
+    min-height: 44px;
 }
 
 body.futuristic-bg {
@@ -797,6 +870,11 @@ body.futuristic-bg {
         radial-gradient(ellipse at 80% 20%, rgba(0, 240, 255, 0.04) 0%, transparent 50%),
         radial-gradient(circle at center, #0a0a1a 0%, #060612 100%);
     overflow-x: hidden;
+    /* Respect notch / home indicator on iOS */
+    padding-top: var(--sa-top);
+    padding-right: var(--sa-right);
+    padding-left: var(--sa-left);
+    /* No bottom padding here — Bottom Tab Bar will own that */
 }
 
 /* Background Particles */
@@ -3210,4 +3288,193 @@ header h1 {
     .main-user-id-help {
         font-size: 0.82rem;
     }
+}
+
+/* ============================================================
+   APP-LIKE: Sticky Header + Bottom Tab Bar + Skeleton (Phase 1)
+   ============================================================ */
+
+/* --- Sticky Header (mobile only) --- */
+@media (max-width: 768px) {
+    body.futuristic-bg .app-header {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: rgba(6, 6, 18, 0.85);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border-bottom: 1px solid rgba(255, 60, 60, 0.12);
+        padding-top: max(8px, var(--sa-top));
+        margin-top: calc(var(--sa-top) * -1); /* reset body padding-top inside */
+    }
+}
+
+/* --- Bottom Tab Bar --- */
+.app-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    display: flex;
+    justify-content: space-around;
+    align-items: stretch;
+    background: rgba(6, 6, 18, 0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(255, 60, 60, 0.18);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.45);
+    padding-bottom: var(--sa-bottom);
+    /* Hidden by default — only show on mobile */
+    display: none;
+}
+
+.app-bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 10px 4px;
+    min-height: 56px;
+    color: rgba(255, 255, 255, 0.55);
+    text-decoration: none;
+    font-family: 'Kanit', sans-serif;
+    font-size: 11px;
+    transition: color 0.18s ease, background 0.18s ease;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+}
+
+.app-bottom-nav-item:active {
+    background: rgba(255, 60, 60, 0.08);
+}
+
+.app-bottom-nav-item.active {
+    color: var(--neon-red);
+}
+
+.app-bottom-nav-item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 28px;
+    height: 3px;
+    background: var(--neon-red);
+    border-radius: 0 0 3px 3px;
+    box-shadow: 0 0 8px var(--neon-red-glow);
+}
+
+.app-bottom-nav-icon {
+    font-size: 22px;
+    line-height: 1;
+}
+
+.app-bottom-nav-label {
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 0.2px;
+}
+
+/* Show bottom nav on mobile + add bottom padding so content doesn't hide behind it */
+@media (max-width: 768px) {
+    .app-bottom-nav {
+        display: flex;
+    }
+    body.futuristic-bg {
+        padding-bottom: calc(64px + var(--sa-bottom));
+    }
+    /* Modals and overlays should sit above the nav */
+    .img-modal-overlay,
+    .terms-overlay,
+    .name-edit-modal-overlay {
+        z-index: 9999;
+    }
+}
+
+/* --- Skeleton loader --- */
+@keyframes skeleton-shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+.skeleton,
+.skeleton-line,
+.skeleton-block {
+    display: block;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.10) 50%,
+        rgba(255, 255, 255, 0.04) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+    border-radius: 6px;
+    color: transparent !important;
+    pointer-events: none;
+}
+
+.skeleton-line {
+    height: 14px;
+    margin: 6px 0;
+}
+
+.skeleton-line.lg { height: 22px; }
+.skeleton-line.sm { height: 10px; width: 60%; }
+
+.skeleton-block {
+    width: 100%;
+    height: 80px;
+}
+
+.skeleton-circle {
+    border-radius: 50%;
+    aspect-ratio: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skeleton,
+    .skeleton-line,
+    .skeleton-block {
+        animation: none;
+    }
+}
+
+/* Screen-reader only utility */
+.visually-hidden {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Profile skeleton layout */
+.profile-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+}
+
+.profile-skeleton-row {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.profile-skeleton-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }

@@ -2,11 +2,19 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0">
+    <meta name="theme-color" content="#060612">
+    <meta name="color-scheme" content="dark">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Kiss Me">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/Logo%20Ranking/Diamon.png">
     <title>Kiss Me Ranking — อันดับ</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260502">
-    <link rel="stylesheet" href="ranking.css?v=20260502">
+    <link rel="stylesheet" href="styles.css?v=20260504">
+    <link rel="stylesheet" href="ranking.css?v=20260504">
 </head>
 <body class="futuristic-bg">
 
@@ -62,6 +70,22 @@
         </div>
     </div>
 
-    <script src="ranking.js?v=20260502"></script>
+    <!-- Bottom Tab Bar (mobile-first navigation) -->
+    <nav class="app-bottom-nav" aria-label="เมนูหลัก">
+        <a href="index.html" class="app-bottom-nav-item">
+            <span class="app-bottom-nav-icon">🏠</span>
+            <span class="app-bottom-nav-label">หน้าหลัก</span>
+        </a>
+        <a href="ranking.html" class="app-bottom-nav-item active" aria-current="page">
+            <span class="app-bottom-nav-icon">🏆</span>
+            <span class="app-bottom-nav-label">อันดับ</span>
+        </a>
+        <a href="profile.html" class="app-bottom-nav-item">
+            <span class="app-bottom-nav-icon">👤</span>
+            <span class="app-bottom-nav-label">โปรไฟล์</span>
+        </a>
+    </nav>
+
+    <script src="ranking.js?v=20260504"></script>
 </body>
 </html>
