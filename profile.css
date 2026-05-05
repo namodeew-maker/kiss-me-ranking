@@ -912,7 +912,7 @@
     border: 1px solid rgba(0, 240, 255, 0.15);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
     .profile-overview-grid {
         display: flex;
         flex-direction: column;
@@ -927,9 +927,38 @@
     }
     .profile-secondary-column {
         order: 2;
+        width: 100%;
+        min-width: 0;
     }
     .profile-history-board {
         order: 3;
+    }
+    /* Force every profile panel to fill the available width on tablet/mobile */
+    .profile-overview-grid > *,
+    .profile-primary-column > *,
+    .profile-secondary-column > *,
+    .user-card,
+    .profile-history-board,
+    .profile-progress-card,
+    .rank-card,
+    .reward-summary {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    /* User-card stacks: avatar+info on top row, stats on next row, both full-width */
+    .user-card-left {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+    .user-stats {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+    /* Slim the page padding so content has more room */
+    .profile-page {
+        padding-left: 12px;
+        padding-right: 12px;
     }
 }
 
