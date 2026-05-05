@@ -745,6 +745,29 @@
     box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
 }
 
+/* Compact icon-only header button (e.g. logout). 44x44 touch target. */
+.header-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid rgba(255, 68, 68, 0.4);
+    border-radius: 50%;
+    background: rgba(255, 68, 68, 0.08);
+    color: #ff6666;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.header-icon-btn:hover {
+    background: rgba(255, 68, 68, 0.18);
+    border-color: rgba(255, 68, 68, 0.6);
+}
+
 .logout-btn {
     background: rgba(255, 68, 68, 0.1);
     border-color: rgba(255, 68, 68, 0.4);

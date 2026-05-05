@@ -15,7 +15,7 @@
     <link rel="apple-touch-icon" href="/Logo%20Ranking/Diamon.png">
     <title>Kiss Me Ranking — Gamified Loyalty</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260504">
+    <link rel="stylesheet" href="styles.css?v=20260504b">
     <!-- LINE LIFF SDK -->
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
@@ -258,7 +258,7 @@
 
     <!-- ==================== MAIN CONTENT (hidden until logged in) ==================== -->
     <div class="container hidden" id="main-content">
-        <header>
+        <header class="app-header">
             <div class="logo-area">
                 <div class="logo-icon">💋</div>
                 <div>
@@ -267,14 +267,13 @@
                 </div>
             </div>
             <div class="header-actions">
-                <!-- LIFF Profile Area -->
+                <!-- LIFF Profile Area (avatar + name shown when logged in) -->
                 <div class="liff-profile" id="liff-profile">
                     <img class="liff-avatar" id="liff-avatar" src="" alt="avatar">
                     <span class="liff-name" id="liff-name">กำลังโหลด...</span>
                 </div>
-                <a href="profile.html" class="header-link profile-btn" id="btn-profile" title="ดูโปรไฟล์ของฉัน">👤 โปรไฟล์</a>
-                <a href="ranking.html" class="header-link">🏆 อันดับ</a>
-                <button class="header-link logout-btn hidden" id="btn-logout" title="ออกจากระบบ">🚪Logout</button>
+                <!-- Logout = small icon-only button. Profile/Ranking moved to bottom nav. -->
+                <button class="header-icon-btn logout-btn hidden" id="btn-logout" title="ออกจากระบบ" aria-label="ออกจากระบบ">🚪</button>
             </div>
         </header>
 
