@@ -437,4 +437,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     reloadRanking();
+
+    // Bottom-nav logout button (shared with index/profile)
+    const logoutBtn = document.getElementById('btn-logout');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            if (!window.confirm('ออกจากระบบ?')) return;
+            try { sessionStorage.clear(); } catch (e) { /* ignore */ }
+            try { localStorage.clear(); } catch (e) { /* ignore */ }
+            window.location.href = 'index.html';
+        });
+    }
 });

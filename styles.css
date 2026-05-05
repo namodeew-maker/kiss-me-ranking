@@ -3402,6 +3402,33 @@ header h1 {
     letter-spacing: 0.2px;
 }
 
+/* Bottom-nav <button> reset (logout uses <button>, others use <a>) */
+button.app-bottom-nav-item {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    /* Match anchor sibling padding/colors via existing rules */
+}
+
+/* Logout = action button, not nav. Subtle red accent on icon to distinguish. */
+.app-bottom-nav-logout {
+    color: rgba(255, 90, 90, 0.7);
+}
+
+.app-bottom-nav-logout:hover {
+    color: #ff6666;
+}
+
+.app-bottom-nav-logout:active {
+    background: rgba(255, 60, 60, 0.10);
+}
+
+/* Ensure hidden class wins over display:flex on logout */
+.app-bottom-nav-logout.hidden {
+    display: none !important;
+}
+
 /* Show bottom nav on mobile + add bottom padding so content doesn't hide behind it */
 @media (max-width: 768px) {
     .app-bottom-nav {
