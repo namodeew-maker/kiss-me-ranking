@@ -11,9 +11,9 @@
   "scope": "/",
   "icons": [
     {
-      "src": "/Logo%20Ranking/Diamon.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "src": "/Logo%20Kissme.jpg",
+      "sizes": "640x640",
+      "type": "image/jpeg",
       "purpose": "any"
     }
   ]
