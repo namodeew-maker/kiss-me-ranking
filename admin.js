@@ -1390,8 +1390,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             noUsers.classList.add('hidden');
+            // CRITICAL: do NOT put data-view-user on <tr>. The admin tooltip
+            // system (line 125) auto-applies has-admin-tooltip to anything
+            // matching [data-view-user], which adds ::before/::after pseudo
+            // elements. On <tr>, Chrome renders these as a phantom table-cell
+            // which shifts every column right by 1. Use data-user-id on row,
+            // keep data-view-user only on the button (its intended target).
             userBody.innerHTML = data.users.map((user) => `
-                <tr class="user-row-clickable ${String(selectedUserId) === String(user.id) ? 'user-row-active' : ''}" data-view-user="${user.id}">
+                <tr class="user-row-clickable ${String(selectedUserId) === String(user.id) ? 'user-row-active' : ''}" data-user-id="${user.id}">
                     <td>
                         <div class="user-cell">
                             <img class="user-cell-avatar" src="${userAvatarSrc(user)}" alt="${escapeHtml(user.display_name || 'User')}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user.display_name || user.platform_id || 'User')}&background=1a1a2e&color=ff3c3c&size=96'">
@@ -1412,11 +1418,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td>${renderUserActivityCell(user)}</td>
                     <td>${renderUserRewardBalanceCell(user)}</td>
                     <td class="user-last-active-cell">${renderUserLoginCell(user)}</td>
-                    <td class="user-col-action"><button class="btn-small btn-view-user" type="button">ดูรายละเอียด</button></td>
+                    <td class="user-col-action"><button class="btn-small btn-view-user" type="button" data-view-user="${user.id}">ดูรายละเอียด</button></td>
                 </tr>
             `).join('');
 
-            userBody.querySelectorAll('tr[data-view-user]').forEach((tr) => {
+            userBody.querySelectorAll('tr[data-user-id]').forEach((tr) => {
                 tr.addEventListener('click', (event) => {
                     // Click on LINE ID badge → copy to clipboard
                     const copyEl = event.target.closest('[data-copy-id]');
@@ -1434,11 +1440,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Don't trigger modal when user clicks on interactive children
                     if (event.target.closest('a, button, input, select, textarea')) {
                         if (event.target.closest('.btn-view-user')) {
-                            loadUserDetail(tr.dataset.viewUser);
+                            loadUserDetail(tr.dataset.userId);
                         }
                         return;
                     }
-                    loadUserDetail(tr.dataset.viewUser);
+                    loadUserDetail(tr.dataset.userId);
                 });
             });
         } catch (err) {
