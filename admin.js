@@ -570,11 +570,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rejectedCls = rejected > 0 ? 'user-slip-rejected' : '';
         return `
             <div class="user-slip-breakdown">
-                <div class="user-slip-total"><strong>${total.toLocaleString('th-TH')}</strong> รวม</div>
                 <div class="user-slip-detail">
-                    <span class="user-slip-approved">✅ ${approved.toLocaleString('th-TH')}</span>
-                    <span class="${pendingCls}">⏳ ${pending.toLocaleString('th-TH')}</span>
-                    <span class="${rejectedCls}">❌ ${rejected.toLocaleString('th-TH')}</span>
+                    <span class="user-slip-approved" title="อนุมัติ">✅${approved}</span>
+                    <span class="${pendingCls}" title="รอตรวจ">⏳${pending}</span>
+                    <span class="${rejectedCls}" title="ปฏิเสธ">❌${rejected}</span>
+                </div>
+                <div class="user-slip-total">รวม <strong>${total.toLocaleString('th-TH')}</strong></div>
+            </div>
+        `;
+    }
+
+    function renderUserKeyDates(user) {
+        const signup = formatShortDateTime(user.created_at);
+        const lastSlip = user.last_activity_at ? formatShortDateTime(user.last_activity_at) : '—';
+        return `
+            <div class="user-key-dates">
+                <div class="user-key-date-row">
+                    <span class="user-key-date-label">📝 สมัคร</span>
+                    <span class="user-key-date-value">${signup}</span>
+                </div>
+                <div class="user-key-date-row">
+                    <span class="user-key-date-label">🧾 สลิป</span>
+                    <span class="user-key-date-value">${lastSlip}</span>
                 </div>
             </div>
         `;
@@ -1363,9 +1380,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td>${renderUserRewardBalanceCell(user)}</td>
                     <td>${renderUserSlipBreakdown(user)}</td>
                     <td>${Number(user.guess_total || 0).toLocaleString('th-TH')}</td>
-                    <td class="user-last-active-cell">${formatShortDateTime(user.created_at)}</td>
                     <td class="user-last-active-cell">${renderUserLoginCell(user)}</td>
-                    <td class="user-last-active-cell">${formatShortDateTime(user.last_activity_at) || '<span class="empty-msg">—</span>'}</td>
+                    <td class="user-key-dates-cell">${renderUserKeyDates(user)}</td>
                     <td><button class="btn-small" data-view-user="${user.id}">ดูรายละเอียด</button></td>
                 </tr>
             `).join('');
