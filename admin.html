@@ -9,7 +9,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260502">
-    <link rel="stylesheet" href="admin.css?v=20260520b">
+    <link rel="stylesheet" href="admin.css?v=20260520c">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -386,15 +386,11 @@
                             <thead>
                                 <tr>
                                     <th>ผู้ใช้</th>
-                                    <th title="พ้อยรอบนี้ + สิทธิ์ทายเลข">พ้อยรอบ</th>
-                                    <th title="พ้อยรวมตลอดอายุบัญชี">รวม</th>
-                                    <th title="แรงค์ / EXP">แรงค์</th>
-                                    <th title="Cashback / Gift Voucher คงเหลือ">รางวัล</th>
-                                    <th title="สลิป (อนุมัติ / รอตรวจ / ปฏิเสธ)">สลิป</th>
-                                    <th title="จำนวนทายเลข">ทาย</th>
-                                    <th title="เวลาเปิดแอป LIFF ล่าสุด">เข้าใช้</th>
-                                    <th title="วันสมัคร + วันส่งสลิปล่าสุด">วันสำคัญ</th>
-                                    <th class="user-col-actions">จัดการ</th>
+                                    <th title="แรงค์ + พ้อยรอบนี้ — ดูพ้อยรวม/วันสมัครใน modal">สถานะ</th>
+                                    <th title="สลิป (อนุมัติ/รอ/ปฏิเสธ) + จำนวนทายเลข">กิจกรรม</th>
+                                    <th title="Cashback + Gift Voucher คงเหลือ">รางวัล</th>
+                                    <th title="เวลาเปิดแอป LIFF ล่าสุด">เข้าใช้ล่าสุด</th>
+                                    <th>จัดการ</th>
                                 </tr>
                             </thead>
                             <tbody id="users-body"></tbody>
@@ -1121,6 +1117,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260520a"></script>
+    <script src="admin.js?v=20260520c"></script>
 </body>
 </html>

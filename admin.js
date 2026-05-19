@@ -561,6 +561,46 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
     }
 
+    function renderUserStatusCell(user) {
+        const approvedForRank = getDisplayedRankApprovedCount(user);
+        const rank = getCustomerRankInfo(approvedForRank);
+        const currentRoundPoints = Number(user.current_round_points || 0);
+        const guessCredits = Math.max(0, Math.floor(currentRoundPoints / 5));
+        return `
+            <div class="user-status-cell">
+                <div class="user-status-rank" style="color:${rank.color}">
+                    🏆 <strong>${escapeHtml(rank.name)}</strong>
+                </div>
+                <div class="user-status-points">
+                    💎 <strong>${currentRoundPoints.toLocaleString('th-TH')}</strong> พ้อย${guessCredits > 0 ? ` <span class="user-status-credits">· ${guessCredits} สิทธิ์</span>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderUserActivityCell(user) {
+        const approved = Number(user.approved_count || 0);
+        const pending = Number(user.pending_count || 0);
+        const rejected = Number(user.rejected_count || 0);
+        const guesses = Number(user.guess_total || 0);
+        const total = Number(user.transaction_count || 0);
+        return `
+            <div class="user-activity-cell">
+                <div class="user-activity-slip">
+                    🧾 <strong>${total}</strong> สลิป
+                    <span class="user-activity-slip-detail">
+                        <span class="user-slip-approved">✅${approved}</span>
+                        <span class="${pending > 0 ? 'user-slip-pending' : ''}">⏳${pending}</span>
+                        <span class="${rejected > 0 ? 'user-slip-rejected' : ''}">❌${rejected}</span>
+                    </span>
+                </div>
+                <div class="user-activity-guess">
+                    🎯 <strong>${guesses}</strong> ทายเลข
+                </div>
+            </div>
+        `;
+    }
+
     function renderUserSlipBreakdown(user) {
         const approved = Number(user.approved_count || 0);
         const pending = Number(user.pending_count || 0);
@@ -1368,20 +1408,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                             </div>
                         </div>
                     </td>
-                    <td>
-                        <div class="user-reward-balance-cell">
-                            <div><strong>${Number(user.current_round_points || 0).toLocaleString('th-TH')}</strong> แต้ม</div>
-                            <div><strong>${Math.max(0, Math.floor(Number(user.current_round_points || 0) / 5)).toLocaleString('th-TH')}</strong> สิทธิ์ทาย</div>
-                        </div>
-                    </td>
-                    <td>${(user.total_points || 0).toLocaleString('th-TH')}</td>
-                    <td>${renderUserRankCell(user)}</td>
+                    <td>${renderUserStatusCell(user)}</td>
+                    <td>${renderUserActivityCell(user)}</td>
                     <td>${renderUserRewardBalanceCell(user)}</td>
-                    <td>${renderUserSlipBreakdown(user)}</td>
-                    <td>${Number(user.guess_total || 0).toLocaleString('th-TH')}</td>
                     <td class="user-last-active-cell">${renderUserLoginCell(user)}</td>
-                    <td class="user-key-dates-cell">${renderUserKeyDates(user)}</td>
-                    <td class="user-col-actions"><button class="btn-small btn-view-user" type="button">ดูรายละเอียด</button></td>
+                    <td class="user-col-action"><button class="btn-small btn-view-user" type="button">ดูรายละเอียด</button></td>
                 </tr>
             `).join('');
 
