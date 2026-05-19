@@ -2777,7 +2777,8 @@
     align-items: center;
     gap: 6px;
     margin: 4px 0 2px;
-    flex-wrap: wrap;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 .user-line-id-text {
@@ -2790,11 +2791,25 @@
     font-family: Consolas, 'Courier New', monospace;
     font-size: 0.72rem;
     line-height: 1.45;
-    word-break: break-all;
-    flex: 1;
+    /* Truncate with ellipsis instead of breaking the string apart vertically. */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1 1 auto;
     min-width: 0;
-    cursor: text;
-    user-select: all;
+    max-width: 100%;
+    cursor: pointer;
+}
+
+.user-line-id-text:hover {
+    background: rgba(6, 199, 85, 0.18);
+    border-color: rgba(6, 199, 85, 0.4);
+}
+
+.user-line-id-text::after {
+    content: ' 📋';
+    opacity: 0.5;
+    font-size: 0.7rem;
 }
 
 .user-platform-id-cell {

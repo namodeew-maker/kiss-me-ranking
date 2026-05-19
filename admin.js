@@ -1362,11 +1362,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     ${user.custom_display_name_locked_until && new Date(user.custom_display_name_locked_until) > new Date() ? '<span class="user-cell-name-locked-badge">🔒</span>' : ''}
                                 </div>
                                 ${user.custom_display_name ? `<div class="user-cell-name-custom">${escapeHtml(user.custom_display_name)}</div>` : ''}
-                                <div class="user-cell-line-id" title="LINE User ID — ลูกค้าใช้ ID นี้ส่งให้แอดมินค้นหา">
+                                <div class="user-cell-line-id" title="LINE User ID: ${escapeHtml(user.platform_id || '')} — คลิกเพื่อคัดลอก">
                                     ${formatPlatformBadge(user.platform)}
-                                    <code class="user-line-id-text">${formatBreakableIdentifier(user.platform_id)}</code>
+                                    <code class="user-line-id-text" data-copy-id="${escapeHtml(user.platform_id || '')}">${escapeHtml(user.platform_id || '')}</code>
                                 </div>
-                                ${renderUserCompactSummary(user)}
                             </div>
                         </div>
                     </td>
@@ -1389,8 +1388,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             userBody.querySelectorAll('tr[data-view-user]').forEach((tr) => {
                 tr.addEventListener('click', (event) => {
-                    // Don't trigger when user clicks on interactive children
-                    if (event.target.closest('a, button, input, select, textarea, code')) {
+                    // Click on LINE ID badge → copy to clipboard
+                    const copyEl = event.target.closest('[data-copy-id]');
+                    if (copyEl) {
+                        event.stopPropagation();
+                        const id = copyEl.dataset.copyId;
+                        if (id && navigator.clipboard) {
+                            navigator.clipboard.writeText(id).then(
+                                () => showToast(`คัดลอก LINE ID แล้ว: ${id.slice(0, 12)}...`, 'success'),
+                                () => showToast('คัดลอกไม่สำเร็จ', 'error')
+                            );
+                        }
+                        return;
+                    }
+                    // Don't trigger modal when user clicks on interactive children
+                    if (event.target.closest('a, button, input, select, textarea')) {
                         if (event.target.closest('.btn-view-user')) {
                             loadUserDetail(tr.dataset.viewUser);
                         }
