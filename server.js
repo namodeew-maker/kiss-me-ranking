@@ -759,12 +759,28 @@ app.use((req, res, next) => {
 
 const sendProjectFile = (filename) => (req, res) => res.sendFile(path.join(__dirname, filename));
 
+// Admin panel assets change frequently and any stale cached copy causes
+// hard-to-debug layout breakage (column shift, missing buttons, etc.).
+// Force browsers and Cloudflare to revalidate on every request.
+const sendAdminAssetNoCache = (filename, contentType) => (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    if (contentType) res.setHeader('Content-Type', contentType);
+    res.sendFile(path.join(__dirname, filename));
+};
+
 app.get(ADMIN_LOGIN_ROUTE, sendProjectFile('admin-login.html'));
-app.get(ADMIN_PANEL_ROUTE, sendProjectFile('admin.html'));
+app.get(ADMIN_PANEL_ROUTE, sendAdminAssetNoCache('admin.html', 'text/html; charset=utf-8'));
 app.get(`${ADMIN_LOGIN_ROUTE}/styles.css`, sendProjectFile('styles.css'));
-app.get(`${ADMIN_LOGIN_ROUTE}/admin.css`, sendProjectFile('admin.css'));
-app.get(`${ADMIN_LOGIN_ROUTE}/admin.js`, sendProjectFile('admin.js'));
+app.get(`${ADMIN_LOGIN_ROUTE}/admin.css`, sendAdminAssetNoCache('admin.css', 'text/css; charset=utf-8'));
+app.get(`${ADMIN_LOGIN_ROUTE}/admin.js`, sendAdminAssetNoCache('admin.js', 'text/javascript; charset=utf-8'));
 app.get(`${ADMIN_LOGIN_ROUTE}/index.html`, sendProjectFile('index.html'));
+
+// Also intercept direct /admin.html, /admin.css, /admin.js (loaded relatively
+// from the admin panel) so express.static doesn't serve them with long caches.
+app.get('/admin.css', sendAdminAssetNoCache('admin.css', 'text/css; charset=utf-8'));
+app.get('/admin.js', sendAdminAssetNoCache('admin.js', 'text/javascript; charset=utf-8'));
 
 const legacyAdminAliases = ['/admin', '/admin/', '/admin/index.html'];
 const legacyAdminPanelAliases = ['/admin/panel', '/admin/panel/', '/admin/panel/index.html'];
