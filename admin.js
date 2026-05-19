@@ -1362,8 +1362,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     ${user.custom_display_name_locked_until && new Date(user.custom_display_name_locked_until) > new Date() ? '<span class="user-cell-name-locked-badge">🔒</span>' : ''}
                                 </div>
                                 ${user.custom_display_name ? `<div class="user-cell-name-custom">${escapeHtml(user.custom_display_name)}</div>` : ''}
-                                <div class="user-cell-sub">${formatPlatformBadge(user.platform)} <code class="user-platform-id-text">${formatBreakableIdentifier(user.platform_id)}</code></div>
-                                <div class="user-cell-sub">${user.global_user_id ? `Global: ${escapeHtml(String(user.global_user_id))}` : 'ยังไม่มี global_user_id'}</div>
+                                <div class="user-cell-line-id" title="LINE User ID — ลูกค้าใช้ ID นี้ส่งให้แอดมินค้นหา">
+                                    ${formatPlatformBadge(user.platform)}
+                                    <code class="user-line-id-text">${formatBreakableIdentifier(user.platform_id)}</code>
+                                </div>
                                 ${renderUserCompactSummary(user)}
                             </div>
                         </div>

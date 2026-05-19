@@ -2750,6 +2750,32 @@
     max-width: none;
 }
 
+/* LINE User ID row in user cell — emphasized because admins search by this */
+.user-cell-line-id {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0 2px;
+    flex-wrap: wrap;
+}
+
+.user-line-id-text {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(6, 199, 85, 0.10);
+    border: 1px solid rgba(6, 199, 85, 0.25);
+    color: #66e69a;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    word-break: break-all;
+    flex: 1;
+    min-width: 0;
+    cursor: text;
+    user-select: all;
+}
+
 .user-platform-id-cell {
     min-width: 200px;
     max-width: 200px;
