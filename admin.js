@@ -1351,7 +1351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             noUsers.classList.add('hidden');
             userBody.innerHTML = data.users.map((user, index) => `
-                <tr class="${String(selectedUserId) === String(user.id) ? 'user-row-active' : ''}">
+                <tr class="user-row-clickable ${String(selectedUserId) === String(user.id) ? 'user-row-active' : ''}" data-view-user="${user.id}">
                     <td>${((currentUserPage - 1) * (data.pagination?.limit || 12)) + index + 1}</td>
                     <td>
                         <div class="user-cell">
@@ -1362,13 +1362,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     ${user.custom_display_name_locked_until && new Date(user.custom_display_name_locked_until) > new Date() ? '<span class="user-cell-name-locked-badge">🔒</span>' : ''}
                                 </div>
                                 ${user.custom_display_name ? `<div class="user-cell-name-custom">${escapeHtml(user.custom_display_name)}</div>` : ''}
+                                <div class="user-cell-sub">${formatPlatformBadge(user.platform)} <code class="user-platform-id-text">${formatBreakableIdentifier(user.platform_id)}</code></div>
                                 <div class="user-cell-sub">${user.global_user_id ? `Global: ${escapeHtml(String(user.global_user_id))}` : 'ยังไม่มี global_user_id'}</div>
                                 ${renderUserCompactSummary(user)}
                             </div>
                         </div>
                     </td>
-                    <td>${formatPlatformBadge(user.platform)}</td>
-                    <td class="user-platform-id-cell"><code class="user-platform-id-text">${formatBreakableIdentifier(user.platform_id)}</code></td>
                     <td>
                         <div class="user-reward-balance-cell">
                             <div><strong>${Number(user.current_round_points || 0).toLocaleString('th-TH')}</strong> แต้ม</div>
@@ -1382,12 +1381,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td>${Number(user.guess_total || 0).toLocaleString('th-TH')}</td>
                     <td class="user-last-active-cell">${renderUserLoginCell(user)}</td>
                     <td class="user-key-dates-cell">${renderUserKeyDates(user)}</td>
-                    <td><button class="btn-small" data-view-user="${user.id}">ดูรายละเอียด</button></td>
+                    <td class="user-col-actions"><button class="btn-small btn-view-user" type="button">ดูรายละเอียด</button></td>
                 </tr>
             `).join('');
 
-            userBody.querySelectorAll('[data-view-user]').forEach((btn) => {
-                btn.addEventListener('click', () => loadUserDetail(btn.dataset.viewUser));
+            userBody.querySelectorAll('tr[data-view-user]').forEach((tr) => {
+                tr.addEventListener('click', (event) => {
+                    // Don't trigger when user clicks on interactive children
+                    if (event.target.closest('a, button, input, select, textarea, code')) {
+                        if (event.target.closest('.btn-view-user')) {
+                            loadUserDetail(tr.dataset.viewUser);
+                        }
+                        return;
+                    }
+                    loadUserDetail(tr.dataset.viewUser);
+                });
             });
         } catch (err) {
             userBody.innerHTML = '';
