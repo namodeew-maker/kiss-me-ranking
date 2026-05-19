@@ -485,6 +485,23 @@
     min-width: 1200px;
 }
 
+/* Force all user-table headers to single line — Thai text was wrapping
+   badly into multi-line stacks when columns got narrow. */
+.admin-table-wrap-users #users-table thead th {
+    white-space: nowrap;
+    vertical-align: middle;
+    text-align: left;
+}
+
+.admin-table-wrap-users #users-table thead th.user-col-actions {
+    text-align: center;
+}
+
+/* Action button text stays on one line */
+.admin-table-wrap-users #users-table td.user-col-actions .btn-small {
+    white-space: nowrap;
+}
+
 /* col 2: ผู้ใช้ (avatar + name + platform + ID + compact summary) */
 .admin-table-wrap-users #users-table th:nth-child(2),
 .admin-table-wrap-users #users-table td:nth-child(2) {
@@ -542,39 +559,43 @@
     min-width: 160px;
 }
 
-/* col 11: จัดการ — sticky right so action button is always visible */
+/* col 11: จัดการ — sticky right so action button is always visible.
+   Use solid hex bg (not CSS var) so it never goes transparent and lets
+   underlying columns show through during scroll. */
 .admin-table-wrap-users #users-table th.user-col-actions,
 .admin-table-wrap-users #users-table td.user-col-actions {
-    width: 120px;
-    min-width: 120px;
+    width: 130px;
+    min-width: 130px;
     position: sticky;
     right: 0;
     z-index: 2;
-    background: var(--bg-panel, #1a1a2e);
-    box-shadow: -4px 0 8px rgba(0, 0, 0, 0.35);
+    background: #1a0a14;  /* solid dark to match admin panel */
+    box-shadow: -6px 0 12px rgba(0, 0, 0, 0.55);
     text-align: center;
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.admin-table-wrap-users #users-table th.user-col-actions {
-    background: var(--bg-panel-header, #0f0f1e);
+.admin-table-wrap-users #users-table thead th.user-col-actions {
+    background: #110612;
 }
 
 /* Clickable row — entire row opens detail modal */
-.admin-table-wrap-users #users-table tr.user-row-clickable {
+.admin-table-wrap-users #users-table tbody tr.user-row-clickable {
     cursor: pointer;
     transition: background 0.12s ease;
 }
 
-.admin-table-wrap-users #users-table tr.user-row-clickable:hover {
-    background: rgba(255, 60, 60, 0.06);
+.admin-table-wrap-users #users-table tbody tr.user-row-clickable:hover td {
+    background: rgba(255, 60, 60, 0.05);
 }
 
-.admin-table-wrap-users #users-table tr.user-row-clickable:hover td.user-col-actions {
-    background: rgba(40, 20, 30, 0.95);
+/* Hover state must also re-apply sticky bg or the col goes transparent */
+.admin-table-wrap-users #users-table tbody tr.user-row-clickable:hover td.user-col-actions {
+    background: #2a0e1c;
 }
 
-.admin-table-wrap-users #users-table tr.user-row-active td.user-col-actions {
-    background: rgba(60, 25, 35, 0.95);
+.admin-table-wrap-users #users-table tbody tr.user-row-active td.user-col-actions {
+    background: #3a1024;
 }
 
 .admin-table-wrap-history #history-table th:nth-child(1),
