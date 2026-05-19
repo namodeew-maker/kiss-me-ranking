@@ -1350,9 +1350,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             noUsers.classList.add('hidden');
-            userBody.innerHTML = data.users.map((user, index) => `
+            userBody.innerHTML = data.users.map((user) => `
                 <tr class="user-row-clickable ${String(selectedUserId) === String(user.id) ? 'user-row-active' : ''}" data-view-user="${user.id}">
-                    <td>${((currentUserPage - 1) * (data.pagination?.limit || 12)) + index + 1}</td>
                     <td>
                         <div class="user-cell">
                             <img class="user-cell-avatar" src="${userAvatarSrc(user)}" alt="${escapeHtml(user.display_name || 'User')}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user.display_name || user.platform_id || 'User')}&background=1a1a2e&color=ff3c3c&size=96'">
