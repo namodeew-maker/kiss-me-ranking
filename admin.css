@@ -1821,9 +1821,14 @@
 
     .admin-table-wrap-users #users-table {
         min-width: 0;
+        width: 100%;
         table-layout: auto;
     }
 
+    /* Hide secondary data columns on tablet — keep only ผู้ใช้ + sticky จัดการ.
+       Whole row is clickable, so admin can tap row to open detail. */
+    .admin-table-wrap-users #users-table th:nth-child(2),
+    .admin-table-wrap-users #users-table td:nth-child(2),
     .admin-table-wrap-users #users-table th:nth-child(3),
     .admin-table-wrap-users #users-table td:nth-child(3),
     .admin-table-wrap-users #users-table th:nth-child(4),
@@ -1837,44 +1842,33 @@
     .admin-table-wrap-users #users-table th:nth-child(8),
     .admin-table-wrap-users #users-table td:nth-child(8),
     .admin-table-wrap-users #users-table th:nth-child(9),
-    .admin-table-wrap-users #users-table td:nth-child(9),
-    .admin-table-wrap-users #users-table th:nth-child(10),
-    .admin-table-wrap-users #users-table td:nth-child(10) {
+    .admin-table-wrap-users #users-table td:nth-child(9) {
         display: none;
     }
 
+    /* col 1 (ผู้ใช้) — give it remaining space on tablet */
     .admin-table-wrap-users #users-table th:nth-child(1),
     .admin-table-wrap-users #users-table td:nth-child(1) {
-        width: 54px;
-        min-width: 54px;
-    }
-
-    .admin-table-wrap-users #users-table th:nth-child(11),
-    .admin-table-wrap-users #users-table td:nth-child(11) {
-        width: 112px;
-        min-width: 112px;
-    }
-
-    .admin-table-wrap-users #users-table td:nth-child(2) {
         width: auto;
         min-width: 0;
     }
 
-    .user-compact-summary {
-        display: block;
+    /* col 10 (จัดการ) — keep visible but not sticky on tablet (no horizontal scroll) */
+    .admin-table-wrap-users #users-table th.user-col-actions,
+    .admin-table-wrap-users #users-table td.user-col-actions {
+        position: static;
+        width: 130px;
+        min-width: 130px;
+        box-shadow: none;
+        border-left: none;
     }
 
     .admin-table-wrap-users .user-cell {
-        align-items: flex-start;
-    }
-
-    .admin-table-wrap-users .user-cell > div {
-        flex: 1 1 auto;
-        min-width: 0;
+        align-items: center;
     }
 
     .admin-table-wrap-users [data-view-user] {
-        width: 100%;
+        width: auto;
     }
 }
 
@@ -2057,13 +2051,10 @@
 }
 
 @media (max-width: 640px) {
-    .admin-table-wrap-users #users-table th:nth-child(1),
-    .admin-table-wrap-users #users-table td:nth-child(1) {
-        display: none;
-    }
-
-    .admin-table-wrap-users #users-table th:nth-child(11),
-    .admin-table-wrap-users #users-table td:nth-child(11) {
+    /* On phone, keep ผู้ใช้ and จัดการ visible — don't hide col 1!
+       (Old rule hid col 1 because that was the # row-number column.) */
+    .admin-table-wrap-users #users-table th.user-col-actions,
+    .admin-table-wrap-users #users-table td.user-col-actions {
         width: 98px;
         min-width: 98px;
     }
