@@ -701,6 +701,103 @@
     grid-column: 1 / -1;
 }
 
+/* Lottery tab visual grouping — color-coded borders by function group */
+.lottery-section-control {
+    border-left: 3px solid #ff5c5c;  /* red — control / lock */
+}
+
+.lottery-section-cycle {
+    border-left: 3px solid #4fc3f7;  /* blue — cycle / settings */
+}
+
+.lottery-section-stats {
+    border-left: 3px solid #ffd54f;  /* gold — stats / chart */
+}
+
+.lottery-section-announce {
+    border-left: 3px solid #66bb6a;  /* green — announce */
+}
+
+.lottery-section h3 {
+    margin-top: 0;
+}
+
+.chart-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.chart-panel-header h3 {
+    margin: 0;
+}
+
+.chart-mode-toggle {
+    display: inline-flex;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 4px;
+}
+
+.chart-mode-btn {
+    background: transparent;
+    border: none;
+    color: #aaa;
+    padding: 8px 14px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-family: 'Kanit', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.15s ease;
+}
+
+.chart-mode-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.chart-mode-btn.active {
+    background: rgba(255, 170, 0, 0.18);
+    color: #ffaa00;
+    box-shadow: 0 0 0 1px rgba(255, 170, 0, 0.25);
+}
+
+.chart-upcoming-info {
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, rgba(255, 170, 0, 0.08), rgba(66, 135, 245, 0.06));
+    border: 1px solid rgba(255, 170, 0, 0.2);
+    border-radius: 10px;
+}
+
+.chart-upcoming-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.05rem;
+    color: #ffd54f;
+}
+
+.chart-upcoming-icon {
+    font-size: 1.3rem;
+}
+
+.chart-upcoming-label strong {
+    font-family: 'Kanit', sans-serif;
+    font-weight: 600;
+}
+
+.chart-upcoming-range {
+    margin-top: 6px;
+    color: #aaa;
+}
+
 .chart-date-range {
     display: flex;
     gap: 15px;
@@ -2451,8 +2548,40 @@
     gap: 10px;
 }
 
+.user-stat-cards-analytics {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.user-stat-cards-accounts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+    .user-stat-cards-analytics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .user-stat-cards-accounts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.user-analytics-panel {
+    border-left: 3px solid #2196f3;
+}
+
 .user-management-panel {
     padding-top: 20px;
+    border-left: 3px solid #4caf50;
+}
+
+.user-settings-panel {
+    border-left: 3px solid #ff9800;
+}
+
+.user-analytics-panel h3,
+.user-management-panel h3,
+.user-settings-panel h3 {
+    margin-top: 0;
 }
 
 .user-management-panel .panel-caption {
@@ -2682,6 +2811,177 @@
     white-space: normal;
     font-size: 0.8rem;
     line-height: 1.45;
+}
+
+.user-slip-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.8rem;
+    line-height: 1.3;
+}
+
+.user-slip-total strong {
+    font-size: 0.95rem;
+    color: var(--text-silver);
+}
+
+.user-slip-detail {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    color: var(--text-muted);
+}
+
+.user-slip-detail .user-slip-pending {
+    color: #f5b342;
+    font-weight: 600;
+}
+
+.user-slip-detail .user-slip-rejected {
+    color: #ff5c5c;
+    font-weight: 600;
+}
+
+.user-slip-detail .user-slip-approved {
+    color: #4caf50;
+    font-weight: 600;
+}
+
+.user-login-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.user-login-meta {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.user-login-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.user-login-fresh {
+    background: rgba(76, 175, 80, 0.15);
+    color: #4caf50;
+}
+
+.user-login-recent {
+    background: rgba(33, 150, 243, 0.15);
+    color: #4fc3f7;
+}
+
+.user-login-faded {
+    background: rgba(245, 179, 66, 0.15);
+    color: #f5b342;
+}
+
+.user-login-churned {
+    background: rgba(255, 92, 92, 0.15);
+    color: #ff5c5c;
+}
+
+.visits-chart-card {
+    margin: 16px 0;
+    padding: 16px;
+    background: var(--bg-card, rgba(255, 255, 255, 0.03));
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+}
+
+.visits-chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.visits-chart-header h4 {
+    margin: 0 0 4px 0;
+    color: var(--text-silver);
+}
+
+.visits-chart-wrap {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 8px;
+}
+
+.visits-chart-grid {
+    display: flex;
+    gap: 4px;
+    height: 180px;
+    align-items: flex-end;
+    min-width: 100%;
+}
+
+.visits-chart-col {
+    flex: 1 1 0;
+    min-width: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    cursor: help;
+}
+
+.visits-chart-bars {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    gap: 2px;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.visits-chart-bar {
+    flex: 1;
+    min-height: 1px;
+    border-radius: 3px 3px 0 0;
+    position: relative;
+    transition: filter 0.15s ease;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.visits-chart-bar:hover {
+    filter: brightness(1.3);
+}
+
+.visits-chart-bar span {
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.85);
+    padding: 1px 2px;
+    line-height: 1;
+}
+
+.visits-bar-blue {
+    background: linear-gradient(180deg, #4fc3f7, #2196f3);
+}
+
+.visits-bar-green {
+    background: linear-gradient(180deg, #66bb6a, #43a047);
+}
+
+.visits-bar-gold {
+    background: linear-gradient(180deg, #ffd54f, #ffa000);
+}
+
+.visits-chart-day {
+    margin-top: 4px;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    white-space: nowrap;
 }
 
 .history-customer-cell {

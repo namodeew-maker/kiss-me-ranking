@@ -846,6 +846,20 @@ async function ensureDatabaseStructure() {
             )
         `);
         await pool.query('CREATE INDEX IF NOT EXISTS idx_admin_excel_import_logs_created_at ON admin_excel_import_logs (created_at DESC)');
+        // User visit tracking — DAU/WAU/MAU + true "last login" (vs. last transaction)
+        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP');
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_visits (
+                id BIGSERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                visited_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                entry_page VARCHAR(40),
+                user_agent TEXT,
+                ip INET
+            )
+        `);
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_user_visits_user_visited_at ON user_visits (user_id, visited_at DESC)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_user_visits_visited_at ON user_visits (visited_at DESC)');
         await pool.query(`
             CREATE TABLE IF NOT EXISTS lottery_reward_claims (
                 id SERIAL PRIMARY KEY,
@@ -3177,11 +3191,12 @@ async function upsertCustomerUser({ platform, platformId, displayName, pictureUr
     );
     const mergedPictureUrl = chooseUserPictureUrl(existingResult.rows[0]?.picture_url || null, pictureUrl);
     const result = await pool.query(
-        `INSERT INTO users (platform, platform_id, display_name, picture_url)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO users (platform, platform_id, display_name, picture_url, last_login_at)
+         VALUES ($1, $2, $3, $4, NOW())
          ON CONFLICT (platform, platform_id) DO UPDATE SET
             display_name = EXCLUDED.display_name,
             picture_url = EXCLUDED.picture_url,
+            last_login_at = NOW(),
             updated_at = NOW()
          RETURNING *`,
         [platform, platformId, displayName || '', mergedPictureUrl]
@@ -3190,13 +3205,34 @@ async function upsertCustomerUser({ platform, platformId, displayName, pictureUr
     return result.rows[0];
 }
 
+// Append-only visit log. Fire-and-forget so /api/auth/login latency is
+// unaffected if the insert fails (logged to stderr for ops follow-up).
+async function logUserVisit({ userId, entryPage, userAgent, ip }) {
+    if (!userId) return;
+    try {
+        const trimmedPage = entryPage ? String(entryPage).slice(0, 40) : null;
+        const trimmedUA = userAgent ? String(userAgent).slice(0, 500) : null;
+        const safeIp = ip && /^[0-9a-fA-F:.]+$/.test(ip) ? ip : null;
+        await pool.query(
+            `INSERT INTO user_visits (user_id, entry_page, user_agent, ip)
+             VALUES ($1, $2, $3, $4::inet)`,
+            [userId, trimmedPage, trimmedUA, safeIp]
+        );
+    } catch (err) {
+        console.error('logUserVisit error:', err.message);
+    }
+}
+
 function formatDateOnlyValue(date) {
+    // Guard against null/undefined which `new Date()` coerces to 1970-01-01.
+    if (date === null || date === undefined || date === '') return '';
     const normalized = date instanceof Date ? date : new Date(date);
     if (Number.isNaN(normalized.getTime())) return '';
     return normalized.toISOString().slice(0, 10);
 }
 
 function formatDateTimeValue(date) {
+    if (date === null || date === undefined || date === '') return '';
     const normalized = date instanceof Date ? date : new Date(date);
     if (Number.isNaN(normalized.getTime())) return '';
     return normalized.toISOString();
@@ -3408,6 +3444,7 @@ async function getMembersExportData() {
                 u.custom_display_name,
                 u.created_at,
                 u.updated_at,
+                u.last_login_at,
                 COALESCE(SUM(CASE
                     WHEN t.status = 'approved'
                      AND ($1::date IS NULL OR COALESCE(t.service_date, t.created_at::date) >= $1::date)
@@ -3421,7 +3458,7 @@ async function getMembersExportData() {
             LEFT JOIN point_totals pt ON pt.global_user_id = u.global_user_id
             LEFT JOIN redeemed_totals rt ON rt.user_id = u.id
             WHERE u.platform = 'line'
-            GROUP BY u.id, u.platform_id, u.display_name, u.custom_display_name, u.created_at, u.updated_at, pt.total_points, rt.redeemed_points
+            GROUP BY u.id, u.platform_id, u.display_name, u.custom_display_name, u.created_at, u.updated_at, u.last_login_at, pt.total_points, rt.redeemed_points
         )
         SELECT *
         FROM member_rows
@@ -3451,7 +3488,7 @@ async function getMembersExportData() {
         'active',
         false,
         formatDateTimeValue(row.created_at),
-        '',
+        formatDateTimeValue(row.last_login_at),
         formatDateTimeValue(row.last_activity_at),
         formatDateTimeValue(row.updated_at)
     ]));
@@ -3947,7 +3984,7 @@ app.post('/api/auth/telegram', async (req, res) => {
 // POST /api/auth/login — customer login / register from LINE
 // Body: { platform, platform_id, display_name, picture_url }
 app.post('/api/auth/login', async (req, res) => {
-    const { platform, platform_id, display_name, picture_url } = req.body;
+    const { platform, platform_id, display_name, picture_url, entry_page } = req.body;
     if (!platform_id) {
         return res.status(400).json({ error: 'platform_id is required' });
     }
@@ -3961,6 +3998,13 @@ app.post('/api/auth/login', async (req, res) => {
             platformId: platform_id,
             displayName: display_name,
             pictureUrl: picture_url
+        });
+        // Fire-and-forget — do not block response on visit log
+        logUserVisit({
+            userId: user.id,
+            entryPage: entry_page,
+            userAgent: req.headers['user-agent'],
+            ip: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip
         });
         res.json({
             success: true,
@@ -5343,6 +5387,77 @@ app.get('/api/round', async (req, res) => {
 
 // ============ GUESS CHART API ============
 
+// GET /api/admin/guesses-chart/upcoming-cycle
+// Auto-detects the next unannounced draw and returns the guess distribution
+// for the cycle leading up to it (day after previous draw → today).
+// Frontend uses this for the default "งวดถัดไป" view.
+app.get('/api/admin/guesses-chart/upcoming-cycle', requireAuth, async (req, res) => {
+    try {
+        const upcoming = await findNextUnannouncedDraw();
+        const todayStr = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit'
+        }).format(new Date());
+
+        if (!upcoming) {
+            return res.json({
+                hasUpcoming: false,
+                message: 'ยังไม่มีงวดถัดไปในตารางออกรางวัล',
+                data: []
+            });
+        }
+
+        // Find previous draw: largest schedule date strictly less than upcoming.date
+        const schedule = await getDrawSchedule();
+        const previous = schedule
+            .filter((e) => e && typeof e.date === 'string' && e.date < upcoming.date)
+            .sort((a, b) => b.date.localeCompare(a.date))[0] || null;
+
+        // Cycle start = day AFTER previous draw (so the previous draw day itself
+        // belongs to the previous cycle). If no previous draw exists yet, fall back
+        // to the start of the upcoming draw's month minus 14 days.
+        let startDate;
+        if (previous) {
+            const prevDate = new Date(previous.date + 'T00:00:00Z');
+            prevDate.setUTCDate(prevDate.getUTCDate() + 1);
+            startDate = prevDate.toISOString().slice(0, 10);
+        } else {
+            const upDate = new Date(upcoming.date + 'T00:00:00Z');
+            upDate.setUTCDate(upDate.getUTCDate() - 14);
+            startDate = upDate.toISOString().slice(0, 10);
+        }
+
+        // End date = min(today, upcoming.date). After the draw passes, the upcoming
+        // record changes via lottery_draws insert, so this is mostly defensive.
+        const endDate = todayStr < upcoming.date ? todayStr : upcoming.date;
+
+        const result = await pool.query(
+            `SELECT guess_number AS number, COUNT(*)::int AS count,
+                    COUNT(DISTINCT user_id)::int AS unique_users
+             FROM lottery_guesses
+             WHERE (created_at AT TIME ZONE 'Asia/Bangkok')::date >= $1::date
+               AND (created_at AT TIME ZONE 'Asia/Bangkok')::date <= $2::date
+             GROUP BY guess_number
+             ORDER BY count DESC, guess_number`,
+            [startDate, endDate]
+        );
+
+        res.json({
+            hasUpcoming: true,
+            startDate,
+            endDate,
+            drawDate: upcoming.date,
+            drawLabel: upcoming.labelFull,
+            drawLabelShort: upcoming.labelShort,
+            previousDrawDate: previous?.date || null,
+            previousDrawLabel: previous?.labelFull || null,
+            data: result.rows
+        });
+    } catch (err) {
+        console.error('Upcoming-cycle chart error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดข้อมูลกราฟงวดถัดไปได้' });
+    }
+});
+
 app.get('/api/stats/guesses-by-number', async (req, res) => {
     const { startDate, endDate } = req.query;
     if (!startDate || !endDate) {
@@ -5407,6 +5522,7 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
     const rewardFilter = String(req.query.rewards || 'all').trim().toLowerCase();
     const reviewFilter = String(req.query.review || 'all').trim().toLowerCase();
     const rankFilter = String(req.query.rank || 'all').trim().toLowerCase();
+    const loginFilter = String(req.query.login || 'all').trim().toLowerCase();
     if (!['all', 'active', 'inactive'].includes(activity)) {
         return res.status(400).json({ error: 'activity filter ไม่ถูกต้อง' });
     }
@@ -5421,6 +5537,9 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
     }
     if (!['all', 'unranked', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'master', 'grandmaster'].includes(rankFilter)) {
         return res.status(400).json({ error: 'rank filter ไม่ถูกต้อง' });
+    }
+    if (!['all', 'today', '7d', '30d', 'churned', 'never'].includes(loginFilter)) {
+        return res.status(400).json({ error: 'login filter ไม่ถูกต้อง' });
     }
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
@@ -5445,7 +5564,8 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
             pointFilter,
             rewardFilter,
             reviewFilter,
-            rankFilter
+            rankFilter,
+            loginFilter
         ];
         const userListQuery = `
             WITH reward_claim_totals AS (
@@ -5468,6 +5588,20 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                     END), 0)::int AS current_round_points
                 FROM points p
                 GROUP BY p.global_user_id
+            ),
+            visit_totals AS (
+                SELECT
+                    user_id,
+                    COUNT(*) FILTER (WHERE visited_at >= NOW() - INTERVAL '7 days')::int AS visit_count_7d,
+                    COUNT(*) FILTER (WHERE visited_at >= NOW() - INTERVAL '30 days')::int AS visit_count_30d,
+                    MAX(visited_at) AS visit_last_at
+                FROM user_visits
+                GROUP BY user_id
+            ),
+            guess_totals AS (
+                SELECT user_id, COUNT(*)::int AS guess_total
+                FROM lottery_guesses
+                GROUP BY user_id
             ),
             user_rows AS (
                 SELECT
@@ -5495,8 +5629,14 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                         THEN 1 ELSE 0
                     END), 0)::int AS rank_approved_count,
                     COALESCE(SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END), 0)::int AS pending_count,
+                    COALESCE(SUM(CASE WHEN t.status = 'rejected' THEN 1 ELSE 0 END), 0)::int AS rejected_count,
                     COALESCE(pt.total_points, 0)::int AS total_points,
                     COALESCE(pt.current_round_points, 0)::int AS current_round_points,
+                    u.last_login_at,
+                    COALESCE(vt.visit_count_7d, 0)::int AS visit_count_7d,
+                    COALESCE(vt.visit_count_30d, 0)::int AS visit_count_30d,
+                    vt.visit_last_at,
+                    COALESCE(gt.guess_total, 0)::int AS guess_total,
                     COALESCE((
                         SELECT SUM(GREATEST(COALESCE(lg.reward_amount, 0) - COALESCE(rct.redeemed_amount, 0), 0))
                         FROM lottery_guesses lg
@@ -5513,10 +5653,12 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                 FROM users u
                 LEFT JOIN transactions t ON t.user_id = u.id
                 LEFT JOIN point_totals pt ON pt.global_user_id = u.global_user_id
+                LEFT JOIN visit_totals vt ON vt.user_id = u.id
+                LEFT JOIN guess_totals gt ON gt.user_id = u.id
                 WHERE u.platform = 'line'
                   AND ($1 = '' OR u.display_name ILIKE $2 OR u.custom_display_name ILIKE $2 OR u.platform_id ILIKE $2 OR COALESCE(u.global_user_id::text, '') ILIKE $2)
                   AND ($3 = 'all' OR u.platform = $3)
-                GROUP BY u.id, u.global_user_id, u.platform, u.platform_id, u.display_name, u.custom_display_name, u.custom_display_name_updated_at, u.custom_display_name_locked_until, u.picture_url, u.created_at, u.updated_at, pt.total_points, pt.current_round_points
+                GROUP BY u.id, u.global_user_id, u.platform, u.platform_id, u.display_name, u.custom_display_name, u.custom_display_name_updated_at, u.custom_display_name_locked_until, u.picture_url, u.created_at, u.updated_at, u.last_login_at, pt.total_points, pt.current_round_points, vt.visit_count_7d, vt.visit_count_30d, vt.visit_last_at, gt.guess_total
             ),
             filtered_rows AS (
                 SELECT *
@@ -5536,6 +5678,14 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                     OR ($13 = 'master' AND rank_approved_count >= 90 AND rank_approved_count < 150)
                     OR ($13 = 'grandmaster' AND rank_approved_count >= 150)
                   )
+                  AND (
+                    $14 = 'all'
+                    OR ($14 = 'today' AND COALESCE(last_login_at, visit_last_at) >= DATE_TRUNC('day', NOW()))
+                    OR ($14 = '7d' AND COALESCE(last_login_at, visit_last_at) >= NOW() - INTERVAL '7 days')
+                    OR ($14 = '30d' AND COALESCE(last_login_at, visit_last_at) >= NOW() - INTERVAL '30 days')
+                    OR ($14 = 'churned' AND COALESCE(last_login_at, visit_last_at) < NOW() - INTERVAL '30 days')
+                    OR ($14 = 'never' AND last_login_at IS NULL AND visit_last_at IS NULL)
+                  )
             )
         `;
         const [summaryResult, usersResult] = await Promise.all([
@@ -5544,7 +5694,10 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                  SELECT
                     COUNT(*)::int AS total_accounts,
                     COUNT(*) FILTER (WHERE platform = 'line')::int AS line_accounts,
-                    COUNT(*) FILTER (WHERE transaction_count > 0)::int AS active_accounts
+                    COUNT(*) FILTER (WHERE transaction_count > 0)::int AS active_accounts,
+                    COUNT(*) FILTER (WHERE last_login_at >= DATE_TRUNC('day', NOW()))::int AS login_today,
+                    COUNT(*) FILTER (WHERE last_login_at >= NOW() - INTERVAL '7 days')::int AS login_7d,
+                    COUNT(*) FILTER (WHERE last_login_at >= NOW() - INTERVAL '30 days')::int AS login_30d
                  FROM filtered_rows`,
                 baseParams
             ),
@@ -5553,7 +5706,7 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
                  SELECT *
                  FROM filtered_rows
                  ORDER BY COALESCE(last_activity_at, created_at) DESC, created_at DESC
-                 LIMIT $14 OFFSET $15`,
+                 LIMIT $15 OFFSET $16`,
                 [...baseParams, limit, offset]
             )
         ]);
@@ -5582,6 +5735,102 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
     }
 });
 
+// GET /api/admin/users/active-stats — DAU/WAU/MAU + new-today
+// Aggregates from user_visits (true visit count) and users.created_at (signup).
+// Bangkok timezone: Postgres NOW() is server-time UTC; we apply Asia/Bangkok
+// for "today" boundary so admin sees Thai local-day numbers.
+app.get('/api/admin/users/active-stats', requireAuth, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            WITH bkk AS (
+                SELECT (NOW() AT TIME ZONE 'Asia/Bangkok')::date AS today
+            )
+            SELECT
+                COALESCE((
+                    SELECT COUNT(DISTINCT user_id)::int
+                    FROM user_visits
+                    WHERE (visited_at AT TIME ZONE 'Asia/Bangkok')::date = (SELECT today FROM bkk)
+                ), 0) AS dau,
+                COALESCE((
+                    SELECT COUNT(DISTINCT user_id)::int
+                    FROM user_visits
+                    WHERE visited_at >= NOW() - INTERVAL '7 days'
+                ), 0) AS wau,
+                COALESCE((
+                    SELECT COUNT(DISTINCT user_id)::int
+                    FROM user_visits
+                    WHERE visited_at >= NOW() - INTERVAL '30 days'
+                ), 0) AS mau,
+                COALESCE((
+                    SELECT COUNT(*)::int
+                    FROM users
+                    WHERE (created_at AT TIME ZONE 'Asia/Bangkok')::date = (SELECT today FROM bkk)
+                ), 0) AS new_today,
+                COALESCE((
+                    SELECT COUNT(*)::int
+                    FROM users
+                    WHERE created_at >= NOW() - INTERVAL '7 days'
+                ), 0) AS new_7d,
+                COALESCE((
+                    SELECT COUNT(*)::int
+                    FROM user_visits
+                    WHERE (visited_at AT TIME ZONE 'Asia/Bangkok')::date = (SELECT today FROM bkk)
+                ), 0) AS visits_today
+        `);
+        res.json(result.rows[0] || {});
+    } catch (err) {
+        console.error('Admin users active-stats error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดสถิติการเข้าใช้งานได้' });
+    }
+});
+
+// GET /api/admin/users/visits-chart?days=30 — daily unique-visitor + visit-count
+// time series for charting. Caps at 90 days to keep payload bounded.
+app.get('/api/admin/users/visits-chart', requireAuth, async (req, res) => {
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 90);
+    try {
+        const result = await pool.query(`
+            WITH day_series AS (
+                SELECT generate_series(
+                    ((NOW() AT TIME ZONE 'Asia/Bangkok')::date - ($1::int - 1) * INTERVAL '1 day'),
+                    (NOW() AT TIME ZONE 'Asia/Bangkok')::date,
+                    INTERVAL '1 day'
+                )::date AS day
+            ),
+            visit_agg AS (
+                SELECT
+                    (visited_at AT TIME ZONE 'Asia/Bangkok')::date AS day,
+                    COUNT(*)::int AS visits,
+                    COUNT(DISTINCT user_id)::int AS uniques
+                FROM user_visits
+                WHERE visited_at >= (NOW() AT TIME ZONE 'Asia/Bangkok')::date - ($1::int - 1) * INTERVAL '1 day'
+                GROUP BY (visited_at AT TIME ZONE 'Asia/Bangkok')::date
+            ),
+            signup_agg AS (
+                SELECT
+                    (created_at AT TIME ZONE 'Asia/Bangkok')::date AS day,
+                    COUNT(*)::int AS signups
+                FROM users
+                WHERE created_at >= (NOW() AT TIME ZONE 'Asia/Bangkok')::date - ($1::int - 1) * INTERVAL '1 day'
+                GROUP BY (created_at AT TIME ZONE 'Asia/Bangkok')::date
+            )
+            SELECT
+                to_char(ds.day, 'YYYY-MM-DD') AS day,
+                COALESCE(va.visits, 0) AS visits,
+                COALESCE(va.uniques, 0) AS uniques,
+                COALESCE(sa.signups, 0) AS signups
+            FROM day_series ds
+            LEFT JOIN visit_agg va ON va.day = ds.day
+            LEFT JOIN signup_agg sa ON sa.day = ds.day
+            ORDER BY ds.day ASC
+        `, [days]);
+        res.json({ days, series: result.rows });
+    } catch (err) {
+        console.error('Visits chart error:', err);
+        res.status(500).json({ error: 'ไม่สามารถโหลดกราฟการเข้าใช้งานได้' });
+    }
+});
+
 app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'Invalid ID' });
@@ -5591,7 +5840,7 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
         const userResult = await client.query(
             `SELECT id, global_user_id, platform, platform_id, display_name,
                     custom_display_name, custom_display_name_updated_at, custom_display_name_locked_until,
-                    picture_url, progress_count, created_at, updated_at
+                    picture_url, progress_count, created_at, updated_at, last_login_at
              FROM users
              WHERE id = $1`,
             [userId]
@@ -5604,7 +5853,7 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
             const linkedResult = await client.query(
                 `SELECT id, global_user_id, platform, platform_id, display_name,
                         custom_display_name, custom_display_name_updated_at, custom_display_name_locked_until,
-                        picture_url, progress_count, created_at, updated_at
+                        picture_url, progress_count, created_at, updated_at, last_login_at
                  FROM users
                  WHERE global_user_id = $1
                    AND platform = 'line'
@@ -5622,7 +5871,7 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
         const linkedUserIds = linkedAccounts.map((account) => account.id);
         const customerRankResetDate = await getCustomerRankResetDate();
         const effectiveCustomerRankResetDate = await getEffectiveCustomerRankResetDate();
-        const [statsResult, lotteryResult, recentTransactionsResult] = await Promise.all([
+        const [statsResult, lotteryResult, recentTransactionsResult, visitStatsResult, recentVisitsResult] = await Promise.all([
             client.query(
                 `SELECT
                     COUNT(*)::int AS transaction_count,
@@ -5660,6 +5909,26 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
                  WHERE t.user_id = ANY($1::int[])
                  ORDER BY COALESCE(t.service_date::timestamp, t.created_at) DESC
                  LIMIT 10`,
+                [linkedUserIds]
+            ),
+            client.query(
+                `SELECT
+                    COUNT(*)::int AS total_visits,
+                    COUNT(*) FILTER (WHERE visited_at >= NOW() - INTERVAL '7 days')::int AS visits_7d,
+                    COUNT(*) FILTER (WHERE visited_at >= NOW() - INTERVAL '30 days')::int AS visits_30d,
+                    COUNT(DISTINCT (visited_at AT TIME ZONE 'Asia/Bangkok')::date) FILTER (WHERE visited_at >= NOW() - INTERVAL '30 days')::int AS active_days_30d,
+                    MIN(visited_at) AS first_visit_at,
+                    MAX(visited_at) AS last_visit_at
+                 FROM user_visits
+                 WHERE user_id = ANY($1::int[])`,
+                [linkedUserIds]
+            ),
+            client.query(
+                `SELECT id, visited_at, entry_page, user_agent
+                 FROM user_visits
+                 WHERE user_id = ANY($1::int[])
+                 ORDER BY visited_at DESC
+                 LIMIT 20`,
                 [linkedUserIds]
             )
         ]);
@@ -5704,6 +5973,15 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
                 cashback_remaining: rewardSnapshot.summary.cashback_remaining,
                 gv_remaining: rewardSnapshot.summary.gv_remaining
             },
+            visitStats: visitStatsResult.rows[0] || {
+                total_visits: 0,
+                visits_7d: 0,
+                visits_30d: 0,
+                active_days_30d: 0,
+                first_visit_at: null,
+                last_visit_at: null
+            },
+            recentVisits: recentVisitsResult.rows,
             linkedAccounts,
             recentPoints,
             recentTransactions: recentTransactionsResult.rows,

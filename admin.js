@@ -561,6 +561,108 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
     }
 
+    function renderUserSlipBreakdown(user) {
+        const approved = Number(user.approved_count || 0);
+        const pending = Number(user.pending_count || 0);
+        const rejected = Number(user.rejected_count || 0);
+        const total = Number(user.transaction_count || 0);
+        const pendingCls = pending > 0 ? 'user-slip-pending' : '';
+        const rejectedCls = rejected > 0 ? 'user-slip-rejected' : '';
+        return `
+            <div class="user-slip-breakdown">
+                <div class="user-slip-total"><strong>${total.toLocaleString('th-TH')}</strong> รวม</div>
+                <div class="user-slip-detail">
+                    <span class="user-slip-approved">✅ ${approved.toLocaleString('th-TH')}</span>
+                    <span class="${pendingCls}">⏳ ${pending.toLocaleString('th-TH')}</span>
+                    <span class="${rejectedCls}">❌ ${rejected.toLocaleString('th-TH')}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderUserLoginCell(user) {
+        const last = user.last_login_at || user.visit_last_at;
+        const v7 = Number(user.visit_count_7d || 0);
+        const v30 = Number(user.visit_count_30d || 0);
+        if (!last) {
+            return '<span class="empty-msg">ยังไม่เคย login</span>';
+        }
+        const lastTxt = formatShortDateTime(last);
+        const nowMs = Date.now();
+        const daysAgo = Math.floor((nowMs - new Date(last).getTime()) / (1000 * 60 * 60 * 24));
+        let badge = '';
+        if (daysAgo === 0) badge = '<span class="user-login-badge user-login-fresh">วันนี้</span>';
+        else if (daysAgo <= 7) badge = `<span class="user-login-badge user-login-recent">${daysAgo} วันก่อน</span>`;
+        else if (daysAgo <= 30) badge = `<span class="user-login-badge user-login-faded">${daysAgo} วันก่อน</span>`;
+        else badge = `<span class="user-login-badge user-login-churned">${daysAgo} วันก่อน</span>`;
+        return `
+            <div class="user-login-cell">
+                <div>${lastTxt}</div>
+                <div class="user-login-meta">${badge}</div>
+                <div class="user-login-meta">7วัน ${v7} · 30วัน ${v30}</div>
+            </div>
+        `;
+    }
+
+    async function loadVisitsChart() {
+        const container = document.getElementById('visits-chart');
+        if (!container) return;
+        try {
+            const res = await authFetch(`${API_BASE}/admin/users/visits-chart?days=30`);
+            if (!res.ok) throw new Error('chart-failed');
+            const data = await res.json();
+            const series = Array.isArray(data.series) ? data.series : [];
+            if (!series.length) {
+                container.innerHTML = '<p class="empty-msg">ยังไม่มีข้อมูลการเข้าใช้</p>';
+                return;
+            }
+            const maxVisits = Math.max(1, ...series.map((d) => Number(d.visits || 0)));
+            const maxUniques = Math.max(1, ...series.map((d) => Number(d.uniques || 0)));
+            const maxSignups = Math.max(1, ...series.map((d) => Number(d.signups || 0)));
+            container.innerHTML = `
+                <div class="visits-chart-grid">
+                    ${series.map((d) => {
+                        const visits = Number(d.visits || 0);
+                        const uniques = Number(d.uniques || 0);
+                        const signups = Number(d.signups || 0);
+                        const dayLabel = d.day ? d.day.slice(5) : '';
+                        return `
+                            <div class="visits-chart-col" title="${escapeHtml(d.day)} • เปิดแอป ${visits} ครั้ง · ผู้ใช้ไม่ซ้ำ ${uniques} คน · สมาชิกใหม่ ${signups} คน">
+                                <div class="visits-chart-bars">
+                                    <div class="visits-chart-bar visits-bar-blue" style="height:${(visits / maxVisits) * 100}%"><span>${visits || ''}</span></div>
+                                    <div class="visits-chart-bar visits-bar-green" style="height:${(uniques / maxUniques) * 100}%"><span>${uniques || ''}</span></div>
+                                    <div class="visits-chart-bar visits-bar-gold" style="height:${(signups / maxSignups) * 100}%"><span>${signups || ''}</span></div>
+                                </div>
+                                <div class="visits-chart-day">${escapeHtml(dayLabel)}</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        } catch (err) {
+            container.innerHTML = '<p class="empty-msg">โหลดกราฟไม่สำเร็จ</p>';
+        }
+    }
+
+    async function loadActiveStats() {
+        try {
+            const res = await authFetch(`${API_BASE}/admin/users/active-stats`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const setText = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = Number(value || 0).toLocaleString('th-TH');
+            };
+            setText('users-dau', data.dau);
+            setText('users-wau', data.wau);
+            setText('users-mau', data.mau);
+            setText('users-new-today', data.new_today);
+            setText('users-visits-today', data.visits_today);
+        } catch (err) {
+            // best-effort: leave previous values intact on transient errors
+        }
+    }
+
     function renderUserCompactSummary(user) {
         const currentRoundPoints = Number(user.current_round_points || 0);
         const guessCredits = Math.max(0, Math.floor(currentRoundPoints / 5));
@@ -915,6 +1017,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userRewardFilter = document.getElementById('user-reward-filter');
     const userReviewFilter = document.getElementById('user-review-filter');
     const userRankFilter = document.getElementById('user-rank-filter');
+    const userLoginFilter = document.getElementById('user-login-filter');
     const btnUserClearFilters = document.getElementById('btn-user-clear-filters');
     const userBody = document.getElementById('users-body');
     const noUsers = document.getElementById('no-users');
@@ -946,6 +1049,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userAdminSearchKeys = document.getElementById('user-admin-search-keys');
     const userRecentTransactions = document.getElementById('user-recent-transactions');
     const userRecentPoints = document.getElementById('user-recent-points');
+    const userVisitSummary = document.getElementById('user-visit-summary');
+    const userVisitHistory = document.getElementById('user-visit-history');
     const userPointsSummary = document.getElementById('user-points-summary');
     const userPointHistory = document.getElementById('user-point-history');
     const userRewardSummary = document.getElementById('user-reward-summary');
@@ -1012,6 +1117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let selectedUserRewardRow = null;
     let currentUserPage = 1;
     let currentUserTotalPages = 1;
+    let visitsChartLoaded = false;
     let userSearchDebounceId = null;
 
     function setExcelAdminStatus(message, type = 'info') {
@@ -1147,6 +1253,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (userPointsSummary) userPointsSummary.innerHTML = '';
         if (userPointHistory) userPointHistory.innerHTML = '';
         if (userAdminSearchKeys) userAdminSearchKeys.innerHTML = '';
+        if (userVisitSummary) userVisitSummary.innerHTML = '';
+        if (userVisitHistory) userVisitHistory.innerHTML = '';
         selectedUserPointBalance = 0;
         selectedUserRewardRow = null;
         if (userDetailModal) userDetailModal.hidden = true;
@@ -1191,6 +1299,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             rewards: userRewardFilter?.value || 'all',
             review: userReviewFilter?.value || 'all',
             rank: userRankFilter?.value || 'all',
+            login: userLoginFilter?.value || 'all',
             page: String(currentUserPage),
             limit: '12'
         });
@@ -1204,6 +1313,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('users-line-accounts').textContent = data.summary.line_accounts || 0;
             document.getElementById('users-active-accounts').textContent = data.summary.active_accounts || 0;
             updateUserPagination(data.pagination);
+            loadActiveStats();
+            // Chart aggregates by day and doesn't depend on filters — load once,
+            // then only on explicit refresh / refresh button.
+            if (!visitsChartLoaded) {
+                visitsChartLoaded = true;
+                loadVisitsChart();
+            }
 
             if (!data.users.length) {
                 if ((data.pagination?.total_items || 0) > 0 && currentUserPage > (data.pagination?.total_pages || 1)) {
@@ -1245,8 +1361,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td>${(user.total_points || 0).toLocaleString('th-TH')}</td>
                     <td>${renderUserRankCell(user)}</td>
                     <td>${renderUserRewardBalanceCell(user)}</td>
-                    <td>${user.transaction_count || 0}</td>
-                    <td class="user-last-active-cell">${formatShortDateTime(user.last_activity_at || user.created_at)}</td>
+                    <td>${renderUserSlipBreakdown(user)}</td>
+                    <td>${Number(user.guess_total || 0).toLocaleString('th-TH')}</td>
+                    <td class="user-last-active-cell">${formatShortDateTime(user.created_at)}</td>
+                    <td class="user-last-active-cell">${renderUserLoginCell(user)}</td>
+                    <td class="user-last-active-cell">${formatShortDateTime(user.last_activity_at) || '<span class="empty-msg">—</span>'}</td>
                     <td><button class="btn-small" data-view-user="${user.id}">ดูรายละเอียด</button></td>
                 </tr>
             `).join('');
@@ -1420,6 +1539,45 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ${note ? `<div class="user-activity-meta">โน้ต: ${escapeHtml(note)}</div>` : ''}
             </div>
         `;
+    }
+
+    function renderUserVisitSection(data) {
+        const visitStats = data.visitStats || {};
+        const lastLogin = data.user?.last_login_at || visitStats.last_visit_at;
+        const firstVisit = visitStats.first_visit_at;
+        if (userVisitSummary) {
+            const items = [
+                { value: Number(visitStats.total_visits || 0).toLocaleString('th-TH'), label: 'เข้าใช้รวม (ครั้ง)' },
+                { value: Number(visitStats.visits_7d || 0).toLocaleString('th-TH'), label: 'เข้าใช้ 7 วัน' },
+                { value: Number(visitStats.visits_30d || 0).toLocaleString('th-TH'), label: 'เข้าใช้ 30 วัน' },
+                { value: Number(visitStats.active_days_30d || 0).toLocaleString('th-TH'), label: 'วันที่ active (30วัน)' },
+                { value: formatShortDateTime(lastLogin) || '—', label: 'เข้าใช้ล่าสุด' },
+                { value: formatShortDateTime(firstVisit) || '—', label: 'เข้าใช้ครั้งแรก' }
+            ];
+            userVisitSummary.innerHTML = items.map((item) => `
+                <div class="user-reward-chip">
+                    <strong>${item.value}</strong>
+                    <span>${item.label}</span>
+                </div>
+            `).join('');
+        }
+        if (userVisitHistory) {
+            const visits = data.recentVisits || [];
+            if (!visits.length) {
+                userVisitHistory.innerHTML = '<p class="empty-msg">ยังไม่เคยมีบันทึกการเข้าใช้</p>';
+            } else {
+                userVisitHistory.innerHTML = visits.map((v) => {
+                    const page = v.entry_page ? escapeHtml(v.entry_page) : 'หน้า: —';
+                    const ua = v.user_agent ? escapeHtml(String(v.user_agent).slice(0, 80)) : '';
+                    return `
+                        <div class="user-activity-item">
+                            <div class="user-activity-title">📅 ${escapeHtml(formatDateTime(v.visited_at) || '—')}</div>
+                            <div class="user-activity-meta">${page}${ua ? ` • ${ua}` : ''}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
     }
 
     function renderUserPointsSection(data) {
@@ -1683,6 +1841,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             renderUserActivityList(userRecentPoints, data.recentPoints, (point) => formatPointEntry(point));
 
+            renderUserVisitSection(data);
             renderUserPointsSection(data);
             renderUserRewardSections(data);
             bindRewardClaimDeleteHandlers(userRewardClaims);
@@ -2040,7 +2199,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (userRewardFilter) userRewardFilter.value = 'all';
         if (userReviewFilter) userReviewFilter.value = 'all';
         if (userRankFilter) userRankFilter.value = 'all';
+        if (userLoginFilter) userLoginFilter.value = 'all';
         renderUsers(1);
+        loadActiveStats();
     });
     btnUserClearFilters?.addEventListener('click', () => {
         if (userSearchInput) userSearchInput.value = '';
@@ -2050,6 +2211,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (userRewardFilter) userRewardFilter.value = 'all';
         if (userReviewFilter) userReviewFilter.value = 'all';
         if (userRankFilter) userRankFilter.value = 'all';
+        if (userLoginFilter) userLoginFilter.value = 'all';
         renderUsers(1);
     });
     btnExportCsv?.addEventListener('click', async () => {
@@ -2252,9 +2414,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         userPointFilter,
         userRewardFilter,
         userReviewFilter,
-        userRankFilter
+        userRankFilter,
+        userLoginFilter
     ].forEach((filterEl) => {
         filterEl?.addEventListener('change', () => renderUsers(1));
+    });
+    document.getElementById('btn-refresh-visits-chart')?.addEventListener('click', () => {
+        visitsChartLoaded = true;
+        loadVisitsChart();
     });
     userPrevButton?.addEventListener('click', () => {
         if (currentUserPage > 1) renderUsers(currentUserPage - 1);
@@ -2617,13 +2784,130 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- Guess Chart ---
     let guessChart = null;
+    let chartMode = 'upcoming'; // 'upcoming' (default) | 'custom'
 
     const today = new Date();
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     document.getElementById('chart-start-date').value = startOfMonth.toISOString().split('T')[0];
     document.getElementById('chart-end-date').value = today.toISOString().split('T')[0];
 
-    async function loadGuessChart() {
+    function fmtThaiDate(isoYMD) {
+        if (!isoYMD) return '—';
+        const dt = new Date(isoYMD + 'T00:00:00');
+        if (Number.isNaN(dt.getTime())) return '—';
+        return `${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear() + 543}`;
+    }
+
+    function setChartMode(mode) {
+        chartMode = mode === 'custom' ? 'custom' : 'upcoming';
+        const upBtn = document.getElementById('btn-chart-mode-upcoming');
+        const customBtn = document.getElementById('btn-chart-mode-custom');
+        const upInfo = document.getElementById('chart-upcoming-info');
+        const customCtl = document.getElementById('chart-custom-controls');
+        if (upBtn) {
+            upBtn.classList.toggle('active', chartMode === 'upcoming');
+            upBtn.setAttribute('aria-selected', String(chartMode === 'upcoming'));
+        }
+        if (customBtn) {
+            customBtn.classList.toggle('active', chartMode === 'custom');
+            customBtn.setAttribute('aria-selected', String(chartMode === 'custom'));
+        }
+        if (upInfo) upInfo.classList.toggle('hidden', chartMode !== 'upcoming');
+        if (customCtl) customCtl.classList.toggle('hidden', chartMode !== 'custom');
+    }
+
+    function renderGuessChart({ startDate, endDate, data, drawLabel }) {
+        const noDataMsg = document.getElementById('no-chart-data');
+        const summaryEl = document.getElementById('chart-summary');
+
+        if (!Array.isArray(data) || !data.length) {
+            noDataMsg.classList.remove('hidden');
+            summaryEl.classList.add('hidden');
+            if (guessChart) { guessChart.destroy(); guessChart = null; }
+            return;
+        }
+
+        noDataMsg.classList.add('hidden');
+        summaryEl.classList.remove('hidden');
+
+        const rangeText = drawLabel
+            ? `${drawLabel} • ${fmtThaiDate(startDate)} – ${fmtThaiDate(endDate)}`
+            : `${fmtThaiDate(startDate)} – ${fmtThaiDate(endDate)}`;
+        document.getElementById('chart-range-text').textContent = rangeText;
+        const totalCount = data.reduce((sum, d) => sum + d.count, 0);
+        document.getElementById('chart-total-count').textContent = totalCount;
+        document.getElementById('chart-unique-numbers').textContent = data.length;
+
+        const labels = data.map(d => String(d.number).padStart(2, '0'));
+        const counts = data.map(d => d.count);
+        const maxCount = Math.max(...counts);
+
+        if (guessChart) guessChart.destroy();
+
+        const ctx = document.getElementById('guesses-chart').getContext('2d');
+        guessChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'จำนวนผู้ทาย',
+                    data: counts,
+                    backgroundColor: 'rgba(66, 135, 245, 0.75)',
+                    borderColor: 'rgba(66, 135, 245, 1)',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                    maxBarThickness: 40
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1a1a2e',
+                        titleColor: '#ffaa00',
+                        bodyColor: '#eee',
+                        borderColor: 'rgba(255, 170, 0, 0.3)',
+                        borderWidth: 1,
+                        callbacks: {
+                            title: (items) => `เลข ${items[0].label}`,
+                            label: (item) => {
+                                const row = data[item.dataIndex] || {};
+                                const lines = [`ผู้ทาย: ${item.raw} ครั้ง`];
+                                if (row.unique_users != null) lines.push(`ไม่ซ้ำ: ${row.unique_users} คน`);
+                                return lines;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: '#aaa',
+                            font: { size: 11, family: 'Kanit' },
+                            maxRotation: 90,
+                            minRotation: 45
+                        },
+                        grid: { color: 'rgba(255,255,255,0.04)' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#aaa',
+                            font: { size: 12 },
+                            stepSize: 1,
+                            precision: 0
+                        },
+                        grid: { color: 'rgba(255,255,255,0.06)' },
+                        suggestedMax: maxCount + 1
+                    }
+                }
+            }
+        });
+    }
+
+    async function loadGuessChartCustom() {
         const startDate = document.getElementById('chart-start-date').value;
         const endDate = document.getElementById('chart-end-date').value;
         if (!startDate || !endDate) {
@@ -2634,102 +2918,66 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด');
             return;
         }
-
         try {
             const res = await fetch(`${API_BASE}/stats/guesses-by-number?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`);
             const data = await res.json();
-
-            const noDataMsg = document.getElementById('no-chart-data');
-            const summaryEl = document.getElementById('chart-summary');
-
-            if (!data.length) {
-                noDataMsg.classList.remove('hidden');
-                summaryEl.classList.add('hidden');
-                if (guessChart) { guessChart.destroy(); guessChart = null; }
-                return;
-            }
-
-            noDataMsg.classList.add('hidden');
-            summaryEl.classList.remove('hidden');
-
-            const fmtDate = (d) => {
-                const dt = new Date(d + 'T00:00:00');
-                return `${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear() + 543}`;
-            };
-            document.getElementById('chart-range-text').textContent = `${fmtDate(startDate)} – ${fmtDate(endDate)}`;
-            const totalCount = data.reduce((sum, d) => sum + d.count, 0);
-            document.getElementById('chart-total-count').textContent = totalCount;
-            document.getElementById('chart-unique-numbers').textContent = data.length;
-
-            const labels = data.map(d => String(d.number).padStart(2, '0'));
-            const counts = data.map(d => d.count);
-            const maxCount = Math.max(...counts);
-
-            if (guessChart) guessChart.destroy();
-
-            const ctx = document.getElementById('guesses-chart').getContext('2d');
-            guessChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels,
-                    datasets: [{
-                        label: 'จำนวนผู้ทาย',
-                        data: counts,
-                        backgroundColor: 'rgba(66, 135, 245, 0.75)',
-                        borderColor: 'rgba(66, 135, 245, 1)',
-                        borderWidth: 1,
-                        borderRadius: 3,
-                        maxBarThickness: 40
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: '#1a1a2e',
-                            titleColor: '#ffaa00',
-                            bodyColor: '#eee',
-                            borderColor: 'rgba(255, 170, 0, 0.3)',
-                            borderWidth: 1,
-                            callbacks: {
-                                title: (items) => `เลข ${items[0].label}`,
-                                label: (item) => `ผู้ทาย: ${item.raw} คน`
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            ticks: {
-                                color: '#aaa',
-                                font: { size: 11, family: 'Kanit' },
-                                maxRotation: 90,
-                                minRotation: 45
-                            },
-                            grid: { color: 'rgba(255,255,255,0.04)' }
-                        },
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                color: '#aaa',
-                                font: { size: 12 },
-                                stepSize: 1,
-                                precision: 0
-                            },
-                            grid: { color: 'rgba(255,255,255,0.06)' },
-                            suggestedMax: maxCount + 1
-                        }
-                    }
-                }
-            });
+            renderGuessChart({ startDate, endDate, data, drawLabel: null });
         } catch (err) {
             console.error('ไม่สามารถโหลดข้อมูลกราฟ', err);
         }
     }
 
-    document.getElementById('btn-load-chart').addEventListener('click', loadGuessChart);
-    loadGuessChart();
+    async function loadGuessChartUpcoming() {
+        const drawEl = document.getElementById('chart-upcoming-draw');
+        const rangeEl = document.getElementById('chart-upcoming-range');
+        try {
+            const res = await authFetch(`${API_BASE}/admin/guesses-chart/upcoming-cycle`);
+            const payload = await res.json();
+            if (!res.ok) throw new Error(payload.error || 'upcoming-cycle-failed');
+
+            if (!payload.hasUpcoming) {
+                if (drawEl) drawEl.textContent = payload.message || 'ยังไม่มีงวดถัดไป';
+                if (rangeEl) rangeEl.textContent = '—';
+                renderGuessChart({ startDate: '', endDate: '', data: [], drawLabel: null });
+                return;
+            }
+
+            if (drawEl) drawEl.textContent = payload.drawLabel || 'งวดถัดไป';
+            const prevTxt = payload.previousDrawLabel
+                ? `(วันถัดจาก ${payload.previousDrawLabel})`
+                : '(งวดแรก — ย้อนหลัง 14 วัน)';
+            if (rangeEl) {
+                rangeEl.textContent = `📅 ${fmtThaiDate(payload.startDate)} – ${fmtThaiDate(payload.endDate)} ${prevTxt}`;
+            }
+            renderGuessChart({
+                startDate: payload.startDate,
+                endDate: payload.endDate,
+                data: payload.data,
+                drawLabel: payload.drawLabel
+            });
+        } catch (err) {
+            console.error('ไม่สามารถโหลดกราฟงวดถัดไป', err);
+            if (drawEl) drawEl.textContent = 'โหลดข้อมูลงวดถัดไปไม่สำเร็จ';
+            if (rangeEl) rangeEl.textContent = '—';
+        }
+    }
+
+    function loadGuessChart() {
+        if (chartMode === 'custom') return loadGuessChartCustom();
+        return loadGuessChartUpcoming();
+    }
+
+    document.getElementById('btn-load-chart')?.addEventListener('click', loadGuessChartCustom);
+    document.getElementById('btn-chart-mode-upcoming')?.addEventListener('click', () => {
+        setChartMode('upcoming');
+        loadGuessChartUpcoming();
+    });
+    document.getElementById('btn-chart-mode-custom')?.addEventListener('click', () => {
+        setChartMode('custom');
+        loadGuessChartCustom();
+    });
+    setChartMode('upcoming');
+    loadGuessChartUpcoming();
 
     async function loadRankingResetDate() {
         const currentEl = document.getElementById('ranking-reset-current');
