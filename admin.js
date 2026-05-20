@@ -1097,6 +1097,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnRefreshImportLogs = document.getElementById('btn-refresh-import-logs');
     const userDetailEmpty = document.getElementById('user-detail-empty');
     const userDetailContent = document.getElementById('user-detail-content');
+    const userDetailLoading = document.getElementById('user-detail-loading');
+    const userDetailLoadingName = document.getElementById('user-detail-loading-name');
     const userDetailAvatar = document.getElementById('user-detail-avatar');
     const userDetailName = document.getElementById('user-detail-name');
     const userDetailMeta = document.getElementById('user-detail-meta');
@@ -1176,6 +1178,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentUserTotalPages = 1;
     let visitsChartLoaded = false;
     let userSearchDebounceId = null;
+    // Cache of the currently rendered user rows so the detail modal can show
+    // name/avatar instantly (from list data) while the full detail loads.
+    let currentUsersData = [];
+    // Monotonic token to guard against out-of-order detail fetches when the
+    // admin clicks several users quickly.
+    let userDetailRequestToken = 0;
 
     function setExcelAdminStatus(message, type = 'info') {
         if (!excelAdminStatus) return;
@@ -1285,8 +1293,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function clearUserDetail() {
         selectedUserId = null;
+        userDetailRequestToken++;  // invalidate any in-flight detail fetch
         if (userDetailEmpty) userDetailEmpty.classList.remove('hidden');
         if (userDetailContent) userDetailContent.classList.add('hidden');
+        if (userDetailLoading) userDetailLoading.classList.add('hidden');
         if (userEditDisplayName) userEditDisplayName.value = '';
         if (userEditCustomDisplayName) userEditCustomDisplayName.value = '';
         if (userEditPictureUrl) userEditPictureUrl.value = '';
@@ -1390,6 +1400,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             noUsers.classList.add('hidden');
+            currentUsersData = data.users;
             // CRITICAL: do NOT put data-view-user on <tr>. The admin tooltip
             // system (line 125) auto-applies has-admin-tooltip to anything
             // matching [data-view-user], which adds ::before/::after pseudo
@@ -1801,15 +1812,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function highlightSelectedUserRow(id) {
+        if (!userBody) return;
+        userBody.querySelectorAll('tr.user-row-active').forEach((tr) => {
+            tr.classList.remove('user-row-active');
+        });
+        const row = userBody.querySelector(`tr[data-user-id="${id}"]`);
+        if (row) row.classList.add('user-row-active');
+    }
+
     async function loadUserDetail(id) {
         if (!id) return;
+        const numId = Number(id);
+        const token = ++userDetailRequestToken;
+        selectedUserId = numId;
+
+        // --- Immediate feedback: open modal in loading state ---
+        highlightSelectedUserRow(numId);
+        openUserDetailModal();
+        const previewUser = currentUsersData.find((u) => Number(u.id) === numId);
+        if (userDetailLoadingName) {
+            userDetailLoadingName.textContent =
+                previewUser?.custom_display_name || previewUser?.display_name || `User #${numId}`;
+        }
+        if (userDetailEmpty) userDetailEmpty.classList.add('hidden');
+        if (userDetailContent) userDetailContent.classList.add('hidden');
+        if (userDetailLoading) userDetailLoading.classList.remove('hidden');
+
         try {
             const res = await authFetch(`${API_BASE}/admin/users/${id}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'detail-failed');
 
-            selectedUserId = Number(id);
-            openUserDetailModal();
+            // --- Race guard: a newer click superseded this fetch ---
+            if (token !== userDetailRequestToken) return;
+
+            if (userDetailLoading) userDetailLoading.classList.add('hidden');
             userDetailEmpty.classList.add('hidden');
             userDetailContent.classList.remove('hidden');
 
@@ -1920,6 +1958,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderUserRewardSections(data);
             bindRewardClaimDeleteHandlers(userRewardClaims);
         } catch (err) {
+            // Ignore errors from a superseded request
+            if (token !== userDetailRequestToken) return;
+            if (userDetailLoading) userDetailLoading.classList.add('hidden');
             showToast('ไม่สามารถโหลดรายละเอียดผู้ใช้ได้', 'error');
             clearUserDetail();
         }

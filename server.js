@@ -5963,9 +5963,16 @@ app.get('/api/admin/users/:id', requireAuth, async (req, res) => {
         let currentRoundPoints = 0;
 
         if (user.global_user_id && await tableExists(client, 'points')) {
-            totalPoints = await getTotalPointsForGlobalUser(client, user.global_user_id);
-            currentRoundPoints = await getRoundPointsForGlobalUser(client, user.global_user_id);
-            recentPoints = await getRecentPointsForGlobalUser(client, user.global_user_id, 10);
+            // Run the three points lookups in parallel. Use `pool` (not the
+            // shared `client`) so each query gets its own connection and they
+            // truly run concurrently — node-postgres serialises queries on a
+            // single client. This endpoint is read-only (no transaction) so
+            // using pooled connections here is safe.
+            [totalPoints, currentRoundPoints, recentPoints] = await Promise.all([
+                getTotalPointsForGlobalUser(pool, user.global_user_id),
+                getRoundPointsForGlobalUser(pool, user.global_user_id),
+                getRecentPointsForGlobalUser(pool, user.global_user_id, 10)
+            ]);
         }
 
         res.json({

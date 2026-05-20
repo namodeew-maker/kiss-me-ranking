@@ -541,6 +541,46 @@
 }
 
 /* Combined status cell (รank + พ้อยรอบ) */
+/* User detail modal — loading state */
+.user-detail-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 60px 20px;
+    text-align: center;
+}
+
+.user-detail-loading.hidden {
+    display: none;
+}
+
+.user-detail-loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(255, 60, 60, 0.15);
+    border-top-color: #ff3c3c;
+    border-radius: 50%;
+    animation: user-detail-spin 0.7s linear infinite;
+}
+
+@keyframes user-detail-spin {
+    to { transform: rotate(360deg); }
+}
+
+.user-detail-loading-text {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.user-detail-loading-name {
+    color: #ff6b6b;
+    font-size: 1.15rem;
+    font-weight: 700;
+    font-family: 'Kanit', sans-serif;
+}
+
 .user-status-cell {
     display: flex;
     flex-direction: column;
