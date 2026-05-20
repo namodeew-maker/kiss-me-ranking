@@ -661,43 +661,165 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
     }
 
+    let visitsChartInstance = null;
+    let visitsCurrentMetric = 'all';
+    let visitsCurrentDays = 30;
+
+    const VISITS_METRIC_CONFIG = {
+        visits:  { label: 'ครั้งเปิดแอป',    unit: 'ครั้ง', color: '#2196f3', light: 'rgba(33, 150, 243, 0.7)' },
+        uniques: { label: 'ผู้ใช้ไม่ซ้ำ',     unit: 'คน',   color: '#43a047', light: 'rgba(67, 160, 71, 0.7)' },
+        signups: { label: 'สมาชิกใหม่',      unit: 'คน',   color: '#ffa000', light: 'rgba(255, 160, 0, 0.7)' }
+    };
+
+    function formatVisitsDayLabel(dayStr) {
+        if (!dayStr) return '';
+        return dayStr.slice(5); // "MM-DD"
+    }
+
+    function updateVisitsSummary(series, metric) {
+        const summaryEl = document.getElementById('visits-chart-summary');
+        if (!summaryEl) return;
+        const totalEl = document.getElementById('visits-summary-total');
+        const avgEl = document.getElementById('visits-summary-avg');
+        const peakEl = document.getElementById('visits-summary-peak');
+        const peakDayEl = document.getElementById('visits-summary-peak-day');
+
+        // "all" mode → ใช้ visits เป็น primary KPI
+        const key = metric === 'all' ? 'visits' : metric;
+        const values = series.map((d) => Number(d[key] || 0));
+        const total = values.reduce((s, v) => s + v, 0);
+        const avg = values.length ? total / values.length : 0;
+        const peak = values.length ? Math.max(...values) : 0;
+        const peakIdx = values.indexOf(peak);
+        const peakDay = peakIdx >= 0 && series[peakIdx] ? formatVisitsDayLabel(series[peakIdx].day) : '-';
+
+        const unit = (VISITS_METRIC_CONFIG[key] || {}).unit || '';
+        totalEl.textContent = total.toLocaleString('th-TH') + (unit ? ` ${unit}` : '');
+        avgEl.textContent = (Math.round(avg * 10) / 10).toLocaleString('th-TH') + (unit ? ` ${unit}` : '');
+        peakEl.textContent = peak.toLocaleString('th-TH') + (unit ? ` ${unit}` : '');
+        peakDayEl.textContent = peakDay;
+        summaryEl.hidden = false;
+    }
+
+    function buildVisitsChartConfig(series, metric) {
+        const labels = series.map((d) => formatVisitsDayLabel(d.day));
+        const fontFamily = 'Kanit, system-ui, sans-serif';
+
+        const sharedScales = {
+            x: {
+                ticks: { color: '#aaa', font: { size: 11, family: fontFamily }, maxRotation: 60, minRotation: 0, autoSkip: true, maxTicksLimit: 15 },
+                grid: { color: 'rgba(255,255,255,0.04)' }
+            },
+            y: {
+                beginAtZero: true,
+                ticks: { color: '#aaa', font: { size: 11, family: fontFamily }, precision: 0 },
+                grid: { color: 'rgba(255,255,255,0.06)' }
+            }
+        };
+
+        const sharedTooltip = {
+            backgroundColor: '#1a1a2e',
+            titleColor: '#ffaa00',
+            bodyColor: '#eee',
+            borderColor: 'rgba(255, 170, 0, 0.3)',
+            borderWidth: 1,
+            padding: 10
+        };
+
+        if (metric === 'all') {
+            return {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: ['visits', 'uniques', 'signups'].map((key) => ({
+                        label: VISITS_METRIC_CONFIG[key].label,
+                        data: series.map((d) => Number(d[key] || 0)),
+                        borderColor: VISITS_METRIC_CONFIG[key].color,
+                        backgroundColor: VISITS_METRIC_CONFIG[key].light,
+                        tension: 0.3,
+                        borderWidth: 2,
+                        pointRadius: 2,
+                        pointHoverRadius: 5,
+                        fill: false
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#ddd', font: { family: fontFamily, size: 12 }, usePointStyle: true } },
+                        tooltip: sharedTooltip
+                    },
+                    scales: sharedScales
+                }
+            };
+        }
+
+        const cfg = VISITS_METRIC_CONFIG[metric] || VISITS_METRIC_CONFIG.visits;
+        return {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: cfg.label,
+                    data: series.map((d) => Number(d[metric] || 0)),
+                    backgroundColor: cfg.light,
+                    borderColor: cfg.color,
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    maxBarThickness: 32
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        ...sharedTooltip,
+                        callbacks: {
+                            label: (item) => `${cfg.label}: ${item.raw.toLocaleString('th-TH')} ${cfg.unit}`
+                        }
+                    }
+                },
+                scales: sharedScales
+            }
+        };
+    }
+
     async function loadVisitsChart() {
-        const container = document.getElementById('visits-chart');
-        if (!container) return;
+        const canvas = document.getElementById('visits-chart-canvas');
+        const emptyMsg = document.getElementById('visits-chart-empty');
+        const summaryEl = document.getElementById('visits-chart-summary');
+        if (!canvas) return;
         try {
-            const res = await authFetch(`${API_BASE}/admin/users/visits-chart?days=30`);
+            const res = await authFetch(`${API_BASE}/admin/users/visits-chart?days=${visitsCurrentDays}`);
             if (!res.ok) throw new Error('chart-failed');
             const data = await res.json();
             const series = Array.isArray(data.series) ? data.series : [];
+
             if (!series.length) {
-                container.innerHTML = '<p class="empty-msg">ยังไม่มีข้อมูลการเข้าใช้</p>';
+                if (visitsChartInstance) { visitsChartInstance.destroy(); visitsChartInstance = null; }
+                canvas.classList.add('hidden');
+                emptyMsg.classList.remove('hidden');
+                if (summaryEl) summaryEl.hidden = true;
                 return;
             }
-            const maxVisits = Math.max(1, ...series.map((d) => Number(d.visits || 0)));
-            const maxUniques = Math.max(1, ...series.map((d) => Number(d.uniques || 0)));
-            const maxSignups = Math.max(1, ...series.map((d) => Number(d.signups || 0)));
-            container.innerHTML = `
-                <div class="visits-chart-grid">
-                    ${series.map((d) => {
-                        const visits = Number(d.visits || 0);
-                        const uniques = Number(d.uniques || 0);
-                        const signups = Number(d.signups || 0);
-                        const dayLabel = d.day ? d.day.slice(5) : '';
-                        return `
-                            <div class="visits-chart-col" title="${escapeHtml(d.day)} • เปิดแอป ${visits} ครั้ง · ผู้ใช้ไม่ซ้ำ ${uniques} คน · สมาชิกใหม่ ${signups} คน">
-                                <div class="visits-chart-bars">
-                                    <div class="visits-chart-bar visits-bar-blue" style="height:${(visits / maxVisits) * 100}%"><span>${visits || ''}</span></div>
-                                    <div class="visits-chart-bar visits-bar-green" style="height:${(uniques / maxUniques) * 100}%"><span>${uniques || ''}</span></div>
-                                    <div class="visits-chart-bar visits-bar-gold" style="height:${(signups / maxSignups) * 100}%"><span>${signups || ''}</span></div>
-                                </div>
-                                <div class="visits-chart-day">${escapeHtml(dayLabel)}</div>
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-            `;
+
+            canvas.classList.remove('hidden');
+            emptyMsg.classList.add('hidden');
+
+            if (visitsChartInstance) visitsChartInstance.destroy();
+            visitsChartInstance = new Chart(canvas.getContext('2d'), buildVisitsChartConfig(series, visitsCurrentMetric));
+
+            updateVisitsSummary(series, visitsCurrentMetric);
         } catch (err) {
-            container.innerHTML = '<p class="empty-msg">โหลดกราฟไม่สำเร็จ</p>';
+            if (visitsChartInstance) { visitsChartInstance.destroy(); visitsChartInstance = null; }
+            canvas.classList.add('hidden');
+            emptyMsg.textContent = 'โหลดกราฟไม่สำเร็จ';
+            emptyMsg.classList.remove('hidden');
+            if (summaryEl) summaryEl.hidden = true;
         }
     }
 
@@ -2537,6 +2659,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btn-refresh-visits-chart')?.addEventListener('click', () => {
         visitsChartLoaded = true;
         loadVisitsChart();
+    });
+
+    document.querySelectorAll('.visits-chart-tab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const metric = btn.dataset.metric;
+            if (!metric || metric === visitsCurrentMetric) return;
+            visitsCurrentMetric = metric;
+            document.querySelectorAll('.visits-chart-tab').forEach((b) => {
+                const active = b === btn;
+                b.classList.toggle('active', active);
+                b.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            visitsChartLoaded = true;
+            loadVisitsChart();
+        });
+    });
+
+    document.querySelectorAll('.visits-chart-range').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const days = parseInt(btn.dataset.days, 10);
+            if (!days || days === visitsCurrentDays) return;
+            visitsCurrentDays = days;
+            document.querySelectorAll('.visits-chart-range').forEach((b) => {
+                const active = b === btn;
+                b.classList.toggle('active', active);
+                b.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            visitsChartLoaded = true;
+            loadVisitsChart();
+        });
     });
     userPrevButton?.addEventListener('click', () => {
         if (currentUserPage > 1) renderUsers(currentUserPage - 1);

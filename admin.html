@@ -9,7 +9,7 @@
     <title>Admin Panel - Kiss Me Ranking Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=20260502">
-    <link rel="stylesheet" href="admin.css?v=20260520d">
+    <link rel="stylesheet" href="admin.css?v=20260521a">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body class="futuristic-bg">
@@ -296,13 +296,49 @@
                     <div class="visits-chart-card">
                         <div class="visits-chart-header">
                             <div>
-                                <h4>📈 กราฟการเข้าใช้งาน 30 วันย้อนหลัง</h4>
-                                <p class="panel-caption">แท่งสีน้ำเงิน = ครั้งเปิดแอป · แท่งสีเขียว = ผู้ใช้ที่ไม่ซ้ำ · แท่งสีทอง = สมาชิกใหม่</p>
+                                <h4>📈 กราฟการเข้าใช้งาน</h4>
+                                <p class="panel-caption">เลือกหมวด + ช่วงเวลา → กราฟอัปเดตทันที</p>
                             </div>
-                            <button class="btn-small" id="btn-refresh-visits-chart" type="button">รีเฟรชกราฟ</button>
+                            <button class="btn-small" id="btn-refresh-visits-chart" type="button">รีเฟรช</button>
                         </div>
+
+                        <div class="visits-chart-controls">
+                            <div class="visits-chart-tabs" role="tablist" aria-label="เลือกหมวดข้อมูล">
+                                <button type="button" class="visits-chart-tab active" data-metric="all" role="tab" aria-selected="true">🎨 ทั้งหมด</button>
+                                <button type="button" class="visits-chart-tab" data-metric="visits" role="tab" aria-selected="false">🔵 เปิดแอป</button>
+                                <button type="button" class="visits-chart-tab" data-metric="uniques" role="tab" aria-selected="false">🟢 ผู้ใช้ไม่ซ้ำ</button>
+                                <button type="button" class="visits-chart-tab" data-metric="signups" role="tab" aria-selected="false">🟡 สมาชิกใหม่</button>
+                            </div>
+                            <div class="visits-chart-ranges" role="tablist" aria-label="เลือกช่วงเวลา">
+                                <button type="button" class="visits-chart-range" data-days="7">7 วัน</button>
+                                <button type="button" class="visits-chart-range" data-days="14">14 วัน</button>
+                                <button type="button" class="visits-chart-range active" data-days="30" aria-selected="true">30 วัน</button>
+                                <button type="button" class="visits-chart-range" data-days="90">90 วัน</button>
+                            </div>
+                        </div>
+
                         <div class="visits-chart-wrap" id="visits-chart">
-                            <p class="empty-msg">กำลังโหลดกราฟ...</p>
+                            <canvas id="visits-chart-canvas" aria-label="กราฟการเข้าใช้งาน"></canvas>
+                            <p class="empty-msg hidden" id="visits-chart-empty">ยังไม่มีข้อมูลการเข้าใช้</p>
+                        </div>
+
+                        <div class="visits-chart-summary" id="visits-chart-summary" hidden>
+                            <div class="visits-summary-item">
+                                <span class="visits-summary-label">Σ รวม</span>
+                                <strong class="visits-summary-value" id="visits-summary-total">0</strong>
+                            </div>
+                            <div class="visits-summary-item">
+                                <span class="visits-summary-label">เฉลี่ย/วัน</span>
+                                <strong class="visits-summary-value" id="visits-summary-avg">0</strong>
+                            </div>
+                            <div class="visits-summary-item">
+                                <span class="visits-summary-label">พีคสูงสุด</span>
+                                <strong class="visits-summary-value" id="visits-summary-peak">0</strong>
+                            </div>
+                            <div class="visits-summary-item">
+                                <span class="visits-summary-label">วันที่พีค</span>
+                                <strong class="visits-summary-value" id="visits-summary-peak-day">-</strong>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -1122,6 +1158,6 @@
         </div>
     </div>
 
-    <script src="admin.js?v=20260520d"></script>
+    <script src="admin.js?v=20260521a"></script>
 </body>
 </html>
